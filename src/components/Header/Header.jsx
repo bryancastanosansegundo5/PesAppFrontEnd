@@ -28,9 +28,9 @@ function Header({ theme, onNavigate, onToggleTheme }) {
   }
 
   return (
-    <header className="sticky top-0 z-50 bg-transparent px-4 py-4 sm:px-6 lg:px-8">
+    <header className="fixed inset-x-0 top-0 z-50 bg-transparent px-4 py-4 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
-        <div className="relative flex items-center justify-between rounded-full border border-slate-300/80 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-[0_0_28px_rgba(0,255,237,0.1)] backdrop-blur-xl transition-all duration-300 ease-out dark:border-white/15 dark:bg-pes-black/85 dark:text-white dark:shadow-[0_0_32px_rgba(105,0,255,0.22)]">
+        <div className="relative flex items-center justify-between rounded-full border border-neon-cyan/45 bg-white/65 px-4 py-3 text-sm text-slate-900 shadow-[0_0_26px_rgba(0,255,237,0.22)] backdrop-blur-2xl transition-all duration-300 ease-out dark:border-neon-purple/55 dark:bg-[#070913]/62 dark:text-white dark:shadow-[0_0_34px_rgba(105,0,255,0.3)]">
           <a
             className="group inline-flex items-center rounded-full p-1 transition-all duration-300 ease-out hover:drop-shadow-[0_0_10px_rgba(0,255,237,0.45)] focus:outline-none focus:ring-2 focus:ring-neon-cyan"
             href="/"
@@ -63,11 +63,51 @@ function Header({ theme, onNavigate, onToggleTheme }) {
 
           <div className="hidden items-center gap-3 md:ml-8 md:flex">
             <button
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:text-slate-200 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+              className="group relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neon-cyan/45 bg-white/80 text-slate-800 shadow-[0_0_18px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-[0_0_24px_rgba(255,102,255,0.26)] dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-cyan dark:hover:text-neon-cyan dark:hover:shadow-[0_0_24px_rgba(0,255,237,0.35)]"
               type="button"
+              aria-label={isDarkTheme ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
               onClick={onToggleTheme}
             >
-              {isDarkTheme ? 'Tema claro' : 'Tema oscuro'}
+              <span className="relative h-5 w-5" aria-hidden="true">
+                <svg
+                  className={`absolute inset-0 h-5 w-5 transition-all duration-300 ease-out ${
+                    isDarkTheme
+                      ? 'rotate-0 scale-100 text-neon-pink opacity-100'
+                      : 'rotate-90 scale-75 opacity-0'
+                  }`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2" />
+                  <path d="M12 20v2" />
+                  <path d="m4.93 4.93 1.41 1.41" />
+                  <path d="m17.66 17.66 1.41 1.41" />
+                  <path d="M2 12h2" />
+                  <path d="M20 12h2" />
+                  <path d="m6.34 17.66-1.41 1.41" />
+                  <path d="m19.07 4.93-1.41 1.41" />
+                </svg>
+                <svg
+                  className={`absolute inset-0 h-5 w-5 transition-all duration-300 ease-out ${
+                    isDarkTheme
+                      ? '-rotate-90 scale-75 opacity-0'
+                      : 'rotate-0 scale-100 text-neon-pink opacity-100'
+                  }`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                </svg>
+              </span>
             </button>
 
             <button
