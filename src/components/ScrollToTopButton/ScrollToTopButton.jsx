@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react'
 
-function ScrollToTopButton() {
-  const [isVisible, setIsVisible] = useState(false)
+function BotonVolverArriba() {
+  const [esVisible, setEsVisible] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => {
-      setIsVisible(window.scrollY > 280)
+    const alDesplazar = () => {
+      setEsVisible(window.scrollY > 280)
     }
 
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    alDesplazar()
+    window.addEventListener('scroll', alDesplazar, { passive: true })
 
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', alDesplazar)
   }, [])
 
-  if (!isVisible) return null
+  if (!esVisible) return null
 
   return (
     <button
@@ -38,4 +38,4 @@ function ScrollToTopButton() {
   )
 }
 
-export default ScrollToTopButton
+export default BotonVolverArriba

@@ -1,214 +1,260 @@
 import { useEffect, useMemo, useState } from 'react'
-import Footer from '../../components/Footer/Footer'
+import PieAccion from '../../components/Footer/Footer'
+import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import {
-  TRAINING_SYNC_ENDPOINT,
-  clearCurrentWorkout,
-  createWorkoutFromSession,
-  getCurrentWorkout,
-  getLastExerciseRecord,
-  getSessions,
-  getTrainingHistory,
-  saveCurrentWorkout,
-  saveTrainingHistory,
-} from '../../services/trainingStorage'
+  crearEntrenamientoDesdeSesion,
+  guardarCatalogoEjerciciosEntreno,
+  guardarEntrenamientoBorrador,
+  guardarSesionesEntreno,
+  obtenerCatalogoEjerciciosEntreno,
+  guardarHistorialEntrenos,
+  limpiarEntrenamientoBorrador,
+  obtenerEntrenamientoBorrador,
+  obtenerHistorialEntrenos,
+  obtenerSesionesEntreno,
+  obtenerUltimoRegistroEjercicio,
+} from './services/entrenoLocalService'
+import {
+  guardarEntrenamientoEnServidor,
+  obtenerEntrenamientosDesdeServidor,
+  obtenerSesionesEntrenoDesdeServidor,
+} from './services/entrenoApiService'
+import {
+  obtenerEjerciciosDesdeServidor,
+  obtenerUltimoRegistroEjercicioDesdeServidor,
+} from '../Ejercicios/services/ejerciciosApiService'
 
-const numberInputClass =
+const claseInputNumero =
   'w-20 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
-const weightInputClass =
+const claseInputPeso =
   'w-24 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
-const textInputClass =
+const claseInputTexto =
   'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
-function formatPreviousSet(previousSet) {
-  if (!previousSet) {
+function formatearSerieAnterior(serieAnterior) {
+  if (!serieAnterior) {
     return '-'
   }
 
-  return `${previousSet.weight || 0}kg x ${previousSet.reps || 0}`
+  return `${serieAnterior.peso || 0}kg x ${serieAnterior.repeticiones || 0}`
 }
 
-function groupSetsBySetNumber(sets) {
-  return sets.reduce((groups, set, index) => {
-    const setNumber = set.setNumber || index + 1
-    const existingGroup = groups.find((group) => group.setNumber === setNumber)
+function agruparSeriesPorNumeroSerie(series) {
+  return series.reduce((grupos, serie, indice) => {
+    const numeroSerie = serie.numeroSerie || indice + 1
+    const grupoExistente = grupos.find((grupo) => grupo.numeroSerie === numeroSerie)
 
-    if (existingGroup) {
-      existingGroup.sets.push(set)
-      return groups
+    if (grupoExistente) {
+      grupoExistente.series.push(serie)
+      return grupos
     }
 
-    return [...groups, { setNumber, sets: [set] }]
+    return [...grupos, { numeroSerie, series: [serie] }]
   }, [])
 }
 
-function getPreviousSetsBySetNumber(previousRecord, setNumber) {
-  if (!previousRecord) {
+function obtenerSeriesAnterioresPorNumeroSerie(registroAnterior, numeroSerie) {
+  if (!registroAnterior) {
     return []
   }
 
-  return previousRecord.performedSets.filter(
-    (previousSet, previousIndex) => (previousSet.setNumber || previousIndex + 1) === setNumber,
+  return registroAnterior.seriesRealizadas.filter(
+    (serieAnterior, indiceAnterior) =>
+      (serieAnterior.numeroSerie || indiceAnterior + 1) === numeroSerie,
   )
 }
 
-function hasMultipleWeights(sets) {
-  return new Set(sets.map((set) => Number(set.weight))).size > 1
+function tieneMultiplesPesos(series) {
+  return new Set(series.map((serie) => Number(serie.peso))).size > 1
 }
 
-function normalizeText(value) {
-  return String(value || '')
+function normalizarTexto(valor) {
+  return String(valor || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
 }
 
-function createTodayExercise() {
+function crearEjercicioDeHoy() {
   return {
-    exerciseId: `today-${Date.now()}`,
-    name: 'Ejercicio extra',
-    description: '',
-    plannedSeries: 0,
-    plannedRepetitions: 0,
-    plannedWeight: 0,
-    benchHeight: '',
-    grip: '',
-    completed: false,
-    skipped: false,
-    performedSets: [{ id: `set-${Date.now()}`, setNumber: 1, reps: 10, weight: 0 }],
+    idEjercicio: `hoy-${Date.now()}`,
+    catalogoEjercicioId: '',
+    nombre: 'Ejercicio extra',
+    descripcion: '',
+    grupoMuscular: '',
+    patronMovimiento: '',
+    equipamiento: '',
+    seriesPlanificadas: 0,
+    repeticionesPlanificadas: 0,
+    pesoPlanificado: 0,
+    alturaBanco: '',
+    agarre: '',
+    completado: false,
+    omitido: false,
+    seriesRealizadas: [{ id: `serie-${Date.now()}`, numeroSerie: 1, repeticiones: 10, peso: 0 }],
   }
 }
 
-function createTodayExerciseFromTemplate(templateExercise) {
-  const series = Number(templateExercise.series) || 0
-  const repetitions = Number(templateExercise.repetitions) || 0
-  const weight = Number(templateExercise.weight) || 0
+function crearEjercicioDeHoyDesdePlantilla(ejercicioPlantilla) {
+  const seriesPlanificadas = Number(ejercicioPlantilla.seriesPlanificadas) || 0
+  const repeticionesPlanificadas = Number(ejercicioPlantilla.repeticionesPlanificadas) || 0
+  const pesoPlanificado = Number(ejercicioPlantilla.pesoPlanificado) || 0
 
   return {
-    exerciseId: templateExercise.id,
-    name: templateExercise.name,
-    description: templateExercise.description || '',
-    plannedSeries: series,
-    plannedRepetitions: repetitions,
-    plannedWeight: weight,
-    benchHeight: templateExercise.benchHeight || '',
-    grip: templateExercise.grip || '',
-    completed: false,
-    skipped: false,
-    performedSets: Array.from({ length: series || 1 }, (_, index) => ({
-      id: `set-${Date.now()}-${index + 1}`,
-      setNumber: index + 1,
-      reps: repetitions,
-      weight,
+    idEjercicio: `hoy-${Date.now()}`,
+    catalogoEjercicioId: String(
+      ejercicioPlantilla.catalogoEjercicioId ||
+        ejercicioPlantilla.idEjercicio ||
+        ejercicioPlantilla.id ||
+        '',
+    ),
+    nombre: ejercicioPlantilla.nombre,
+    descripcion: ejercicioPlantilla.descripcion || '',
+    grupoMuscular: ejercicioPlantilla.grupoMuscular || '',
+    patronMovimiento: ejercicioPlantilla.patronMovimiento || '',
+    equipamiento: ejercicioPlantilla.equipamiento || '',
+    seriesPlanificadas,
+    repeticionesPlanificadas,
+    pesoPlanificado,
+    alturaBanco: ejercicioPlantilla.alturaBanco || '',
+    agarre: ejercicioPlantilla.agarre || '',
+    completado: false,
+    omitido: false,
+    seriesRealizadas: Array.from({ length: seriesPlanificadas || 1 }, (_, indice) => ({
+      id: `serie-${Date.now()}-${indice + 1}`,
+      numeroSerie: indice + 1,
+      repeticiones: repeticionesPlanificadas,
+      peso: pesoPlanificado,
     })),
   }
 }
 
-function createExampleWorkout() {
-  const timestamp = Date.now()
+function crearEjemploEntrenamiento() {
+  const marcaTiempo = Date.now()
 
   return {
-    id: `workout-example-${timestamp}`,
-    sessionId: 'push-session',
-    sessionName: 'Ejemplo empuje',
-    startedAt: new Date().toISOString(),
-    exercises: [
+    id: `entrenamiento-ejemplo-${marcaTiempo}`,
+    idSesion: 'push-session',
+    nombreSesion: 'Ejemplo empuje',
+    fechaInicio: new Date().toISOString(),
+    fechaFin: '',
+    ejercicios: [
       {
-        exerciseId: 'bench-press',
-        name: 'Press banca',
-        description: 'Ejemplo con fallo en segunda serie y bajada de peso.',
-        plannedSeries: 4,
-        plannedRepetitions: 12,
-        plannedWeight: 60,
-        benchHeight: 4,
-        grip: 'Medio',
-        completed: false,
-        skipped: false,
-        performedSets: [
-          { id: `example-set-${timestamp}-1`, setNumber: 1, reps: 12, weight: 60 },
-          { id: `example-set-${timestamp}-2`, setNumber: 2, reps: 8, weight: 60 },
-          { id: `example-set-${timestamp}-3`, setNumber: 2, reps: 4, weight: 50 },
-          { id: `example-set-${timestamp}-4`, setNumber: 3, reps: 10, weight: 55 },
+        idEjercicio: 'bench-press',
+        nombre: 'Press banca',
+        descripcion: 'Ejemplo con fallo en segunda serie y bajada de peso.',
+        seriesPlanificadas: 4,
+        repeticionesPlanificadas: 12,
+        pesoPlanificado: 60,
+        alturaBanco: 4,
+        agarre: 'Medio',
+        completado: false,
+        omitido: false,
+        seriesRealizadas: [
+          { id: `ejemplo-serie-${marcaTiempo}-1`, numeroSerie: 1, repeticiones: 12, peso: 60 },
+          { id: `ejemplo-serie-${marcaTiempo}-2`, numeroSerie: 2, repeticiones: 8, peso: 60 },
+          { id: `ejemplo-serie-${marcaTiempo}-3`, numeroSerie: 2, repeticiones: 4, peso: 50 },
+          { id: `ejemplo-serie-${marcaTiempo}-4`, numeroSerie: 3, repeticiones: 10, peso: 55 },
         ],
       },
       {
-        exerciseId: 'shoulder-press',
-        name: 'Press hombro',
-        description: 'Ejemplo con una serie menos que la plantilla.',
-        plannedSeries: 3,
-        plannedRepetitions: 10,
-        plannedWeight: 22,
-        benchHeight: 7,
-        grip: 'Neutro',
-        completed: false,
-        skipped: false,
-        performedSets: [
-          { id: `example-set-${timestamp}-5`, setNumber: 1, reps: 10, weight: 22 },
-          { id: `example-set-${timestamp}-6`, setNumber: 2, reps: 8, weight: 20 },
+        idEjercicio: 'shoulder-press',
+        nombre: 'Press hombro',
+        descripcion: 'Ejemplo con una serie menos que la plantilla.',
+        seriesPlanificadas: 3,
+        repeticionesPlanificadas: 10,
+        pesoPlanificado: 22,
+        alturaBanco: 7,
+        agarre: 'Neutro',
+        completado: false,
+        omitido: false,
+        seriesRealizadas: [
+          { id: `ejemplo-serie-${marcaTiempo}-5`, numeroSerie: 1, repeticiones: 10, peso: 22 },
+          { id: `ejemplo-serie-${marcaTiempo}-6`, numeroSerie: 2, repeticiones: 8, peso: 20 },
         ],
       },
       {
-        exerciseId: 'today-extra-example',
-        name: 'Fondos asistidos',
-        description: 'Ejercicio anadido solo para hoy.',
-        plannedSeries: 3,
-        plannedRepetitions: 12,
-        plannedWeight: 35,
-        benchHeight: '',
-        grip: 'Paralelo',
-        completed: false,
-        skipped: false,
-        performedSets: [
-          { id: `example-set-${timestamp}-7`, setNumber: 1, reps: 12, weight: 35 },
-          { id: `example-set-${timestamp}-8`, setNumber: 2, reps: 10, weight: 30 },
-          { id: `example-set-${timestamp}-9`, setNumber: 3, reps: 9, weight: 30 },
+        idEjercicio: 'today-extra-example',
+        nombre: 'Fondos asistidos',
+        descripcion: 'Ejercicio anadido solo para hoy.',
+        seriesPlanificadas: 3,
+        repeticionesPlanificadas: 12,
+        pesoPlanificado: 35,
+        alturaBanco: '',
+        agarre: 'Paralelo',
+        completado: false,
+        omitido: false,
+        seriesRealizadas: [
+          { id: `ejemplo-serie-${marcaTiempo}-7`, numeroSerie: 1, repeticiones: 12, peso: 35 },
+          { id: `ejemplo-serie-${marcaTiempo}-8`, numeroSerie: 2, repeticiones: 10, peso: 30 },
+          { id: `ejemplo-serie-${marcaTiempo}-9`, numeroSerie: 3, repeticiones: 9, peso: 30 },
         ],
       },
     ],
   }
 }
 
-function createExamplePreviousWorkout() {
+function crearEjemploEntrenamientoAnterior() {
   return {
     id: 'example-previous-workout',
-    sessionId: 'push-session',
-    sessionName: 'Empuje anterior',
-    completedAt: '2026-04-20T18:30:00.000Z',
-    exercises: [
+    idSesion: 'push-session',
+    nombreSesion: 'Empuje anterior',
+    fechaInicio: '2026-04-20T17:30:00.000Z',
+    fechaFin: '2026-04-20T18:30:00.000Z',
+    ejercicios: [
       {
-        exerciseId: 'bench-press',
-        name: 'Press banca',
-        benchHeight: 4,
-        grip: 'Medio',
-        performedSets: [
-          { id: 'previous-bench-1', setNumber: 1, reps: 12, weight: 60 },
-          { id: 'previous-bench-2', setNumber: 2, reps: 10, weight: 60 },
-          { id: 'previous-bench-3', setNumber: 2, reps: 3, weight: 55 },
-          { id: 'previous-bench-4', setNumber: 3, reps: 9, weight: 57.5 },
-          { id: 'previous-bench-5', setNumber: 4, reps: 8, weight: 55 },
+        idEjercicio: 'bench-press',
+        nombre: 'Press banca',
+        descripcion: '',
+        seriesPlanificadas: 0,
+        repeticionesPlanificadas: 0,
+        pesoPlanificado: 0,
+        alturaBanco: 4,
+        agarre: 'Medio',
+        completado: true,
+        omitido: false,
+        seriesRealizadas: [
+          { id: 'previous-bench-1', numeroSerie: 1, repeticiones: 12, peso: 60 },
+          { id: 'previous-bench-2', numeroSerie: 2, repeticiones: 10, peso: 60 },
+          { id: 'previous-bench-3', numeroSerie: 2, repeticiones: 3, peso: 55 },
+          { id: 'previous-bench-4', numeroSerie: 3, repeticiones: 9, peso: 57.5 },
+          { id: 'previous-bench-5', numeroSerie: 4, repeticiones: 8, peso: 55 },
         ],
       },
       {
-        exerciseId: 'shoulder-press',
-        name: 'Press hombro',
-        benchHeight: 7,
-        grip: 'Neutro',
-        performedSets: [
-          { id: 'previous-shoulder-1', setNumber: 1, reps: 10, weight: 22 },
-          { id: 'previous-shoulder-2', setNumber: 2, reps: 10, weight: 22 },
-          { id: 'previous-shoulder-3', setNumber: 3, reps: 8, weight: 20 },
+        idEjercicio: 'shoulder-press',
+        nombre: 'Press hombro',
+        descripcion: '',
+        seriesPlanificadas: 0,
+        repeticionesPlanificadas: 0,
+        pesoPlanificado: 0,
+        alturaBanco: 7,
+        agarre: 'Neutro',
+        completado: true,
+        omitido: false,
+        seriesRealizadas: [
+          { id: 'previous-shoulder-1', numeroSerie: 1, repeticiones: 10, peso: 22 },
+          { id: 'previous-shoulder-2', numeroSerie: 2, repeticiones: 10, peso: 22 },
+          { id: 'previous-shoulder-3', numeroSerie: 3, repeticiones: 8, peso: 20 },
         ],
       },
       {
-        exerciseId: 'today-extra-example',
-        name: 'Fondos asistidos',
-        benchHeight: '',
-        grip: 'Paralelo',
-        performedSets: [
-          { id: 'previous-dips-1', setNumber: 1, reps: 12, weight: 30 },
-          { id: 'previous-dips-2', setNumber: 2, reps: 10, weight: 30 },
-          { id: 'previous-dips-3', setNumber: 3, reps: 8, weight: 25 },
+        idEjercicio: 'today-extra-example',
+        nombre: 'Fondos asistidos',
+        descripcion: '',
+        seriesPlanificadas: 0,
+        repeticionesPlanificadas: 0,
+        pesoPlanificado: 0,
+        alturaBanco: '',
+        agarre: 'Paralelo',
+        completado: true,
+        omitido: false,
+        seriesRealizadas: [
+          { id: 'previous-dips-1', numeroSerie: 1, repeticiones: 12, peso: 30 },
+          { id: 'previous-dips-2', numeroSerie: 2, repeticiones: 10, peso: 30 },
+          { id: 'previous-dips-3', numeroSerie: 3, repeticiones: 8, peso: 25 },
         ],
       },
     ],
@@ -216,153 +262,231 @@ function createExamplePreviousWorkout() {
 }
 
 function Entreno() {
-  const [sessions] = useState(getSessions)
-  const [history, setHistory] = useState(getTrainingHistory)
-  const [workout, setWorkout] = useState(() => {
-    const currentWorkout = getCurrentWorkout()
+  const [sesiones, setSesiones] = useState(obtenerSesionesEntreno)
+  const [catalogoEjercicios, setCatalogoEjercicios] = useState(obtenerCatalogoEjerciciosEntreno)
+  const [historial, setHistorial] = useState(obtenerHistorialEntrenos)
+  const [entrenamiento, setEntrenamiento] = useState(() => {
+    const entrenamientoActual = obtenerEntrenamientoBorrador()
 
-    if (currentWorkout) {
-      return currentWorkout
+    if (entrenamientoActual) {
+      return entrenamientoActual
     }
 
-    return sessions[0] ? createWorkoutFromSession(sessions[0]) : null
+    return sesiones[0] ? crearEntrenamientoDesdeSesion(sesiones[0]) : null
   })
-  const [selectedSessionId, setSelectedSessionId] = useState(
-    workout?.sessionId || sessions[0]?.id || '',
+  const [idSesionSeleccionada, setIdSesionSeleccionada] = useState(
+    entrenamiento?.idSesion || sesiones[0]?.id || '',
   )
-  const [isSaving, setIsSaving] = useState(false)
-  const [message, setMessage] = useState('')
-  const [openExercises, setOpenExercises] = useState({})
-  const [isSessionSelectorOpen, setIsSessionSelectorOpen] = useState(false)
-  const [sessionSearch, setSessionSearch] = useState('')
-  const [isExerciseSelectorOpen, setIsExerciseSelectorOpen] = useState(false)
-  const [exerciseSearch, setExerciseSearch] = useState('')
+  const [estaGuardando, setEstaGuardando] = useState(false)
+  const [estaRecargando, setEstaRecargando] = useState(false)
+  const [mensaje, setMensaje] = useState('')
+  const [ejerciciosAbiertos, setEjerciciosAbiertos] = useState({})
+  const [estaAbiertoSelectorSesiones, setEstaAbiertoSelectorSesiones] = useState(false)
+  const [busquedaSesion, setBusquedaSesion] = useState('')
+  const [estaAbiertoSelectorEjercicios, setEstaAbiertoSelectorEjercicios] = useState(false)
+  const [busquedaEjercicio, setBusquedaEjercicio] = useState('')
+  const [registrosPreviosPorCatalogo, setRegistrosPreviosPorCatalogo] = useState({})
 
-  const filteredSessions = useMemo(() => {
-    const normalizedSearch = normalizeText(sessionSearch)
+  const sesionesFiltradas = useMemo(() => {
+    const busquedaNormalizada = normalizarTexto(busquedaSesion)
 
-    if (!normalizedSearch) return sessions
+    if (!busquedaNormalizada) return sesiones
 
-    return sessions.filter((session) => normalizeText(session.name).includes(normalizedSearch))
-  }, [sessions, sessionSearch])
-
-  const addableExerciseTemplates = useMemo(() => {
-    const existingExerciseIds = new Set(workout?.exercises.map((exercise) => exercise.exerciseId))
-    const uniqueTemplatesById = new Map()
-
-    sessions.forEach((session) => {
-      session.exercises.forEach((exercise) => {
-        if (!uniqueTemplatesById.has(exercise.id) && !existingExerciseIds.has(exercise.id)) {
-          uniqueTemplatesById.set(exercise.id, exercise)
-        }
-      })
-    })
-
-    const normalizedSearch = normalizeText(exerciseSearch)
-    const templates = Array.from(uniqueTemplatesById.values())
-
-    if (!normalizedSearch) return templates
-
-    return templates.filter(
-      (exercise) =>
-        normalizeText(exercise.name).includes(normalizedSearch) ||
-        normalizeText(exercise.description).includes(normalizedSearch),
+    return sesiones.filter((sesion) =>
+      normalizarTexto(sesion.nombreSesion).includes(busquedaNormalizada),
     )
-  }, [sessions, workout, exerciseSearch])
+  }, [sesiones, busquedaSesion])
+
+  const plantillasEjerciciosAgregables = useMemo(() => {
+    const idsEjerciciosExistentes = new Set(
+      entrenamiento?.ejercicios
+        .map((ejercicio) => ejercicio.catalogoEjercicioId || ejercicio.idEjercicio)
+        .filter(Boolean),
+    )
+    const busquedaNormalizada = normalizarTexto(busquedaEjercicio)
+    const plantillas = catalogoEjercicios.filter(
+      (ejercicio) =>
+        !idsEjerciciosExistentes.has(ejercicio.catalogoEjercicioId || ejercicio.idEjercicio),
+    )
+
+    if (!busquedaNormalizada) return plantillas
+
+    return plantillas.filter(
+      (ejercicio) =>
+        normalizarTexto(ejercicio.nombre).includes(busquedaNormalizada) ||
+        normalizarTexto(ejercicio.descripcion).includes(busquedaNormalizada) ||
+        normalizarTexto(ejercicio.grupoMuscular).includes(busquedaNormalizada) ||
+        normalizarTexto(ejercicio.equipamiento).includes(busquedaNormalizada),
+    )
+  }, [catalogoEjercicios, entrenamiento, busquedaEjercicio])
 
   useEffect(() => {
-    if (workout) {
-      saveCurrentWorkout(workout)
+    if (entrenamiento) {
+      guardarEntrenamientoBorrador(entrenamiento)
     }
-  }, [workout])
+  }, [entrenamiento])
 
-  const selectSession = (sessionId) => {
-    const session = sessions.find((item) => item.id === sessionId)
+  useEffect(() => {
+    const sincronizarCatalogo = async () => {
+      try {
+        const catalogoServidor = await obtenerEjerciciosDesdeServidor()
+        setCatalogoEjercicios(catalogoServidor)
+        guardarCatalogoEjerciciosEntreno(catalogoServidor)
+      } catch (errorCapturado) {
+        setMensaje(
+          `${errorCapturado.message} Se mantiene el catalogo local mientras no se pueda leer el backend.`,
+        )
+      }
+    }
 
-    if (!session) return
+    sincronizarCatalogo()
+  }, [])
 
-    setSelectedSessionId(sessionId)
-    const nextWorkout = createWorkoutFromSession(session)
-
-    setWorkout(nextWorkout)
-    setOpenExercises(
-      Object.fromEntries(nextWorkout.exercises.map((exercise) => [exercise.exerciseId, true])),
+  useEffect(() => {
+    const idsCatalogo = Array.from(
+      new Set(
+        (entrenamiento?.ejercicios || [])
+          .map((ejercicio) => ejercicio.catalogoEjercicioId)
+          .filter(Boolean),
+      ),
     )
-    setIsSessionSelectorOpen(false)
-    setSessionSearch('')
-    setMessage('Entreno de hoy cargado desde la plantilla. Puedes modificarlo sin cambiar la base.')
+
+    if (idsCatalogo.length === 0) {
+      const timeoutId = window.setTimeout(() => {
+        setRegistrosPreviosPorCatalogo({})
+      }, 0)
+
+      return () => {
+        window.clearTimeout(timeoutId)
+      }
+    }
+
+    let cancelado = false
+
+    const cargarRegistrosPrevios = async () => {
+      const resultados = await Promise.all(
+        idsCatalogo.map(async (idCatalogo) => {
+          try {
+            const registro = await obtenerUltimoRegistroEjercicioDesdeServidor(idCatalogo)
+            return [idCatalogo, registro]
+          } catch {
+            return [idCatalogo, null]
+          }
+        }),
+      )
+
+      if (cancelado) {
+        return
+      }
+
+      setRegistrosPreviosPorCatalogo(
+        Object.fromEntries(resultados.filter(([, registro]) => Boolean(registro))),
+      )
+    }
+
+    cargarRegistrosPrevios()
+
+    return () => {
+      cancelado = true
+    }
+  }, [entrenamiento])
+
+  const seleccionarSesion = (idSesion) => {
+    const sesion = sesiones.find((elemento) => elemento.id === idSesion)
+
+    if (!sesion) return
+
+    setIdSesionSeleccionada(idSesion)
+    const siguienteEntrenamiento = crearEntrenamientoDesdeSesion(sesion)
+
+    setEntrenamiento(siguienteEntrenamiento)
+    setEjerciciosAbiertos(
+      Object.fromEntries(
+        siguienteEntrenamiento.ejercicios.map((ejercicio) => [ejercicio.idEjercicio, true]),
+      ),
+    )
+    setEstaAbiertoSelectorSesiones(false)
+    setBusquedaSesion('')
+    setMensaje(
+      'Entreno de hoy cargado desde la plantilla. Puedes modificarlo sin cambiar la base.',
+    )
   }
 
-  const toggleExercise = (exerciseId) => {
-    const exercise = workout?.exercises.find((item) => item.exerciseId === exerciseId)
+  const alternarEjercicio = (idEjercicio) => {
+    const ejercicio = entrenamiento?.ejercicios.find(
+      (elemento) => elemento.idEjercicio === idEjercicio,
+    )
 
-    if (exercise?.completed) return
+    if (ejercicio?.completado) return
 
-    setOpenExercises((currentOpenExercises) => ({
-      ...currentOpenExercises,
-      [exerciseId]: !(currentOpenExercises[exerciseId] ?? true),
+    setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
+      ...ejerciciosAbiertosActuales,
+      [idEjercicio]: !(ejerciciosAbiertosActuales[idEjercicio] ?? true),
     }))
   }
 
-  const toggleExerciseCompleted = (exerciseId) => {
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.map((exercise) =>
-        exercise.exerciseId === exerciseId
-          ? { ...exercise, completed: !exercise.completed }
-          : exercise,
+  const alternarEjercicioCompletado = (idEjercicio) => {
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: entrenamientoActual.ejercicios.map((ejercicio) =>
+        ejercicio.idEjercicio === idEjercicio
+          ? { ...ejercicio, completado: !ejercicio.completado }
+          : ejercicio,
       ),
     }))
 
-    setOpenExercises((currentOpenExercises) => ({
-      ...currentOpenExercises,
-      [exerciseId]: false,
+    setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
+      ...ejerciciosAbiertosActuales,
+      [idEjercicio]: false,
     }))
   }
 
-  const updateExercise = (exerciseId, field, value) => {
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.map((exercise) =>
-        exercise.exerciseId === exerciseId ? { ...exercise, [field]: value } : exercise,
+  const actualizarEjercicio = (idEjercicio, campo, valor) => {
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: entrenamientoActual.ejercicios.map((ejercicio) =>
+        ejercicio.idEjercicio === idEjercicio ? { ...ejercicio, [campo]: valor } : ejercicio,
       ),
     }))
   }
 
-  const updateSet = (exerciseId, setId, field, value) => {
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.map((exercise) =>
-        exercise.exerciseId === exerciseId
+  const actualizarSerie = (idEjercicio, idSerie, campo, valor) => {
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: entrenamientoActual.ejercicios.map((ejercicio) =>
+        ejercicio.idEjercicio === idEjercicio
           ? {
-              ...exercise,
-              performedSets: exercise.performedSets.map((set) =>
-                set.id === setId ? { ...set, [field]: Number(value) } : set,
+              ...ejercicio,
+              seriesRealizadas: ejercicio.seriesRealizadas.map((serie) =>
+                serie.id === idSerie ? { ...serie, [campo]: Number(valor) } : serie,
               ),
             }
-          : exercise,
+          : ejercicio,
       ),
     }))
   }
 
-  const addSet = (exerciseId) => {
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.map((exercise) => {
-        if (exercise.exerciseId !== exerciseId) return exercise
+  const agregarSerie = (idEjercicio) => {
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: entrenamientoActual.ejercicios.map((ejercicio) => {
+        if (ejercicio.idEjercicio !== idEjercicio) return ejercicio
 
-        const nextSetNumber =
-          Math.max(0, ...exercise.performedSets.map((set) => Number(set.setNumber) || 0)) + 1
+        const siguienteNumeroSerie =
+          Math.max(
+            0,
+            ...ejercicio.seriesRealizadas.map((serie) => Number(serie.numeroSerie) || 0),
+          ) + 1
 
         return {
-          ...exercise,
-          performedSets: [
-            ...exercise.performedSets,
+          ...ejercicio,
+          seriesRealizadas: [
+            ...ejercicio.seriesRealizadas,
             {
-              id: `set-${Date.now()}`,
-              setNumber: nextSetNumber,
-              reps: exercise.plannedRepetitions || 0,
-              weight: exercise.plannedWeight || 0,
+              id: `serie-${Date.now()}`,
+              numeroSerie: siguienteNumeroSerie,
+              repeticiones: ejercicio.repeticionesPlanificadas || 0,
+              peso: ejercicio.pesoPlanificado || 0,
             },
           ],
         }
@@ -370,138 +494,205 @@ function Entreno() {
     }))
   }
 
-  const addWeightStep = (exerciseId, sourceSet) => {
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.map((exercise) => {
-        if (exercise.exerciseId !== exerciseId) return exercise
+  const agregarTramoPeso = (idEjercicio, serieOrigen) => {
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: entrenamientoActual.ejercicios.map((ejercicio) => {
+        if (ejercicio.idEjercicio !== idEjercicio) return ejercicio
 
-        const sourceIndex = exercise.performedSets.findIndex((set) => set.id === sourceSet.id)
-        const newSet = {
-          id: `set-${Date.now()}`,
-          setNumber: sourceSet.setNumber,
-          reps: 0,
-          weight: sourceSet.weight,
+        const indiceOrigen = ejercicio.seriesRealizadas.findIndex(
+          (serie) => serie.id === serieOrigen.id,
+        )
+        const nuevaSerie = {
+          id: `serie-${Date.now()}`,
+          numeroSerie: serieOrigen.numeroSerie,
+          repeticiones: 0,
+          peso: serieOrigen.peso,
         }
-        const performedSets = [...exercise.performedSets]
+        const seriesRealizadas = [...ejercicio.seriesRealizadas]
 
-        performedSets.splice(sourceIndex + 1, 0, newSet)
+        seriesRealizadas.splice(indiceOrigen + 1, 0, nuevaSerie)
 
-        return { ...exercise, performedSets }
+        return { ...ejercicio, seriesRealizadas }
       }),
     }))
   }
 
-  const removeSet = (exerciseId, setId) => {
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.map((exercise) =>
-        exercise.exerciseId === exerciseId
+  const eliminarSerie = (idEjercicio, idSerie) => {
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: entrenamientoActual.ejercicios.map((ejercicio) =>
+        ejercicio.idEjercicio === idEjercicio
           ? {
-              ...exercise,
-              performedSets: exercise.performedSets.filter((set) => set.id !== setId),
+              ...ejercicio,
+              seriesRealizadas: ejercicio.seriesRealizadas.filter((serie) => serie.id !== idSerie),
             }
-          : exercise,
+          : ejercicio,
       ),
     }))
   }
 
-  const addExerciseOnlyToday = () => {
-    const exercise = createTodayExercise()
+  const agregarEjercicioSoloHoy = () => {
+    const ejercicio = crearEjercicioDeHoy()
 
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: [...currentWorkout.exercises, exercise],
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: [...entrenamientoActual.ejercicios, ejercicio],
     }))
-    setOpenExercises((currentOpenExercises) => ({
-      ...currentOpenExercises,
-      [exercise.exerciseId]: true,
+    setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
+      ...ejerciciosAbiertosActuales,
+      [ejercicio.idEjercicio]: true,
     }))
-    setIsExerciseSelectorOpen(false)
-    setExerciseSearch('')
+    setEstaAbiertoSelectorEjercicios(false)
+    setBusquedaEjercicio('')
   }
 
-  const addExerciseFromTemplate = (templateExercise) => {
-    const exercise = createTodayExerciseFromTemplate(templateExercise)
+  const agregarEjercicioDesdePlantilla = (ejercicioPlantilla) => {
+    const ejercicio = crearEjercicioDeHoyDesdePlantilla(ejercicioPlantilla)
 
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: [...currentWorkout.exercises, exercise],
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: [...entrenamientoActual.ejercicios, ejercicio],
     }))
-    setOpenExercises((currentOpenExercises) => ({
-      ...currentOpenExercises,
-      [exercise.exerciseId]: true,
+    setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
+      ...ejerciciosAbiertosActuales,
+      [ejercicio.idEjercicio]: true,
     }))
-    setIsExerciseSelectorOpen(false)
-    setExerciseSearch('')
+    setEstaAbiertoSelectorEjercicios(false)
+    setBusquedaEjercicio('')
   }
 
-  const loadExampleWorkout = () => {
-    const exampleWorkout = createExampleWorkout()
-    const examplePreviousWorkout = createExamplePreviousWorkout()
-    const historyWithoutExample = history.filter(
-      (historyItem) => historyItem.id !== examplePreviousWorkout.id,
+  const cargarEjemploEntrenamiento = () => {
+    const ejemploEntrenamiento = crearEjemploEntrenamiento()
+    const ejemploEntrenamientoAnterior = crearEjemploEntrenamientoAnterior()
+    const historialSinEjemplo = historial.filter(
+      (itemHistorial) => itemHistorial.id !== ejemploEntrenamientoAnterior.id,
     )
-    const updatedHistory = [examplePreviousWorkout, ...historyWithoutExample]
+    const historialActualizado = [ejemploEntrenamientoAnterior, ...historialSinEjemplo]
 
-    setSelectedSessionId(exampleWorkout.sessionId)
-    setHistory(updatedHistory)
-    saveTrainingHistory(updatedHistory)
-    setWorkout(exampleWorkout)
-    setOpenExercises(
-      Object.fromEntries(exampleWorkout.exercises.map((exercise) => [exercise.exerciseId, true])),
+    setIdSesionSeleccionada(ejemploEntrenamiento.idSesion)
+    setHistorial(historialActualizado)
+    guardarHistorialEntrenos(historialActualizado)
+    setEntrenamiento(ejemploEntrenamiento)
+    setEjerciciosAbiertos(
+      Object.fromEntries(
+        ejemploEntrenamiento.ejercicios.map((ejercicio) => [ejercicio.idEjercicio, true]),
+      ),
     )
-    setMessage(
+    setMensaje(
       'Ejemplo completo cargado con entreno actual y registro anterior para comparar en linea.',
     )
   }
 
-  const removeExerciseOnlyToday = (exerciseId) => {
-    setWorkout((currentWorkout) => ({
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.filter((exercise) => exercise.exerciseId !== exerciseId),
+  const quitarEjercicioSoloHoy = (idEjercicio) => {
+    setEntrenamiento((entrenamientoActual) => ({
+      ...entrenamientoActual,
+      ejercicios: entrenamientoActual.ejercicios.filter(
+        (ejercicio) => ejercicio.idEjercicio !== idEjercicio,
+      ),
     }))
   }
 
-  const finishWorkout = async () => {
-    if (!workout) return
+  const finalizarEntrenamiento = async () => {
+    if (!entrenamiento) return
 
-    setIsSaving(true)
-    setMessage('Enviando entreno al servidor...')
+    setEstaGuardando(true)
+    setMensaje('Enviando entreno al servidor...')
 
-    const completedWorkout = {
-      ...workout,
-      completedAt: new Date().toISOString(),
+    const entrenamientoCompletado = {
+      ...entrenamiento,
+      fechaFin: new Date().toISOString(),
     }
 
     try {
-      const response = await fetch(TRAINING_SYNC_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(completedWorkout),
-      })
+      await guardarEntrenamientoEnServidor(entrenamientoCompletado)
 
-      if (!response.ok) {
-        throw new Error('El servidor no confirmo el guardado.')
-      }
+      const historialActualizado = [entrenamientoCompletado, ...historial]
 
-      const updatedHistory = [completedWorkout, ...history]
-
-      saveTrainingHistory(updatedHistory)
-      clearCurrentWorkout()
-      setHistory(updatedHistory)
-      setWorkout(null)
-      setMessage('Servidor OK. Entreno guardado y borrador local limpiado.')
-    } catch (error) {
-      setMessage(`${error.message} El borrador sigue guardado en localStorage.`)
+      guardarHistorialEntrenos(historialActualizado)
+      limpiarEntrenamientoBorrador()
+      setHistorial(historialActualizado)
+      setEntrenamiento(null)
+      setMensaje('Servidor OK. Entreno guardado y borrador local limpiado.')
+    } catch (errorCapturado) {
+      setMensaje(`${errorCapturado.message} El borrador sigue guardado en localStorage.`)
     } finally {
-      setIsSaving(false)
+      setEstaGuardando(false)
     }
   }
+
+  const recargarDesdeServidor = async () => {
+    setEstaRecargando(true)
+    setMensaje('Recargando datos originales desde la base de datos...')
+
+    try {
+      const [sesionesServidor, historialServidor, catalogoServidor] = await Promise.all([
+        obtenerSesionesEntrenoDesdeServidor(),
+        obtenerEntrenamientosDesdeServidor(),
+        obtenerEjerciciosDesdeServidor(),
+      ])
+
+      setSesiones(sesionesServidor)
+      setHistorial(historialServidor)
+      setCatalogoEjercicios(catalogoServidor)
+      guardarSesionesEntreno(sesionesServidor)
+      guardarHistorialEntrenos(historialServidor)
+      guardarCatalogoEjerciciosEntreno(catalogoServidor)
+
+      const sesionSeleccionada =
+        sesionesServidor.find((sesion) => sesion.id === idSesionSeleccionada) || sesionesServidor[0]
+
+      if (sesionSeleccionada) {
+        const siguienteEntrenamiento = crearEntrenamientoDesdeSesion(sesionSeleccionada)
+        setIdSesionSeleccionada(sesionSeleccionada.id)
+        setEntrenamiento(siguienteEntrenamiento)
+        setEjerciciosAbiertos(
+          Object.fromEntries(
+            siguienteEntrenamiento.ejercicios.map((ejercicio) => [ejercicio.idEjercicio, true]),
+          ),
+        )
+      } else {
+        setIdSesionSeleccionada('')
+        setEntrenamiento(null)
+        setEjerciciosAbiertos({})
+      }
+
+      setEstaAbiertoSelectorEjercicios(false)
+      setEstaAbiertoSelectorSesiones(false)
+      setBusquedaEjercicio('')
+      setBusquedaSesion('')
+      setMensaje('Entreno, historial y catalogo recargados desde la base de datos.')
+    } catch (errorCapturado) {
+      setMensaje(
+        `${errorCapturado.message} No se pudieron recuperar los datos originales desde la base de datos.`,
+      )
+    } finally {
+      setEstaRecargando(false)
+    }
+  }
+
+  const { isEnabled: gestoRecargaDisponible, isPulling, isReady, isRefreshing } =
+    usePullToRefresh({
+      onRefresh: recargarDesdeServidor,
+    })
 
   return (
     <div className="flex min-h-[calc(100svh-73px)] flex-col">
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 pb-28 sm:px-6 lg:px-8">
+        <div
+          className={`sm:hidden ${isPulling || isRefreshing ? 'block' : 'hidden'}`}
+        >
+          <div className="flex justify-center">
+            <div className="rounded-full border border-neon-cyan/35 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-[0_10px_26px_rgba(15,23,42,0.08)] dark:bg-[#0B0D14] dark:text-slate-200">
+              {isRefreshing
+                ? 'Recargando...'
+                : isReady
+                  ? 'Suelta para recargar'
+                  : 'Desliza hacia abajo para recargar'}
+            </div>
+          </div>
+        </div>
+
         <section className="rounded-lg border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan transition-all duration-300 ease-out dark:bg-white/[0.04]">
           <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-start">
             <div>
@@ -524,13 +715,18 @@ function Entreno() {
                   className="flex w-full items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-base font-bold text-slate-900 transition-all duration-300 ease-out hover:border-neon-pink dark:border-white/10 dark:bg-pes-black dark:text-white"
                   type="button"
                   onClick={() => {
-                    setIsSessionSelectorOpen((current) => !current)
-                    setIsExerciseSelectorOpen(false)
+                    setEstaAbiertoSelectorSesiones((valorActual) => !valorActual)
+                    setEstaAbiertoSelectorEjercicios(false)
                   }}
                 >
-                  <span>{sessions.find((session) => session.id === selectedSessionId)?.name || '-- Seleccionar --'}</span>
+                  <span>
+                    {sesiones.find((sesion) => sesion.id === idSesionSeleccionada)?.nombreSesion ||
+                      '-- Seleccionar --'}
+                  </span>
                   <svg
-                    className={`h-5 w-5 text-neon-cyan transition-transform duration-300 ${isSessionSelectorOpen ? 'rotate-180' : ''}`}
+                    className={`h-5 w-5 text-neon-cyan transition-transform duration-300 ${
+                      estaAbiertoSelectorSesiones ? 'rotate-180' : ''
+                    }`}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -544,7 +740,9 @@ function Entreno() {
 
                 <div
                   className={`mt-2 grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
-                    isSessionSelectorOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    estaAbiertoSelectorSesiones
+                      ? 'grid-rows-[1fr] opacity-100'
+                      : 'grid-rows-[0fr] opacity-0'
                   }`}
                 >
                   <div className="overflow-hidden rounded-md border border-slate-200 bg-white/95 dark:border-white/10 dark:bg-pes-black/95">
@@ -552,24 +750,24 @@ function Entreno() {
                       <input
                         className="w-full rounded-md border border-neon-cyan/40 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:bg-pes-black dark:text-white"
                         placeholder="Buscar entreno..."
-                        value={sessionSearch}
-                        onChange={(event) => setSessionSearch(event.target.value)}
+                        value={busquedaSesion}
+                        onChange={(evento) => setBusquedaSesion(evento.target.value)}
                       />
                     </div>
 
                     <div className="max-h-60 overflow-y-auto">
-                      {filteredSessions.map((session) => (
+                      {sesionesFiltradas.map((sesion) => (
                         <button
                           className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 last:border-b-0 dark:border-white/10 ${
-                            selectedSessionId === session.id
+                            idSesionSeleccionada === sesion.id
                               ? 'bg-neon-cyan/15 text-neon-cyan'
                               : 'text-slate-800 hover:bg-neon-pink/10 hover:text-neon-pink dark:text-slate-200'
                           }`}
-                          key={session.id}
+                          key={sesion.id}
                           type="button"
-                          onClick={() => selectSession(session.id)}
+                          onClick={() => seleccionarSesion(sesion.id)}
                         >
-                          {session.name}
+                          {sesion.nombreSesion}
                         </button>
                       ))}
                     </div>
@@ -582,9 +780,17 @@ function Entreno() {
 
         <section className="flex flex-wrap justify-end gap-3">
           <button
+            className="hidden rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
+            type="button"
+            disabled={estaRecargando}
+            onClick={recargarDesdeServidor}
+          >
+            {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
+          </button>
+          <button
             className="rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
             type="button"
-            onClick={loadExampleWorkout}
+            onClick={cargarEjemploEntrenamiento}
           >
             Cargar ejemplo
           </button>
@@ -592,36 +798,44 @@ function Entreno() {
             className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink"
             type="button"
             onClick={() => {
-              setIsExerciseSelectorOpen((current) => !current)
-              setIsSessionSelectorOpen(false)
+              setEstaAbiertoSelectorEjercicios((valorActual) => !valorActual)
+              setEstaAbiertoSelectorSesiones(false)
             }}
           >
             Anadir ejercicio solo hoy
           </button>
         </section>
+        {gestoRecargaDisponible ? (
+          <p className="text-center text-xs text-slate-400 sm:hidden dark:text-slate-500">
+            En movil, arriba del todo, mantén el dedo y desliza hacia abajo para recargar.
+          </p>
+        ) : null}
 
-        {isExerciseSelectorOpen ? (
+        {estaAbiertoSelectorEjercicios ? (
           <section className="rounded-lg border border-neon-purple/30 bg-white p-3 shadow-glow-purple dark:bg-white/[0.04]">
             <div className="grid gap-2">
               <input
                 className="w-full rounded-md border border-neon-cyan/40 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:bg-pes-black dark:text-white"
                 placeholder="Buscar ejercicio para hoy..."
-                value={exerciseSearch}
-                onChange={(event) => setExerciseSearch(event.target.value)}
+                value={busquedaEjercicio}
+                onChange={(evento) => setBusquedaEjercicio(evento.target.value)}
               />
 
               <div className="max-h-64 overflow-y-auto rounded-md border border-slate-200 dark:border-white/10">
-                {addableExerciseTemplates.length > 0 ? (
-                  addableExerciseTemplates.map((exercise) => (
+                {plantillasEjerciciosAgregables.length > 0 ? (
+                  plantillasEjerciciosAgregables.map((ejercicio) => (
                     <button
                       className="w-full border-b border-slate-200 px-4 py-3 text-left transition-all duration-200 last:border-b-0 hover:bg-neon-cyan/10 dark:border-white/10 dark:hover:bg-neon-purple/10"
-                      key={exercise.id}
+                      key={ejercicio.idEjercicio}
                       type="button"
-                      onClick={() => addExerciseFromTemplate(exercise)}
+                      onClick={() => agregarEjercicioDesdePlantilla(ejercicio)}
                     >
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">{exercise.name}</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">
+                        {ejercicio.nombre}
+                      </p>
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                        {exercise.series}x{exercise.repetitions} · {exercise.weight}kg · {exercise.grip || 'Sin agarre'}
+                        {ejercicio.seriesPlanificadas}x{ejercicio.repeticionesPlanificadas} ·{' '}
+                        {ejercicio.pesoPlanificado}kg · {ejercicio.agarre || 'Sin agarre'}
                       </p>
                     </button>
                   ))
@@ -636,14 +850,14 @@ function Entreno() {
                 <button
                   className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-600 hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:text-slate-300"
                   type="button"
-                  onClick={() => setIsExerciseSelectorOpen(false)}
+                  onClick={() => setEstaAbiertoSelectorEjercicios(false)}
                 >
                   Cerrar
                 </button>
                 <button
                   className="rounded-md border border-neon-cyan/50 px-3 py-2 text-xs font-bold text-neon-cyan hover:border-neon-pink hover:text-neon-pink"
                   type="button"
-                  onClick={addExerciseOnlyToday}
+                  onClick={agregarEjercicioSoloHoy}
                 >
                   Crear ejercicio manual
                 </button>
@@ -653,29 +867,36 @@ function Entreno() {
         ) : null}
 
         <section className="grid gap-5">
-          {workout?.exercises.map((exercise) => {
-            const previousRecord = getLastExerciseRecord(exercise.exerciseId, history)
-            const isExerciseOpen = openExercises[exercise.exerciseId] ?? true
-            const setGroups = groupSetsBySetNumber(exercise.performedSets)
+          {entrenamiento?.ejercicios.map((ejercicio) => {
+            const registroAnterior =
+              registrosPreviosPorCatalogo[ejercicio.catalogoEjercicioId] ||
+              obtenerUltimoRegistroEjercicio(
+                ejercicio.catalogoEjercicioId || ejercicio.idEjercicio,
+                historial,
+              )
+            const estaAbiertoEjercicio = ejerciciosAbiertos[ejercicio.idEjercicio] ?? true
+            const gruposSeries = agruparSeriesPorNumeroSerie(ejercicio.seriesRealizadas)
 
             return (
               <article
                 className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04]"
-                key={exercise.exerciseId}
+                key={ejercicio.idEjercicio}
               >
                 <div className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
                   <button
                     className="flex min-w-0 flex-1 items-center gap-4 text-left"
                     type="button"
-                    aria-expanded={isExerciseOpen}
-                    onClick={() => toggleExercise(exercise.exerciseId)}
+                    aria-expanded={estaAbiertoEjercicio}
+                    onClick={() => alternarEjercicio(ejercicio.idEjercicio)}
                   >
                     <span
                       className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan"
                       aria-hidden="true"
                     >
                       <svg
-                        className={`h-5 w-5 transition-transform duration-300 ease-out ${isExerciseOpen ? 'rotate-180 text-neon-pink' : ''}`}
+                        className={`h-5 w-5 transition-transform duration-300 ease-out ${
+                          estaAbiertoEjercicio ? 'rotate-180 text-neon-pink' : ''
+                        }`}
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -688,11 +909,15 @@ function Entreno() {
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-xl font-black text-slate-950 dark:text-white">
-                        {exercise.name}
+                        {ejercicio.nombre}
                       </span>
                       <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
-                        {setGroups.length} series · {exercise.performedSets.length} tramos ·{' '}
-                        {exercise.completed ? 'completado' : exercise.skipped ? 'omitido hoy' : 'activo'}
+                        {gruposSeries.length} series · {ejercicio.seriesRealizadas.length} tramos ·{' '}
+                        {ejercicio.completado
+                          ? 'completado'
+                          : ejercicio.omitido
+                            ? 'omitido hoy'
+                            : 'activo'}
                       </span>
                     </span>
                   </button>
@@ -701,26 +926,26 @@ function Entreno() {
                     <button
                       type="button"
                       role="switch"
-                      aria-checked={Boolean(exercise.completed)}
-                      title={exercise.completed ? 'Completado' : 'Pendiente'}
+                      aria-checked={Boolean(ejercicio.completado)}
+                      title={ejercicio.completado ? 'Completado' : 'Pendiente'}
                       className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
-                      onClick={() => toggleExerciseCompleted(exercise.exerciseId)}
+                      onClick={() => alternarEjercicioCompletado(ejercicio.idEjercicio)}
                     >
                       <span
                         className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${
-                          exercise.completed
+                          ejercicio.completado
                             ? 'border-[#39ff14]/80 bg-[#39ff14]/30 shadow-[0_0_14px_rgba(57,255,20,0.45)]'
                             : 'border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700'
                         }`}
                       >
                         <span
                           className={`absolute left-0.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full transition-all duration-300 ease-out ${
-                            exercise.completed
+                            ejercicio.completado
                               ? 'translate-x-5 bg-[#39ff14] text-pes-black'
                               : 'translate-x-0 bg-white text-slate-500 dark:bg-slate-200 dark:text-slate-600'
                           }`}
                         >
-                          {exercise.completed ? (
+                          {ejercicio.completado ? (
                             <svg
                               className="h-3 w-3"
                               viewBox="0 0 24 24"
@@ -754,15 +979,15 @@ function Entreno() {
                       className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
                       type="button"
                       onClick={() =>
-                        updateExercise(exercise.exerciseId, 'skipped', !exercise.skipped)
+                        actualizarEjercicio(ejercicio.idEjercicio, 'omitido', !ejercicio.omitido)
                       }
                     >
-                      {exercise.skipped ? 'Reactivar' : 'No hacer hoy'}
+                      {ejercicio.omitido ? 'Reactivar' : 'No hacer hoy'}
                     </button>
                     <button
                       className="rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
                       type="button"
-                      onClick={() => removeExerciseOnlyToday(exercise.exerciseId)}
+                      onClick={() => quitarEjercicioSoloHoy(ejercicio.idEjercicio)}
                     >
                       Quitar
                     </button>
@@ -771,7 +996,9 @@ function Entreno() {
 
                 <div
                   className={`grid transition-[grid-template-rows] duration-500 ease-out ${
-                    isExerciseOpen && !exercise.completed ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                    estaAbiertoEjercicio && !ejercicio.completado
+                      ? 'grid-rows-[1fr]'
+                      : 'grid-rows-[0fr]'
                   }`}
                 >
                   <div className="overflow-hidden">
@@ -779,227 +1006,256 @@ function Entreno() {
                       <div>
                         <input
                           className="w-full bg-transparent text-xl font-black text-slate-950 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-white dark:focus:text-neon-pink"
-                          value={exercise.name}
-                          onChange={(event) =>
-                            updateExercise(exercise.exerciseId, 'name', event.target.value)
+                          value={ejercicio.nombre}
+                          onChange={(evento) =>
+                            actualizarEjercicio(
+                              ejercicio.idEjercicio,
+                              'nombre',
+                              evento.target.value,
+                            )
                           }
                         />
                         <input
                           className="mt-2 w-full bg-transparent text-sm text-slate-600 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-slate-400 dark:focus:text-neon-cyan"
-                          value={exercise.description}
+                          value={ejercicio.descripcion}
                           placeholder="Descripcion"
-                          onChange={(event) =>
-                            updateExercise(exercise.exerciseId, 'description', event.target.value)
+                          onChange={(evento) =>
+                            actualizarEjercicio(
+                              ejercicio.idEjercicio,
+                              'descripcion',
+                              evento.target.value,
+                            )
                           }
                         />
                       </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[90px_90px_120px_minmax(150px,1fr)]">
-                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Series base
-                        <input
-                          className={numberInputClass}
-                          type="number"
-                          min="0"
-                          max="99"
-                          value={exercise.plannedSeries}
-                          onChange={(event) =>
-                            updateExercise(
-                              exercise.exerciseId,
-                              'plannedSeries',
-                              event.target.value,
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[90px_90px_120px_minmax(150px,1fr)]">
+                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Series base
+                          <input
+                            className={claseInputNumero}
+                            type="number"
+                            min="0"
+                            max="99"
+                            value={ejercicio.seriesPlanificadas}
+                            onChange={(evento) =>
+                              actualizarEjercicio(
+                                ejercicio.idEjercicio,
+                                'seriesPlanificadas',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Reps base
+                          <input
+                            className={claseInputNumero}
+                            type="number"
+                            min="0"
+                            max="99"
+                            value={ejercicio.repeticionesPlanificadas}
+                            onChange={(evento) =>
+                              actualizarEjercicio(
+                                ejercicio.idEjercicio,
+                                'repeticionesPlanificadas',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Altura banco
+                          <input
+                            className="w-28 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
+                            type="number"
+                            min="0"
+                            max="999"
+                            value={ejercicio.alturaBanco}
+                            onChange={(evento) =>
+                              actualizarEjercicio(
+                                ejercicio.idEjercicio,
+                                'alturaBanco',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Agarre
+                          <input
+                            className={`${claseInputTexto} min-w-36`}
+                            value={ejercicio.agarre}
+                            onChange={(evento) =>
+                              actualizarEjercicio(
+                                ejercicio.idEjercicio,
+                                'agarre',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid gap-2 rounded-lg border border-neon-purple/30 bg-slate-50 p-3 text-xs text-slate-600 shadow-glow-purple dark:bg-pes-black/60 dark:text-slate-400 sm:grid-cols-3">
+                        <p>
+                          <span className="font-bold text-slate-950 dark:text-white">
+                            Anterior:
+                          </span>{' '}
+                          {registroAnterior
+                            ? `${new Date(registroAnterior.fechaFin).toLocaleDateString('es-ES')} · ${registroAnterior.nombreSesion}`
+                            : 'Sin registro previo'}
+                        </p>
+                        <p>
+                          <span className="font-bold text-slate-950 dark:text-white">
+                            Banco:
+                          </span>{' '}
+                          {registroAnterior?.alturaBanco || '-'}
+                        </p>
+                        <p>
+                          <span className="font-bold text-slate-950 dark:text-white">
+                            Agarre:
+                          </span>{' '}
+                          {registroAnterior?.agarre || '-'}
+                        </p>
+                      </div>
+
+                      <div className="grid gap-3">
+                        {agruparSeriesPorNumeroSerie(ejercicio.seriesRealizadas).map(
+                          (grupoSeries) => {
+                            const seriesAnteriores = obtenerSeriesAnterioresPorNumeroSerie(
+                              registroAnterior,
+                              grupoSeries.numeroSerie,
                             )
-                          }
-                        />
-                      </label>
-                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Reps base
-                        <input
-                          className={numberInputClass}
-                          type="number"
-                          min="0"
-                          max="99"
-                          value={exercise.plannedRepetitions}
-                          onChange={(event) =>
-                            updateExercise(
-                              exercise.exerciseId,
-                              'plannedRepetitions',
-                              event.target.value,
-                            )
-                          }
-                        />
-                      </label>
-                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Altura banco
-                        <input
-                          className="w-28 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-                          type="number"
-                          min="0"
-                          max="999"
-                          value={exercise.benchHeight}
-                          onChange={(event) =>
-                            updateExercise(exercise.exerciseId, 'benchHeight', event.target.value)
-                          }
-                        />
-                      </label>
-                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Agarre
-                        <input
-                          className={`${textInputClass} min-w-36`}
-                          value={exercise.grip}
-                          onChange={(event) =>
-                            updateExercise(exercise.exerciseId, 'grip', event.target.value)
-                          }
-                        />
-                      </label>
-                    </div>
+                            const hayCambioPesoAnterior =
+                              seriesAnteriores.length > 1 && tieneMultiplesPesos(seriesAnteriores)
+                            const hayCambioPesoActual =
+                              grupoSeries.series.length > 1 &&
+                              tieneMultiplesPesos(grupoSeries.series)
+                            const ultimaSerieDelGrupo =
+                              grupoSeries.series[grupoSeries.series.length - 1]
 
-                    <div className="grid gap-2 rounded-lg border border-neon-purple/30 bg-slate-50 p-3 text-xs text-slate-600 shadow-glow-purple dark:bg-pes-black/60 dark:text-slate-400 sm:grid-cols-3">
-                      <p>
-                        <span className="font-bold text-slate-950 dark:text-white">
-                          Anterior:
-                        </span>{' '}
-                        {previousRecord
-                          ? `${new Date(previousRecord.completedAt).toLocaleDateString('es-ES')} · ${previousRecord.sessionName}`
-                          : 'Sin registro previo'}
-                      </p>
-                      <p>
-                        <span className="font-bold text-slate-950 dark:text-white">
-                          Banco:
-                        </span>{' '}
-                        {previousRecord?.benchHeight || '-'}
-                      </p>
-                      <p>
-                        <span className="font-bold text-slate-950 dark:text-white">
-                          Agarre:
-                        </span>{' '}
-                        {previousRecord?.grip || '-'}
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3">
-                      {groupSetsBySetNumber(exercise.performedSets).map((setGroup) => {
-                        const previousSets = getPreviousSetsBySetNumber(
-                          previousRecord,
-                          setGroup.setNumber,
-                        )
-                        const hasPreviousWeightChange =
-                          previousSets.length > 1 && hasMultipleWeights(previousSets)
-                        const hasCurrentWeightChange =
-                          setGroup.sets.length > 1 && hasMultipleWeights(setGroup.sets)
-                        const lastSetInGroup = setGroup.sets[setGroup.sets.length - 1]
-
-                        return (
-                          <div
-                            className="rounded-lg border border-slate-200 p-3 transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10"
-                            key={setGroup.setNumber}
-                          >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-sm font-bold text-neon-purple dark:text-neon-cyan">
-                                  Serie {setGroup.setNumber}
-                                </p>
-                                {hasCurrentWeightChange ? (
-                                  <span className="rounded-full border border-neon-cyan/40 px-2 py-1 text-xs font-bold text-neon-cyan shadow-glow-cyan">
-                                    Varios pesos hoy
-                                  </span>
-                                ) : null}
-                                {hasPreviousWeightChange ? (
-                                  <span className="rounded-full border border-neon-pink/50 px-2 py-1 text-xs font-bold text-neon-pink shadow-glow-pink">
-                                    Mas de un peso anterior
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <button
-                                className="w-fit rounded-md border border-neon-cyan/50 px-3 py-2 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
-                                type="button"
-                                onClick={() => addWeightStep(exercise.exerciseId, lastSetInGroup)}
+                            return (
+                              <div
+                                className="rounded-lg border border-slate-200 p-3 transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10"
+                                key={grupoSeries.numeroSerie}
                               >
-                                Otro peso en serie {setGroup.setNumber}
-                              </button>
-                            </div>
-
-                            <div className="mt-3 grid gap-2">
-                              {setGroup.sets.map((set, setIndex) => (
-                                <div
-                                  className="grid gap-3 rounded-md border border-slate-200/80 bg-slate-50/70 p-3 md:grid-cols-[90px_100px_150px_96px] md:items-end dark:border-white/10 dark:bg-pes-black/50"
-                                  key={set.id}
-                                >
-                                  <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Reps hechas
-                                    <input
-                                      className={numberInputClass}
-                                      type="number"
-                                      min="0"
-                                      max="99"
-                                      value={set.reps}
-                                      onChange={(event) =>
-                                        updateSet(
-                                          exercise.exerciseId,
-                                          set.id,
-                                          'reps',
-                                          event.target.value,
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                  <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Peso
-                                    <input
-                                      className={weightInputClass}
-                                      type="number"
-                                      min="0"
-                                      max="999"
-                                      value={set.weight}
-                                      onChange={(event) =>
-                                        updateSet(
-                                          exercise.exerciseId,
-                                          set.id,
-                                          'weight',
-                                          event.target.value,
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                  <div className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                    Anterior
-                                    <div className="flex min-h-10 items-center rounded-md border border-neon-purple/30 bg-white px-3 py-2 text-sm font-bold text-slate-950 shadow-[0_0_18px_rgba(105,0,255,0.12)] dark:bg-pes-black/70 dark:text-neon-pink">
-                                      {formatPreviousSet(previousSets[setIndex])}
-                                    </div>
+                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-bold text-neon-purple dark:text-neon-cyan">
+                                      Serie {grupoSeries.numeroSerie}
+                                    </p>
+                                    {hayCambioPesoActual ? (
+                                      <span className="rounded-full border border-neon-cyan/40 px-2 py-1 text-xs font-bold text-neon-cyan shadow-glow-cyan">
+                                        Varios pesos hoy
+                                      </span>
+                                    ) : null}
+                                    {hayCambioPesoAnterior ? (
+                                      <span className="rounded-full border border-neon-pink/50 px-2 py-1 text-xs font-bold text-neon-pink shadow-glow-pink">
+                                        Mas de un peso anterior
+                                      </span>
+                                    ) : null}
                                   </div>
+
                                   <button
-                                    className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
+                                    className="w-fit rounded-md border border-neon-cyan/50 px-3 py-2 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
                                     type="button"
-                                    onClick={() => removeSet(exercise.exerciseId, set.id)}
+                                    onClick={() =>
+                                      agregarTramoPeso(
+                                        ejercicio.idEjercicio,
+                                        ultimaSerieDelGrupo,
+                                      )
+                                    }
                                   >
-                                    Borrar
+                                    Otro peso en serie {grupoSeries.numeroSerie}
                                   </button>
                                 </div>
-                              ))}
-                              {previousSets.length > setGroup.sets.length ? (
-                                <div className="rounded-md border border-neon-pink/30 px-3 py-2 text-sm text-neon-pink shadow-[0_0_18px_rgba(255,102,255,0.12)]">
-                                  La sesion anterior tuvo {previousSets.length} tramos en esta
-                                  serie:{' '}
-                                  {previousSets
-                                    .map((previousSet) => formatPreviousSet(previousSet))
-                                    .join(' + ')}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
 
-                    <button
-                      className="w-fit rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
-                      type="button"
-                      onClick={() => addSet(exercise.exerciseId)}
-                    >
-                      Anadir serie
-                    </button>
-                  </div>
+                                <div className="mt-3 grid gap-2">
+                                  {grupoSeries.series.map((serie, indiceSerie) => (
+                                    <div
+                                      className="grid gap-3 rounded-md border border-slate-200/80 bg-slate-50/70 p-3 md:grid-cols-[90px_100px_150px_96px] md:items-end dark:border-white/10 dark:bg-pes-black/50"
+                                      key={serie.id}
+                                    >
+                                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                        Reps hechas
+                                        <input
+                                          className={claseInputNumero}
+                                          type="number"
+                                          min="0"
+                                          max="99"
+                                          value={serie.repeticiones}
+                                          onChange={(evento) =>
+                                            actualizarSerie(
+                                              ejercicio.idEjercicio,
+                                              serie.id,
+                                              'repeticiones',
+                                              evento.target.value,
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                        Peso
+                                        <input
+                                          className={claseInputPeso}
+                                          type="number"
+                                          min="0"
+                                          max="999"
+                                          value={serie.peso}
+                                          onChange={(evento) =>
+                                            actualizarSerie(
+                                              ejercicio.idEjercicio,
+                                              serie.id,
+                                              'peso',
+                                              evento.target.value,
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                      <div className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                        Anterior
+                                        <div className="flex min-h-10 items-center rounded-md border border-neon-purple/30 bg-white px-3 py-2 text-sm font-bold text-slate-950 shadow-[0_0_18px_rgba(105,0,255,0.12)] dark:bg-pes-black/70 dark:text-neon-pink">
+                                          {formatearSerieAnterior(seriesAnteriores[indiceSerie])}
+                                        </div>
+                                      </div>
+                                      <button
+                                        className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
+                                        type="button"
+                                        onClick={() =>
+                                          eliminarSerie(ejercicio.idEjercicio, serie.id)
+                                        }
+                                      >
+                                        Borrar
+                                      </button>
+                                    </div>
+                                  ))}
+                                  {seriesAnteriores.length > grupoSeries.series.length ? (
+                                    <div className="rounded-md border border-neon-pink/30 px-3 py-2 text-sm text-neon-pink shadow-[0_0_18px_rgba(255,102,255,0.12)]">
+                                      La sesion anterior tuvo {seriesAnteriores.length} tramos en
+                                      esta serie:{' '}
+                                      {seriesAnteriores
+                                        .map((serieAnterior) =>
+                                          formatearSerieAnterior(serieAnterior),
+                                        )
+                                        .join(' + ')}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            )
+                          },
+                        )}
+                      </div>
+
+                      <button
+                        className="w-fit rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
+                        type="button"
+                        onClick={() => agregarSerie(ejercicio.idEjercicio)}
+                      >
+                        Anadir serie
+                      </button>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -1008,12 +1264,12 @@ function Entreno() {
         </section>
       </main>
 
-      <Footer
-        actionLabel="Finalizar y enviar"
-        disabled={!workout || isSaving}
-        isLoading={isSaving}
-        message={message}
-        onAction={finishWorkout}
+      <PieAccion
+        etiquetaAccion="Finalizar y enviar"
+        deshabilitado={!entrenamiento || estaGuardando}
+        estaCargando={estaGuardando}
+        mensaje={mensaje}
+        alAccionar={finalizarEntrenamiento}
       />
     </div>
   )
