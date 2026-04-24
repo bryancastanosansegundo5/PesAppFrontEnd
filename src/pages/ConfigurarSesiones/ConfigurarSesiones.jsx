@@ -363,7 +363,7 @@ function ConfigurarSesiones() {
                             )
                           }
                         >
-                          Anadir ejercicio
+                          Añadir ejercicio
                         </button>
                         <button
                           className="rounded-md border border-neon-pink/50 px-3 py-3 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
@@ -536,10 +536,8 @@ function ConfigurarSesiones() {
                             <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                               Altura banco
                               <input
-                                className="w-28 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-                                type="number"
-                                min="0"
-                                max="999"
+                                className={`${claseInputTexto} w-28`}
+                                type="text"
                                 value={ejercicio.alturaBanco}
                                 onChange={(evento) =>
                                   actualizarEjercicio(

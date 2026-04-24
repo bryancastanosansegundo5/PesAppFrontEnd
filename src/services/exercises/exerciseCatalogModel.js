@@ -124,13 +124,13 @@ function normalizarNumero(valor, valorPorDefecto = 0) {
   return Number.isFinite(numero) ? numero : valorPorDefecto
 }
 
-function normalizarAlturaBanco(valor) {
-  if (valor === '' || valor === null || valor === undefined) {
-    return ''
-  }
+function normalizarTextoPayload(valor) {
+  const texto = String(valor || '').trim()
+  return texto || null
+}
 
-  const numero = Number(valor)
-  return Number.isFinite(numero) ? numero : ''
+function normalizarAlturaBanco(valor) {
+  return valor === null || valor === undefined ? '' : String(valor)
 }
 
 function obtenerIdCatalogo(ejercicio, indice = 0) {
@@ -173,7 +173,7 @@ export function normalizarPlantillaEjercicio(ejercicio, indice = 0) {
 }
 
 export function normalizarListaEjercicios(lista) {
-  if (!Array.isArray(lista) || lista.length === 0) {
+  if (!Array.isArray(lista)) {
     return ejerciciosPredeterminados.map(normalizarPlantillaEjercicio)
   }
 
@@ -182,16 +182,16 @@ export function normalizarListaEjercicios(lista) {
 
 export function crearPayloadEjercicioCatalogo(ejercicio) {
   return {
-    nombre: ejercicio?.nombre?.trim() || '',
-    descripcion: ejercicio?.descripcion?.trim() || '',
-    grupoMuscular: ejercicio?.grupoMuscular?.trim() || '',
-    patronMovimiento: ejercicio?.patronMovimiento?.trim() || '',
-    equipamiento: ejercicio?.equipamiento?.trim() || '',
+    nombre: String(ejercicio?.nombre || '').trim(),
+    descripcion: normalizarTextoPayload(ejercicio?.descripcion),
+    grupoMuscular: normalizarTextoPayload(ejercicio?.grupoMuscular),
+    patronMovimiento: normalizarTextoPayload(ejercicio?.patronMovimiento),
+    equipamiento: normalizarTextoPayload(ejercicio?.equipamiento),
     seriesPlanificadas: normalizarNumero(ejercicio?.seriesPlanificadas),
     repeticionesPlanificadas: normalizarNumero(ejercicio?.repeticionesPlanificadas),
     pesoPlanificado: normalizarNumero(ejercicio?.pesoPlanificado),
-    alturaBanco: ejercicio?.alturaBanco === '' ? null : normalizarNumero(ejercicio?.alturaBanco),
-    agarre: ejercicio?.agarre?.trim() || '',
+    alturaBanco: normalizarTextoPayload(ejercicio?.alturaBanco),
+    agarre: normalizarTextoPayload(ejercicio?.agarre),
   }
 }
 

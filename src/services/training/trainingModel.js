@@ -162,7 +162,12 @@ export function normalizarEjercicio(ejercicio, indice = 0) {
       ) || 0,
     pesoPlanificado:
       Number(ejercicio?.pesoPlanificado ?? ejercicio?.plannedWeight ?? ejercicio?.weight) || 0,
-    alturaBanco: ejercicio?.alturaBanco ?? ejercicio?.benchHeight ?? '',
+    alturaBanco:
+      ejercicio?.alturaBanco === null || ejercicio?.alturaBanco === undefined
+        ? ejercicio?.benchHeight === null || ejercicio?.benchHeight === undefined
+          ? ''
+          : String(ejercicio.benchHeight)
+        : String(ejercicio.alturaBanco),
     agarre: ejercicio?.agarre || ejercicio?.grip || '',
     completado: Boolean(ejercicio?.completado ?? ejercicio?.completed),
     omitido: Boolean(ejercicio?.omitido ?? ejercicio?.skipped),
@@ -321,7 +326,7 @@ export function crearPayloadSesion(sesion) {
       seriesPlanificadas: Number(ejercicio.seriesPlanificadas) || 0,
       repeticionesPlanificadas: Number(ejercicio.repeticionesPlanificadas) || 0,
       pesoPlanificado: Number(ejercicio.pesoPlanificado) || 0,
-      alturaBanco: ejercicio.alturaBanco === '' ? null : Number(ejercicio.alturaBanco) || 0,
+      alturaBanco: ejercicio.alturaBanco === '' ? null : String(ejercicio.alturaBanco),
       agarre: ejercicio.agarre || '',
     })),
   }
@@ -347,7 +352,7 @@ export function crearPayloadEntrenamiento(entrenamiento) {
       seriesPlanificadas: Number(ejercicio.seriesPlanificadas) || 0,
       repeticionesPlanificadas: Number(ejercicio.repeticionesPlanificadas) || 0,
       pesoPlanificado: Number(ejercicio.pesoPlanificado) || 0,
-      alturaBanco: ejercicio.alturaBanco === '' ? null : Number(ejercicio.alturaBanco) || 0,
+      alturaBanco: ejercicio.alturaBanco === '' ? null : String(ejercicio.alturaBanco),
       agarre: ejercicio.agarre || '',
       completado: Boolean(ejercicio.completado),
       omitido: Boolean(ejercicio.omitido),

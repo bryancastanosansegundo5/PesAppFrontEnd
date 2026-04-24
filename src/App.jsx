@@ -6,17 +6,28 @@ import NotFound from './pages/NotFound/NotFound'
 import ConfigurarSesiones from './pages/ConfigurarSesiones/ConfigurarSesiones'
 import Ejercicios from './pages/Ejercicios/Ejercicios'
 import Entreno from './pages/Entreno/Entreno'
+import OtrosEntrenos from './pages/OtrosEntrenos/OtrosEntrenos'
+import AdminPanel from './pages/Admin/AdminPanel'
 import imagenHero from './assets/LogoConTexto.png'
 import {
-  cerrarSesionLocal,
+  cerrarSesion,
   iniciarSesion,
-  obtenerSesionPersistida,
   obtenerUsuarioActual,
+  refrescarSesion,
 } from './services/auth/authApiService'
-import { guardarSesionAuth } from './services/auth/tokenStorage'
 import { ApiError } from './services/http/apiClient'
 
-const rutasProtegidas = new Set(['entreno', 'ejercicios', 'configurar-sesiones'])
+const rutasProtegidas = new Set([
+  'entreno',
+  'ejercicios',
+  'otros-entrenos',
+  'configurar-sesiones',
+  'admin',
+])
+
+function esUsuarioAdmin(usuario) {
+  return usuario?.rol === 'ADMIN'
+}
 
 function obtenerTemaInicial() {
   const temaGuardado = window.localStorage.getItem('pesapp-theme')
@@ -37,6 +48,7 @@ function obtenerRutaDesdePath() {
   if (ruta === '/entreno') return 'entreno'
   if (ruta === '/otros-entrenos') return 'otros-entrenos'
   if (ruta === '/configurar-sesiones') return 'configurar-sesiones'
+  if (ruta === '/admin') return 'admin'
 
   return 'not-found'
 }
@@ -47,6 +59,7 @@ function obtenerPathDesdeRuta(ruta) {
   if (ruta === 'entreno') return '/entreno'
   if (ruta === 'otros-entrenos') return '/otros-entrenos'
   if (ruta === 'configurar-sesiones') return '/configurar-sesiones'
+  if (ruta === 'admin') return '/admin'
   if (ruta === 'not-found') return '/404'
 
   return '/'
@@ -55,7 +68,7 @@ function obtenerPathDesdeRuta(ruta) {
 function App() {
   const [tema, setTema] = useState(obtenerTemaInicial)
   const [ruta, setRuta] = useState(obtenerRutaDesdePath)
-  const [sesion, setSesion] = useState(obtenerSesionPersistida)
+  const [sesion, setSesion] = useState(null)
   const [estaInicializandoAuth, setEstaInicializandoAuth] = useState(true)
   const [estaHaciendoLogin, setEstaHaciendoLogin] = useState(false)
   const [errorLogin, setErrorLogin] = useState('')
@@ -94,34 +107,23 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const validarSesion = async () => {
-      const sesionPersistida = obtenerSesionPersistida()
-
-      if (!sesionPersistida?.token) {
-        setSesion(null)
-        setEstaInicializandoAuth(false)
-        return
-      }
-
+    const restaurarSesion = async () => {
       try {
+        await refrescarSesion()
         const usuarioActual = await obtenerUsuarioActual()
-        const sesionValidada = { ...sesionPersistida, usuario: usuarioActual }
-        guardarSesionAuth(sesionValidada)
-        setSesion(sesionValidada)
+        setSesion({ usuario: usuarioActual, authenticated: true })
       } catch {
-        cerrarSesionLocal()
         setSesion(null)
       } finally {
         setEstaInicializandoAuth(false)
       }
     }
 
-    validarSesion()
+    restaurarSesion()
   }, [])
 
   useEffect(() => {
     const manejarAuthInvalida = () => {
-      cerrarSesionLocal()
       setSesion(null)
       setErrorLogin('Tu sesion ha expirado. Vuelve a iniciar sesion.')
       setRutaProtegidaPendiente(ruta)
@@ -166,11 +168,7 @@ function App() {
   }, [estaInicializandoAuth, ruta, rutaProtegidaPendiente, sesion])
 
   useEffect(() => {
-    if (ruta === 'otros-entrenos') {
-      requestAnimationFrame(() => {
-        document.getElementById(ruta)?.scrollIntoView({ block: 'start' })
-      })
-    } else if (ruta !== 'login') {
+    if (ruta !== 'login') {
       window.scrollTo({ top: 0 })
     }
   }, [ruta])
@@ -194,6 +192,32 @@ function App() {
     setRuta(obtenerRutaDesdePath())
   }
 
+  const renderizarAccesoDenegado = () => (
+    <main className="mx-auto flex min-h-[60svh] w-full max-w-5xl items-center px-4 py-8 sm:px-6 lg:px-8">
+      <section className="w-full rounded-[32px] border border-slate-200 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/[0.04]">
+        <p className="inline-flex rounded-full border border-neon-pink/35 bg-white px-4 py-2 text-sm font-semibold text-neon-purple shadow-glow-pink dark:bg-white/5 dark:text-neon-pink">
+          Acceso restringido
+        </p>
+        <h1 className="mt-5 text-4xl font-black text-slate-950 dark:text-white">
+          Esta zona es solo para administradores.
+        </h1>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
+          Tu sesion es valida, pero no tienes permisos para gestionar usuarios. Si necesitas
+          acceso, tendra que habilitarlo un administrador.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
+            type="button"
+            onClick={() => navegarA('/')}
+          >
+            Volver al inicio
+          </button>
+        </div>
+      </section>
+    </main>
+  )
+
   const manejarLogin = async ({ email, password }) => {
     setEstaHaciendoLogin(true)
     setErrorLogin('')
@@ -201,15 +225,6 @@ function App() {
     try {
       const sesionIniciada = await iniciarSesion({ email, password })
       setSesion(sesionIniciada)
-
-      try {
-        const usuarioActual = await obtenerUsuarioActual()
-        const sesionCompleta = { ...sesionIniciada, usuario: usuarioActual }
-        guardarSesionAuth(sesionCompleta)
-        setSesion(sesionCompleta)
-      } catch {
-        setSesion(sesionIniciada)
-      }
     } catch (errorCapturado) {
       if (errorCapturado instanceof ApiError && errorCapturado.status === 401) {
         setErrorLogin(errorCapturado.message || 'Credenciales no validas.')
@@ -221,8 +236,13 @@ function App() {
     }
   }
 
-  const manejarLogout = () => {
-    cerrarSesionLocal()
+  const manejarLogout = async () => {
+    try {
+      await cerrarSesion()
+    } catch {
+      // Aunque falle la llamada, limpiamos el estado local para no bloquear la UX.
+    }
+
     setSesion(null)
     setRutaProtegidaPendiente('')
     setErrorLogin('')
@@ -346,6 +366,18 @@ function App() {
 
     if (ruta === 'ejercicios') {
       return <Ejercicios />
+    }
+
+    if (ruta === 'otros-entrenos') {
+      return <OtrosEntrenos />
+    }
+
+    if (ruta === 'admin') {
+      if (!esUsuarioAdmin(sesion?.usuario)) {
+        return renderizarAccesoDenegado()
+      }
+
+      return <AdminPanel usuarioActual={sesion?.usuario || null} />
     }
 
     if (ruta === 'not-found') {

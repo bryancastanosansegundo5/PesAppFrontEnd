@@ -1,9 +1,3 @@
-import {
-  guardarSesionAuth,
-  limpiarSesionAuth,
-  obtenerSesionAuth,
-  sesionAuthExpirada,
-} from './tokenStorage'
 import { apiRequest } from '../http/apiClient'
 
 function normalizarUsuario(usuario) {
@@ -22,35 +16,37 @@ function normalizarUsuario(usuario) {
   }
 }
 
-export function obtenerSesionPersistida() {
-  const sesion = obtenerSesionAuth()
-
-  if (!sesion || sesionAuthExpirada()) {
+function normalizarSesion(payload) {
+  if (!payload) {
     return null
   }
 
   return {
-    ...sesion,
-    usuario: normalizarUsuario(sesion.usuario),
+    tokenType: payload.tokenType || 'Cookie',
+    accessTokenExpiresIn: Number(payload.accessTokenExpiresIn) || 0,
+    refreshTokenExpiresIn: Number(payload.refreshTokenExpiresIn) || 0,
+    authenticated: Boolean(payload.authenticated),
+    usuario: normalizarUsuario(payload.usuario),
   }
 }
 
 export async function iniciarSesion({ email, password }) {
   const payload = await apiRequest('/api/auth/login', {
     method: 'POST',
+    credentials_mode: 'include',
     body: { email, password },
   })
 
-  const sesion = {
-    token: payload.token,
-    tokenType: payload.tokenType || 'Bearer',
-    expiresIn: Number(payload.expiresIn) || 0,
-    expiresAt: Date.now() + (Number(payload.expiresIn) || 0),
-    usuario: normalizarUsuario(payload.usuario),
-  }
+  return normalizarSesion(payload)
+}
 
-  guardarSesionAuth(sesion)
-  return sesion
+export async function refrescarSesion() {
+  const payload = await apiRequest('/api/auth/refresh', {
+    method: 'POST',
+    credentials_mode: 'include',
+  })
+
+  return normalizarSesion(payload)
 }
 
 export async function obtenerUsuarioActual() {
@@ -62,6 +58,14 @@ export async function obtenerUsuarioActual() {
   return normalizarUsuario(payload)
 }
 
-export function cerrarSesionLocal() {
-  limpiarSesionAuth()
+export async function cerrarSesion() {
+  const payload = await apiRequest('/api/auth/logout', {
+    method: 'POST',
+    credentials_mode: 'include',
+  })
+
+  return {
+    logout: Boolean(payload?.logout),
+    mensaje: payload?.mensaje || '',
+  }
 }

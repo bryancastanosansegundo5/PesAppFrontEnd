@@ -410,6 +410,7 @@ function Ejercicios() {
                         <input
                           className={claseInputTexto}
                           value={ejercicio.nombre}
+                          placeholder="Ej: Press banca"
                           onChange={(evento) =>
                             actualizarEjercicio(ejercicio.idEjercicio, 'nombre', evento.target.value)
                           }
@@ -420,6 +421,7 @@ function Ejercicios() {
                         <input
                           className={claseInputTexto}
                           value={ejercicio.grupoMuscular}
+                          placeholder="Ej: Pecho"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -434,6 +436,7 @@ function Ejercicios() {
                         <input
                           className={claseInputTexto}
                           value={ejercicio.patronMovimiento}
+                          placeholder="Ej: Empuje horizontal"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -448,6 +451,7 @@ function Ejercicios() {
                         <input
                           className={claseInputTexto}
                           value={ejercicio.descripcion}
+                          placeholder="Ej: Ejercicio base de empuje horizontal"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -462,6 +466,7 @@ function Ejercicios() {
                         <input
                           className={claseInputTexto}
                           value={ejercicio.equipamiento}
+                          placeholder="Ej: Barra"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -482,6 +487,7 @@ function Ejercicios() {
                           min="0"
                           max="99"
                           value={ejercicio.seriesPlanificadas}
+                          placeholder="4"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -499,6 +505,7 @@ function Ejercicios() {
                           min="0"
                           max="99"
                           value={ejercicio.repeticionesPlanificadas}
+                          placeholder="8"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -516,6 +523,7 @@ function Ejercicios() {
                           min="0"
                           max="999"
                           value={ejercicio.pesoPlanificado}
+                          placeholder="80"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -528,11 +536,10 @@ function Ejercicios() {
                       <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                         Altura banco
                         <input
-                          className={claseInputNumero}
-                          type="number"
-                          min="0"
-                          max="999"
+                          className={claseInputTexto}
+                          type="text"
                           value={ejercicio.alturaBanco}
+                          placeholder="Ej: Banco plano"
                           onChange={(evento) =>
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
@@ -547,6 +554,7 @@ function Ejercicios() {
                         <input
                           className={claseInputTexto}
                           value={ejercicio.agarre}
+                          placeholder="Ej: Prono"
                           onChange={(evento) =>
                             actualizarEjercicio(ejercicio.idEjercicio, 'agarre', evento.target.value)
                           }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import PieAccion from '../../components/Footer/Footer'
+import Toast from '../../components/Toast/Toast'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import {
   crearEntrenamientoDesdeSesion,
@@ -677,8 +678,12 @@ function Entreno() {
     })
 
   return (
-    <div className="flex min-h-[calc(100svh-73px)] flex-col">
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 pb-28 sm:px-6 lg:px-8">
+    <div className="flex flex-col">
+      <main
+        className={`mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8 ${
+          entrenamiento ? 'pb-28' : 'pb-6'
+        }`}
+      >
         <div
           className={`sm:hidden ${isPulling || isRefreshing ? 'block' : 'hidden'}`}
         >
@@ -802,7 +807,7 @@ function Entreno() {
               setEstaAbiertoSelectorSesiones(false)
             }}
           >
-            Anadir ejercicio solo hoy
+            Añadir ejercicio solo hoy
           </button>
         </section>
         {gestoRecargaDisponible ? (
@@ -1067,10 +1072,8 @@ function Entreno() {
                         <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                           Altura banco
                           <input
-                            className="w-28 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-                            type="number"
-                            min="0"
-                            max="999"
+                            className={`${claseInputTexto} w-28`}
+                            type="text"
                             value={ejercicio.alturaBanco}
                             onChange={(evento) =>
                               actualizarEjercicio(
@@ -1253,7 +1256,7 @@ function Entreno() {
                         type="button"
                         onClick={() => agregarSerie(ejercicio.idEjercicio)}
                       >
-                        Anadir serie
+                        Añadir serie
                       </button>
                     </div>
                   </div>
@@ -1264,13 +1267,26 @@ function Entreno() {
         </section>
       </main>
 
-      <PieAccion
-        etiquetaAccion="Finalizar y enviar"
-        deshabilitado={!entrenamiento || estaGuardando}
-        estaCargando={estaGuardando}
-        mensaje={mensaje}
-        alAccionar={finalizarEntrenamiento}
-      />
+      {entrenamiento ? (
+        <PieAccion
+          etiquetaAccion="Finalizar y enviar"
+          deshabilitado={estaGuardando}
+          estaCargando={estaGuardando}
+          mensaje={mensaje}
+          alAccionar={finalizarEntrenamiento}
+        />
+      ) : (
+        <Toast
+          key={mensaje || 'toast-vacio'}
+          mensaje={mensaje}
+          tipo={
+            mensaje?.toLowerCase().includes('no se pudo') ||
+            mensaje?.toLowerCase().includes('error')
+              ? 'error'
+              : 'info'
+          }
+        />
+      )}
     </div>
   )
 }

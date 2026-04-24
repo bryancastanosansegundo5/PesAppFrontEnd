@@ -1,5 +1,4 @@
 import { API_BASE_URL } from '../../config/env'
-import { obtenerTokenAuth } from '../auth/tokenStorage'
 
 export class ApiError extends Error {
   constructor(message, status, payload) {
@@ -9,6 +8,8 @@ export class ApiError extends Error {
     this.payload = payload
   }
 }
+
+let refreshPromise = null
 
 function construirUrl(path) {
   if (/^https?:\/\//i.test(path)) {
@@ -50,23 +51,63 @@ function construirMensajeError(payload, fallbackMessage) {
   return payload.error || fallbackMessage
 }
 
-export async function apiRequest(path, options = {}) {
-  const { auth = false, body, headers = {}, token, ...restOptions } = options
+function esEndpointAuth(path) {
+  return (
+    path === '/api/auth/login' ||
+    path === '/api/auth/logout' ||
+    path === '/api/auth/refresh' ||
+    path === '/api/auth/me'
+  )
+}
+
+async function solicitarRefresh() {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const response = await fetch(construirUrl('/api/auth/refresh'), {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      const payload = await extraerPayload(response)
+
+      if (!response.ok) {
+        throw new ApiError(
+          construirMensajeError(payload, 'No se pudo refrescar la sesion.'),
+          response.status,
+          payload,
+        )
+      }
+
+      return payload
+    })().finally(() => {
+      refreshPromise = null
+    })
+  }
+
+  return refreshPromise
+}
+
+async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
+  const {
+    auth = false,
+    body,
+    headers = {},
+    credentials_mode,
+    skip_refresh = false,
+    ...restOptions
+  } = options
   const requestHeaders = new Headers(headers)
-  const bearerToken = token || (auth ? obtenerTokenAuth() : null)
   const isFormData = body instanceof FormData
+  const credentials = credentials_mode || (auth ? 'include' : 'same-origin')
 
   if (body !== undefined && !isFormData && !requestHeaders.has('Content-Type')) {
     requestHeaders.set('Content-Type', 'application/json')
   }
 
-  if (bearerToken && !requestHeaders.has('Authorization')) {
-    requestHeaders.set('Authorization', `Bearer ${bearerToken}`)
-  }
-
   const response = await fetch(construirUrl(path), {
     ...restOptions,
     headers: requestHeaders,
+    credentials,
     body:
       body === undefined || isFormData || typeof body === 'string'
         ? body
@@ -75,14 +116,21 @@ export async function apiRequest(path, options = {}) {
 
   const payload = await extraerPayload(response)
 
-  if (!response.ok) {
-    const error = new ApiError(
-      construirMensajeError(payload, 'No se pudo completar la peticion.'),
-      response.status,
-      payload,
-    )
+  if (response.ok) {
+    return payload
+  }
 
-    if (auth && response.status === 403) {
+  if (
+    auth &&
+    response.status === 401 &&
+    intentoRefresh &&
+    !skip_refresh &&
+    !esEndpointAuth(path)
+  ) {
+    try {
+      await solicitarRefresh()
+      return ejecutarRequest(path, options, false)
+    } catch {
       window.dispatchEvent(
         new CustomEvent('pesapp:auth-invalid', {
           detail: {
@@ -92,9 +140,26 @@ export async function apiRequest(path, options = {}) {
         }),
       )
     }
-
-    throw error
   }
 
-  return payload
+  if (auth && response.status === 401 && !esEndpointAuth(path)) {
+    window.dispatchEvent(
+      new CustomEvent('pesapp:auth-invalid', {
+        detail: {
+          path,
+          status: response.status,
+        },
+      }),
+    )
+  }
+
+  throw new ApiError(
+    construirMensajeError(payload, 'No se pudo completar la peticion.'),
+    response.status,
+    payload,
+  )
+}
+
+export function apiRequest(path, options = {}) {
+  return ejecutarRequest(path, options, true)
 }
