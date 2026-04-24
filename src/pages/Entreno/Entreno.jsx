@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer/Footer'
 import {
   TRAINING_SYNC_ENDPOINT,
@@ -57,6 +57,13 @@ function hasMultipleWeights(sets) {
   return new Set(sets.map((set) => Number(set.weight))).size > 1
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 function createTodayExercise() {
   return {
     exerciseId: `today-${Date.now()}`,
@@ -70,6 +77,31 @@ function createTodayExercise() {
     completed: false,
     skipped: false,
     performedSets: [{ id: `set-${Date.now()}`, setNumber: 1, reps: 10, weight: 0 }],
+  }
+}
+
+function createTodayExerciseFromTemplate(templateExercise) {
+  const series = Number(templateExercise.series) || 0
+  const repetitions = Number(templateExercise.repetitions) || 0
+  const weight = Number(templateExercise.weight) || 0
+
+  return {
+    exerciseId: templateExercise.id,
+    name: templateExercise.name,
+    description: templateExercise.description || '',
+    plannedSeries: series,
+    plannedRepetitions: repetitions,
+    plannedWeight: weight,
+    benchHeight: templateExercise.benchHeight || '',
+    grip: templateExercise.grip || '',
+    completed: false,
+    skipped: false,
+    performedSets: Array.from({ length: series || 1 }, (_, index) => ({
+      id: `set-${Date.now()}-${index + 1}`,
+      setNumber: index + 1,
+      reps: repetitions,
+      weight,
+    })),
   }
 }
 
@@ -201,6 +233,42 @@ function Entreno() {
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [openExercises, setOpenExercises] = useState({})
+  const [isSessionSelectorOpen, setIsSessionSelectorOpen] = useState(false)
+  const [sessionSearch, setSessionSearch] = useState('')
+  const [isExerciseSelectorOpen, setIsExerciseSelectorOpen] = useState(false)
+  const [exerciseSearch, setExerciseSearch] = useState('')
+
+  const filteredSessions = useMemo(() => {
+    const normalizedSearch = normalizeText(sessionSearch)
+
+    if (!normalizedSearch) return sessions
+
+    return sessions.filter((session) => normalizeText(session.name).includes(normalizedSearch))
+  }, [sessions, sessionSearch])
+
+  const addableExerciseTemplates = useMemo(() => {
+    const existingExerciseIds = new Set(workout?.exercises.map((exercise) => exercise.exerciseId))
+    const uniqueTemplatesById = new Map()
+
+    sessions.forEach((session) => {
+      session.exercises.forEach((exercise) => {
+        if (!uniqueTemplatesById.has(exercise.id) && !existingExerciseIds.has(exercise.id)) {
+          uniqueTemplatesById.set(exercise.id, exercise)
+        }
+      })
+    })
+
+    const normalizedSearch = normalizeText(exerciseSearch)
+    const templates = Array.from(uniqueTemplatesById.values())
+
+    if (!normalizedSearch) return templates
+
+    return templates.filter(
+      (exercise) =>
+        normalizeText(exercise.name).includes(normalizedSearch) ||
+        normalizeText(exercise.description).includes(normalizedSearch),
+    )
+  }, [sessions, workout, exerciseSearch])
 
   useEffect(() => {
     if (workout) {
@@ -220,6 +288,8 @@ function Entreno() {
     setOpenExercises(
       Object.fromEntries(nextWorkout.exercises.map((exercise) => [exercise.exerciseId, true])),
     )
+    setIsSessionSelectorOpen(false)
+    setSessionSearch('')
     setMessage('Entreno de hoy cargado desde la plantilla. Puedes modificarlo sin cambiar la base.')
   }
 
@@ -347,6 +417,23 @@ function Entreno() {
       ...currentOpenExercises,
       [exercise.exerciseId]: true,
     }))
+    setIsExerciseSelectorOpen(false)
+    setExerciseSearch('')
+  }
+
+  const addExerciseFromTemplate = (templateExercise) => {
+    const exercise = createTodayExerciseFromTemplate(templateExercise)
+
+    setWorkout((currentWorkout) => ({
+      ...currentWorkout,
+      exercises: [...currentWorkout.exercises, exercise],
+    }))
+    setOpenExercises((currentOpenExercises) => ({
+      ...currentOpenExercises,
+      [exercise.exerciseId]: true,
+    }))
+    setIsExerciseSelectorOpen(false)
+    setExerciseSearch('')
   }
 
   const loadExampleWorkout = () => {
@@ -416,7 +503,7 @@ function Entreno() {
     <div className="flex min-h-[calc(100svh-73px)] flex-col">
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 pb-28 sm:px-6 lg:px-8">
         <section className="rounded-lg border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan transition-all duration-300 ease-out dark:bg-white/[0.04]">
-          <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-end">
+          <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-start">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
                 Entreno de hoy
@@ -432,25 +519,62 @@ function Entreno() {
 
             <div className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
               <p>Entreno a realizar</p>
-              <div className="flex flex-wrap gap-2">
-                {sessions.map((session) => {
-                  const isActive = selectedSessionId === session.id
+              <div className="rounded-lg border border-neon-cyan/40 bg-white/70 p-2 dark:bg-pes-black/40">
+                <button
+                  className="flex w-full items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-base font-bold text-slate-900 transition-all duration-300 ease-out hover:border-neon-pink dark:border-white/10 dark:bg-pes-black dark:text-white"
+                  type="button"
+                  onClick={() => {
+                    setIsSessionSelectorOpen((current) => !current)
+                    setIsExerciseSelectorOpen(false)
+                  }}
+                >
+                  <span>{sessions.find((session) => session.id === selectedSessionId)?.name || '-- Seleccionar --'}</span>
+                  <svg
+                    className={`h-5 w-5 text-neon-cyan transition-transform duration-300 ${isSessionSelectorOpen ? 'rotate-180' : ''}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
 
-                  return (
-                    <button
-                      className={`rounded-md border px-4 py-3 text-sm font-bold transition-all duration-300 ease-out ${
-                        isActive
-                          ? 'border-neon-cyan bg-pes-black text-neon-cyan shadow-glow-cyan dark:bg-white/5'
-                          : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:bg-pes-black dark:text-slate-200'
-                      }`}
-                      key={session.id}
-                      type="button"
-                      onClick={() => selectSession(session.id)}
-                    >
-                      {session.name}
-                    </button>
-                  )
-                })}
+                <div
+                  className={`mt-2 grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                    isSessionSelectorOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                  }`}
+                >
+                  <div className="overflow-hidden rounded-md border border-slate-200 bg-white/95 dark:border-white/10 dark:bg-pes-black/95">
+                    <div className="border-b border-slate-200 p-2 dark:border-white/10">
+                      <input
+                        className="w-full rounded-md border border-neon-cyan/40 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:bg-pes-black dark:text-white"
+                        placeholder="Buscar entreno..."
+                        value={sessionSearch}
+                        onChange={(event) => setSessionSearch(event.target.value)}
+                      />
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto">
+                      {filteredSessions.map((session) => (
+                        <button
+                          className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 last:border-b-0 dark:border-white/10 ${
+                            selectedSessionId === session.id
+                              ? 'bg-neon-cyan/15 text-neon-cyan'
+                              : 'text-slate-800 hover:bg-neon-pink/10 hover:text-neon-pink dark:text-slate-200'
+                          }`}
+                          key={session.id}
+                          type="button"
+                          onClick={() => selectSession(session.id)}
+                        >
+                          {session.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -467,11 +591,66 @@ function Entreno() {
           <button
             className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink"
             type="button"
-            onClick={addExerciseOnlyToday}
+            onClick={() => {
+              setIsExerciseSelectorOpen((current) => !current)
+              setIsSessionSelectorOpen(false)
+            }}
           >
             Anadir ejercicio solo hoy
           </button>
         </section>
+
+        {isExerciseSelectorOpen ? (
+          <section className="rounded-lg border border-neon-purple/30 bg-white p-3 shadow-glow-purple dark:bg-white/[0.04]">
+            <div className="grid gap-2">
+              <input
+                className="w-full rounded-md border border-neon-cyan/40 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:bg-pes-black dark:text-white"
+                placeholder="Buscar ejercicio para hoy..."
+                value={exerciseSearch}
+                onChange={(event) => setExerciseSearch(event.target.value)}
+              />
+
+              <div className="max-h-64 overflow-y-auto rounded-md border border-slate-200 dark:border-white/10">
+                {addableExerciseTemplates.length > 0 ? (
+                  addableExerciseTemplates.map((exercise) => (
+                    <button
+                      className="w-full border-b border-slate-200 px-4 py-3 text-left transition-all duration-200 last:border-b-0 hover:bg-neon-cyan/10 dark:border-white/10 dark:hover:bg-neon-purple/10"
+                      key={exercise.id}
+                      type="button"
+                      onClick={() => addExerciseFromTemplate(exercise)}
+                    >
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{exercise.name}</p>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                        {exercise.series}x{exercise.repetitions} · {exercise.weight}kg · {exercise.grip || 'Sin agarre'}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <p className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                    No hay ejercicios disponibles con ese filtro.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-600 hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:text-slate-300"
+                  type="button"
+                  onClick={() => setIsExerciseSelectorOpen(false)}
+                >
+                  Cerrar
+                </button>
+                <button
+                  className="rounded-md border border-neon-cyan/50 px-3 py-2 text-xs font-bold text-neon-cyan hover:border-neon-pink hover:text-neon-pink"
+                  type="button"
+                  onClick={addExerciseOnlyToday}
+                >
+                  Crear ejercicio manual
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="grid gap-5">
           {workout?.exercises.map((exercise) => {
@@ -492,15 +671,11 @@ function Entreno() {
                     onClick={() => toggleExercise(exercise.exerciseId)}
                   >
                     <span
-                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan ${
-                        isExerciseOpen
-                          ? 'rotate-180 border-neon-pink text-neon-pink shadow-glow-pink'
-                          : ''
-                      }`}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan"
                       aria-hidden="true"
                     >
                       <svg
-                        className="h-5 w-5"
+                        className={`h-5 w-5 transition-transform duration-300 ease-out ${isExerciseOpen ? 'rotate-180 text-neon-pink' : ''}`}
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"

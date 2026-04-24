@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Header from './components/Header/Header'
+import ScrollToTopButton from './components/ScrollToTopButton/ScrollToTopButton'
 import ConfigurarSesiones from './pages/ConfigurarSesiones/ConfigurarSesiones'
 import Entreno from './pages/Entreno/Entreno'
 import heroImg from './assets/PesApp.png'
@@ -180,7 +181,8 @@ function App() {
   return (
     <div className="min-h-svh overflow-hidden bg-[#F5F7FB] text-slate-950 transition-colors duration-300 ease-out dark:bg-pes-black dark:text-white">
       <Header theme={theme} onNavigate={navigateTo} onToggleTheme={toggleTheme} />
-      {renderPage()}
+      <div className="pt-24 sm:pt-28">{renderPage()}</div>
+      <ScrollToTopButton />
     </div>
   )
 }
