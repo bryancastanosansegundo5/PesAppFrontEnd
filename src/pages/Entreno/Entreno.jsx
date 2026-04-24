@@ -503,7 +503,7 @@ function Entreno() {
     <div className="flex min-h-[calc(100svh-73px)] flex-col">
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 pb-28 sm:px-6 lg:px-8">
         <section className="rounded-lg border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan transition-all duration-300 ease-out dark:bg-white/[0.04]">
-          <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-end">
+          <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-start">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
                 Entreno de hoy
@@ -542,8 +542,12 @@ function Entreno() {
                   </svg>
                 </button>
 
-                {isSessionSelectorOpen ? (
-                  <div className="mt-2 rounded-md border border-slate-200 bg-white/95 dark:border-white/10 dark:bg-pes-black/95">
+                <div
+                  className={`mt-2 grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                    isSessionSelectorOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                  }`}
+                >
+                  <div className="overflow-hidden rounded-md border border-slate-200 bg-white/95 dark:border-white/10 dark:bg-pes-black/95">
                     <div className="border-b border-slate-200 p-2 dark:border-white/10">
                       <input
                         className="w-full rounded-md border border-neon-cyan/40 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:bg-pes-black dark:text-white"
@@ -570,7 +574,7 @@ function Entreno() {
                       ))}
                     </div>
                   </div>
-                ) : null}
+                </div>
               </div>
             </div>
           </div>
