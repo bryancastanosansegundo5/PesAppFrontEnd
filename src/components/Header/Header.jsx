@@ -30,7 +30,7 @@ function Header({ theme, onNavigate, onToggleTheme }) {
   return (
     <header className="fixed inset-x-0 top-0 z-50 bg-transparent px-4 py-4 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
-        <div className="relative flex items-center justify-between rounded-full border border-neon-cyan/45 bg-white/65 px-4 py-3 text-sm text-slate-900 shadow-[0_0_26px_rgba(0,255,237,0.22)] backdrop-blur-2xl transition-all duration-300 ease-out dark:border-neon-purple/55 dark:bg-[#070913]/62 dark:text-white dark:shadow-[0_0_34px_rgba(105,0,255,0.3)]">
+        <div className="relative flex items-center justify-between rounded-full border border-white/45 bg-white/18 px-4 py-3 text-sm text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_0_28px_rgba(0,255,237,0.2)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-300 ease-out dark:border-white/20 dark:bg-[#090D1A]/38 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_34px_rgba(105,0,255,0.28)]">
           <a
             className="group inline-flex items-center rounded-full p-1 transition-all duration-300 ease-out hover:drop-shadow-[0_0_10px_rgba(0,255,237,0.45)] focus:outline-none focus:ring-2 focus:ring-neon-cyan"
             href="/"
@@ -63,7 +63,7 @@ function Header({ theme, onNavigate, onToggleTheme }) {
 
           <div className="hidden items-center gap-3 md:ml-8 md:flex">
             <button
-              className="group relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neon-cyan/45 bg-white/80 text-slate-800 shadow-[0_0_18px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-[0_0_24px_rgba(255,102,255,0.26)] dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-cyan dark:hover:text-neon-cyan dark:hover:shadow-[0_0_24px_rgba(0,255,237,0.35)]"
+              className="group relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/50 bg-white/30 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_18px_rgba(0,255,237,0.2)] backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-[0_0_24px_rgba(255,102,255,0.26)] dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-cyan dark:hover:text-neon-cyan dark:hover:shadow-[0_0_24px_rgba(0,255,237,0.35)]"
               type="button"
               aria-label={isDarkTheme ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
               onClick={onToggleTheme}
@@ -111,7 +111,7 @@ function Header({ theme, onNavigate, onToggleTheme }) {
             </button>
 
             <button
-              className="rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-900 shadow-[0_0_20px_rgba(255,255,255,0.45)] transition-all duration-300 hover:shadow-[0_0_26px_rgba(255,255,255,0.62)] dark:bg-neon-cyan/90 dark:text-pes-black dark:shadow-[0_0_22px_rgba(0,255,237,0.45)] dark:hover:shadow-[0_0_28px_rgba(0,255,237,0.65)]"
+              className="rounded-full border border-white/55 bg-white/42 px-4 py-2 text-sm font-bold text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_20px_rgba(255,255,255,0.25)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_0_26px_rgba(255,255,255,0.5)] dark:border-neon-cyan/45 dark:bg-neon-cyan/25 dark:text-neon-cyan dark:shadow-[0_0_22px_rgba(0,255,237,0.35)] dark:hover:shadow-[0_0_28px_rgba(0,255,237,0.52)]"
               type="button"
               onClick={() => setIsUserMenuOpen((currentValue) => !currentValue)}
             >
@@ -121,7 +121,7 @@ function Header({ theme, onNavigate, onToggleTheme }) {
 
           <div className="flex items-center gap-2 md:hidden">
             <button
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/5 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/50 bg-white/30 text-slate-800 backdrop-blur-xl transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
               type="button"
               aria-label={isDarkTheme ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
               onClick={onToggleTheme}
@@ -154,7 +154,7 @@ function Header({ theme, onNavigate, onToggleTheme }) {
             </button>
 
             <button
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/5 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/50 bg-white/30 text-slate-800 backdrop-blur-xl transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
               type="button"
               aria-label="Abrir menu"
               aria-expanded={isMenuOpen}
@@ -186,7 +186,7 @@ function Header({ theme, onNavigate, onToggleTheme }) {
 
           {isUserMenuOpen ? (
             <div
-              className="absolute right-4 top-[calc(100%+12px)] hidden w-44 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_14px_34px_rgba(15,23,42,0.16)] md:block dark:border-white/10 dark:bg-[#0B0D14] dark:shadow-[0_0_30px_rgba(105,0,255,0.22)]"
+              className="absolute right-4 top-[calc(100%+12px)] hidden w-44 rounded-2xl border border-white/50 bg-white/70 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-2xl md:block dark:border-white/15 dark:bg-[#0B0D14]/78 dark:shadow-[0_0_30px_rgba(105,0,255,0.22)]"
               role="menu"
             >
               {userActions.map((action) => (
@@ -206,7 +206,7 @@ function Header({ theme, onNavigate, onToggleTheme }) {
       </div>
 
       <nav
-        className={`mx-auto mt-3 w-full max-w-7xl rounded-3xl border border-slate-300/80 bg-white/92 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.1)] transition-all duration-300 ease-out md:hidden dark:border-white/10 dark:bg-pes-black dark:shadow-[0_0_26px_rgba(0,255,237,0.12)] ${
+        className={`mx-auto mt-3 w-full max-w-7xl rounded-3xl border border-white/45 bg-white/55 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_30px_rgba(15,23,42,0.1)] backdrop-blur-2xl transition-all duration-300 ease-out md:hidden dark:border-white/15 dark:bg-pes-black/72 dark:shadow-[0_0_26px_rgba(0,255,237,0.12)] ${
           isMenuOpen ? 'block' : 'hidden'
         }`}
         id="mobile-menu"
