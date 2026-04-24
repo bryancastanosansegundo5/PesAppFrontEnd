@@ -67,6 +67,7 @@ function createTodayExercise() {
     plannedWeight: 0,
     benchHeight: '',
     grip: '',
+    completed: false,
     skipped: false,
     performedSets: [{ id: `set-${Date.now()}`, setNumber: 1, reps: 10, weight: 0 }],
   }
@@ -90,6 +91,7 @@ function createExampleWorkout() {
         plannedWeight: 60,
         benchHeight: 4,
         grip: 'Medio',
+        completed: false,
         skipped: false,
         performedSets: [
           { id: `example-set-${timestamp}-1`, setNumber: 1, reps: 12, weight: 60 },
@@ -107,6 +109,7 @@ function createExampleWorkout() {
         plannedWeight: 22,
         benchHeight: 7,
         grip: 'Neutro',
+        completed: false,
         skipped: false,
         performedSets: [
           { id: `example-set-${timestamp}-5`, setNumber: 1, reps: 10, weight: 22 },
@@ -122,6 +125,7 @@ function createExampleWorkout() {
         plannedWeight: 35,
         benchHeight: '',
         grip: 'Paralelo',
+        completed: false,
         skipped: false,
         performedSets: [
           { id: `example-set-${timestamp}-7`, setNumber: 1, reps: 12, weight: 35 },
@@ -220,9 +224,29 @@ function Entreno() {
   }
 
   const toggleExercise = (exerciseId) => {
+    const exercise = workout?.exercises.find((item) => item.exerciseId === exerciseId)
+
+    if (exercise?.completed) return
+
     setOpenExercises((currentOpenExercises) => ({
       ...currentOpenExercises,
       [exerciseId]: !(currentOpenExercises[exerciseId] ?? true),
+    }))
+  }
+
+  const toggleExerciseCompleted = (exerciseId) => {
+    setWorkout((currentWorkout) => ({
+      ...currentWorkout,
+      exercises: currentWorkout.exercises.map((exercise) =>
+        exercise.exerciseId === exerciseId
+          ? { ...exercise, completed: !exercise.completed }
+          : exercise,
+      ),
+    }))
+
+    setOpenExercises((currentOpenExercises) => ({
+      ...currentOpenExercises,
+      [exerciseId]: false,
     }))
   }
 
@@ -406,20 +430,29 @@ function Entreno() {
               </p>
             </div>
 
-            <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Entreno a realizar
-              <select
-                className="rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-                value={selectedSessionId}
-                onChange={(event) => selectSession(event.target.value)}
-              >
-                {sessions.map((session) => (
-                  <option value={session.id} key={session.id}>
-                    {session.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              <p>Entreno a realizar</p>
+              <div className="flex flex-wrap gap-2">
+                {sessions.map((session) => {
+                  const isActive = selectedSessionId === session.id
+
+                  return (
+                    <button
+                      className={`rounded-md border px-4 py-3 text-sm font-bold transition-all duration-300 ease-out ${
+                        isActive
+                          ? 'border-neon-cyan bg-pes-black text-neon-cyan shadow-glow-cyan dark:bg-white/5'
+                          : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:bg-pes-black dark:text-slate-200'
+                      }`}
+                      key={session.id}
+                      type="button"
+                      onClick={() => selectSession(session.id)}
+                    >
+                      {session.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -484,12 +517,64 @@ function Entreno() {
                       </span>
                       <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
                         {setGroups.length} series · {exercise.performedSets.length} tramos ·{' '}
-                        {exercise.skipped ? 'omitido hoy' : 'activo'}
+                        {exercise.completed ? 'completado' : exercise.skipped ? 'omitido hoy' : 'activo'}
                       </span>
                     </span>
                   </button>
 
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(exercise.completed)}
+                      title={exercise.completed ? 'Completado' : 'Pendiente'}
+                      className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
+                      onClick={() => toggleExerciseCompleted(exercise.exerciseId)}
+                    >
+                      <span
+                        className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${
+                          exercise.completed
+                            ? 'border-[#39ff14]/80 bg-[#39ff14]/30 shadow-[0_0_14px_rgba(57,255,20,0.45)]'
+                            : 'border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`absolute left-0.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full transition-all duration-300 ease-out ${
+                            exercise.completed
+                              ? 'translate-x-5 bg-[#39ff14] text-pes-black'
+                              : 'translate-x-0 bg-white text-slate-500 dark:bg-slate-200 dark:text-slate-600'
+                          }`}
+                        >
+                          {exercise.completed ? (
+                            <svg
+                              className="h-3 w-3"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="h-3 w-3"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                          )}
+                        </span>
+                      </span>
+                      Completado
+                    </button>
                     <button
                       className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
                       type="button"
@@ -511,7 +596,7 @@ function Entreno() {
 
                 <div
                   className={`grid transition-[grid-template-rows] duration-500 ease-out ${
-                    isExerciseOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                    isExerciseOpen && !exercise.completed ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
                   }`}
                 >
                   <div className="overflow-hidden">
