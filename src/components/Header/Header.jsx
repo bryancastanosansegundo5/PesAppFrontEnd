@@ -2,9 +2,9 @@ import { useState } from 'react'
 import logo from '../../assets/PesAppMark.png'
 
 const menuItems = [
-  { label: 'Inicio', href: '/' },
-  { label: 'Ejercicios', href: '/ejercicios' },
+  // { label: 'Inicio', href: '/' },
   { label: 'Entreno', href: '/entreno' },
+  { label: 'Ejercicios', href: '/ejercicios' },
   { label: 'Otros entrenos', href: '/otros-entrenos' },
   { label: 'Configurar sesiones', href: '/configurar-sesiones' },
 ]
