@@ -139,13 +139,18 @@ export function normalizarEjercicio(ejercicio, indice = 0) {
     ejercicio?.catalogExerciseId ??
     ejercicio?.exerciseCatalogId ??
     null
+  const plantillaEjercicioId =
+    ejercicio?.plantillaEjercicioId ??
+    ejercicio?.templateExerciseId ??
+    ejercicio?.exerciseTemplateId ??
+    ejercicio?.idPlantillaEjercicio ??
+    null
+  const idEjercicioNormalizado =
+    ejercicio?.idEjercicio || ejercicio?.exerciseId || ejercicio?.id || crearId(`ejercicio-${indice + 1}`)
 
   return {
-    idEjercicio:
-      ejercicio?.idEjercicio ||
-      ejercicio?.exerciseId ||
-      ejercicio?.id ||
-      crearId(`ejercicio-${indice + 1}`),
+    idEjercicio: idEjercicioNormalizado,
+    plantillaEjercicioId: plantillaEjercicioId ? String(plantillaEjercicioId) : null,
     catalogoEjercicioId: catalogoEjercicioId ? String(catalogoEjercicioId) : '',
     nombre: ejercicio?.nombre || ejercicio?.name || 'Ejercicio sin nombre',
     descripcion: ejercicio?.descripcion || ejercicio?.description || '',
@@ -215,6 +220,7 @@ export function crearSesionVacia() {
 export function crearEjercicioVacio() {
   return {
     idEjercicio: crearId('ejercicio'),
+    plantillaEjercicioId: null,
     catalogoEjercicioId: '',
     nombre: 'Nuevo ejercicio',
     descripcion: '',
@@ -235,6 +241,9 @@ export function crearEjercicioVacio() {
 export function crearEjercicioDesdeCatalogo(plantilla) {
   return {
     idEjercicio: crearId('ejercicio'),
+    plantillaEjercicioId: String(
+      plantilla.plantillaEjercicioId || plantilla.idEjercicio || plantilla.id || '',
+    ),
     catalogoEjercicioId: String(
       plantilla.catalogoEjercicioId || plantilla.idEjercicio || plantilla.id || '',
     ),
@@ -265,6 +274,7 @@ export function crearEntrenamientoDesdeSesion(sesion) {
     fechaFin: '',
     ejercicios: sesionNormalizada.ejercicios.map((ejercicio) => ({
       ...ejercicio,
+      plantillaEjercicioId: ejercicio.plantillaEjercicioId || ejercicio.idEjercicio || null,
       idEjercicio: crearId('ejercicio'),
       completado: false,
       omitido: false,
@@ -317,6 +327,7 @@ export function crearPayloadSesion(sesion) {
     fechaFin: sesionNormalizada.fechaFin,
     ejercicios: sesionNormalizada.ejercicios.map((ejercicio) => ({
       idEjercicio: ejercicio.idEjercicio,
+      plantillaEjercicioId: ejercicio.plantillaEjercicioId || null,
       catalogoEjercicioId: ejercicio.catalogoEjercicioId || null,
       nombre: ejercicio.nombre,
       descripcion: ejercicio.descripcion,
@@ -342,7 +353,7 @@ export function crearPayloadEntrenamiento(entrenamiento) {
     fechaInicio: entrenamientoNormalizado.fechaInicio,
     fechaFin: entrenamientoNormalizado.fechaFin,
     ejercicios: entrenamientoNormalizado.ejercicios.map((ejercicio) => ({
-      idEjercicio: ejercicio.idEjercicio,
+      idEjercicio: ejercicio.plantillaEjercicioId || null,
       catalogoEjercicioId: ejercicio.catalogoEjercicioId || null,
       nombre: ejercicio.nombre,
       descripcion: ejercicio.descripcion,

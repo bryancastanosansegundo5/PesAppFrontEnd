@@ -432,7 +432,7 @@ function ConfigurarSesiones() {
                         >
                           <div className="flex items-center justify-between gap-3">
                             <p className="text-sm font-bold text-neon-purple dark:text-neon-cyan">
-                              Ejercicio {indiceEjercicio + 1}
+                              {ejercicio.nombre?.trim() || `Ejercicio ${indiceEjercicio + 1}`}
                             </p>
                             <button
                               className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
@@ -443,23 +443,7 @@ function ConfigurarSesiones() {
                             </button>
                           </div>
 
-                          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,0.9fr)_minmax(260px,1.4fr)_80px_80px_90px_110px_minmax(150px,0.8fr)] lg:items-end">
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Nombre
-                              <input
-                                className={claseInputTexto}
-                                value={ejercicio.nombre}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'nombre',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
-
+                          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(260px,1.4fr)_80px_80px_90px_110px_minmax(150px,0.8fr)] lg:items-end">
                             <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                               Descripcion
                               <input

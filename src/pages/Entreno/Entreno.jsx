@@ -81,6 +81,7 @@ function normalizarTexto(valor) {
 function crearEjercicioDeHoy() {
   return {
     idEjercicio: `hoy-${Date.now()}`,
+    plantillaEjercicioId: null,
     catalogoEjercicioId: '',
     nombre: 'Ejercicio extra',
     descripcion: '',
@@ -105,6 +106,11 @@ function crearEjercicioDeHoyDesdePlantilla(ejercicioPlantilla) {
 
   return {
     idEjercicio: `hoy-${Date.now()}`,
+    // Los ejercicios anadidos desde el catalogo durante el entreno no son
+    // plantillas de sesion persistidas; backend los espera como ad hoc.
+    plantillaEjercicioId: ejercicioPlantilla.plantillaEjercicioId
+      ? String(ejercicioPlantilla.plantillaEjercicioId)
+      : null,
     catalogoEjercicioId: String(
       ejercicioPlantilla.catalogoEjercicioId ||
         ejercicioPlantilla.idEjercicio ||
@@ -678,11 +684,9 @@ function Entreno() {
     })
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-full flex-1 flex-col">
       <main
-        className={`mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8 ${
-          entrenamiento ? 'pb-28' : 'pb-6'
-        }`}
+        className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8"
       >
         <div
           className={`sm:hidden ${isPulling || isRefreshing ? 'block' : 'hidden'}`}

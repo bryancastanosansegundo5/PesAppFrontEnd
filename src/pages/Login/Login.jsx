@@ -1,16 +1,35 @@
 import { useState } from 'react'
+import { validarPassword, validarUsername } from '../../services/auth/authValidation'
 
 const claseInput =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
 function Login({ onLogin, estaCargando, error, tema }) {
-  const [email, setEmail] = useState('admin@pesapp.local')
+  const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('*_*Passw0rd*_*')
+  const [errorFormulario, setErrorFormulario] = useState('')
   const isDarkTheme = tema === 'dark'
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    onLogin({ email: email.trim(), password })
+
+    const usernameNormalizado = username.trim()
+    const errorUsername = validarUsername(usernameNormalizado)
+
+    if (errorUsername) {
+      setErrorFormulario(errorUsername)
+      return
+    }
+
+    const errorPassword = validarPassword(password)
+
+    if (errorPassword) {
+      setErrorFormulario(errorPassword)
+      return
+    }
+
+    setErrorFormulario('')
+    onLogin({ username: usernameNormalizado, password })
   }
 
   return (
@@ -64,13 +83,24 @@ function Login({ onLogin, estaCargando, error, tema }) {
 
             <form className="grid gap-4" onSubmit={handleSubmit}>
               <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Email
+                Nombre de usuario
                 <input
                   className={claseInput}
-                  type="email"
-                  value={email}
+                  type="text"
+                  value={username}
                   autoComplete="username"
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    if (errorFormulario) {
+                      setErrorFormulario('')
+                    }
+
+                    setUsername(event.target.value)
+                  }}
+                  placeholder="bryan"
+                  minLength={3}
+                  maxLength={60}
+                  pattern="[A-Za-z0-9._-]{3,60}"
+                  required
                 />
               </label>
 
@@ -81,15 +111,35 @@ function Login({ onLogin, estaCargando, error, tema }) {
                   type="password"
                   value={password}
                   autoComplete="current-password"
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    if (errorFormulario) {
+                      setErrorFormulario('')
+                    }
+
+                    setPassword(event.target.value)
+                  }}
+                  minLength={8}
+                  maxLength={72}
+                  required
                 />
               </label>
+
+              {errorFormulario ? (
+                <div className="rounded-xl border border-neon-pink/35 bg-neon-pink/8 px-4 py-3 text-sm text-neon-pink">
+                  {errorFormulario}
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="rounded-xl border border-neon-pink/35 bg-neon-pink/8 px-4 py-3 text-sm text-neon-pink">
                   {error}
                 </div>
               ) : null}
+
+              <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
+                Accede con tu username y password. El correo ya no se usa como credencial de
+                login.
+              </p>
 
               <button
                 className="mt-2 inline-flex items-center justify-center rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"

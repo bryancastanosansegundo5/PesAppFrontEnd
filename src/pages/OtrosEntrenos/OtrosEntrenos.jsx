@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { obtenerEntrenamientosDesdeServidor } from '../Entreno/services/entrenoApiService'
-import {
-  guardarHistorialEntrenos,
-  obtenerHistorialEntrenos,
-} from '../Entreno/services/entrenoLocalService'
+import { obtenerOtrosEntrenosDesdeServidor } from './services/otrosEntrenosApiService'
 
 function formatearFecha(fecha) {
   if (!fecha) {
@@ -18,109 +14,11 @@ function formatearFecha(fecha) {
   })
 }
 
-function obtenerClaveEjercicio(ejercicio) {
-  return (
-    ejercicio.catalogoEjercicioId ||
-    ejercicio.idEjercicio ||
-    `${ejercicio.nombre}-${ejercicio.grupoMuscular || ''}`
-  )
-}
-
-function crearResumenSerie(seriesRealizadas = []) {
-  const repeticionesTotales = seriesRealizadas.reduce(
-    (total, serie) => total + (Number(serie.repeticiones) || 0),
-    0,
-  )
-  const volumenTotal = seriesRealizadas.reduce(
-    (total, serie) =>
-      total + (Number(serie.repeticiones) || 0) * (Number(serie.peso) || 0),
-    0,
-  )
-  const pesoMaximo = Math.max(0, ...seriesRealizadas.map((serie) => Number(serie.peso) || 0))
-
-  return {
-    repeticionesTotales,
-    volumenTotal,
-    pesoMaximo,
-  }
-}
-
-function agruparHistorialPorEjercicio(historial) {
-  const mapa = new Map()
-
-  historial.forEach((entrenamiento) => {
-    entrenamiento.ejercicios.forEach((ejercicio) => {
-      if (ejercicio.omitido) {
-        return
-      }
-
-      const clave = obtenerClaveEjercicio(ejercicio)
-      const resumenSerie = crearResumenSerie(ejercicio.seriesRealizadas)
-      const fechaOrden = entrenamiento.fechaFin || entrenamiento.fechaInicio || ''
-
-      if (!mapa.has(clave)) {
-        mapa.set(clave, {
-          id: clave,
-          nombre: ejercicio.nombre || 'Ejercicio sin nombre',
-          descripcion: ejercicio.descripcion || '',
-          grupoMuscular: ejercicio.grupoMuscular || '',
-          patronMovimiento: ejercicio.patronMovimiento || '',
-          equipamiento: ejercicio.equipamiento || '',
-          agarre: ejercicio.agarre || '',
-          alturaBanco: ejercicio.alturaBanco || '',
-          entradas: [],
-        })
-      }
-
-      mapa.get(clave).entradas.push({
-        id: `${entrenamiento.id}-${ejercicio.idEjercicio}`,
-        fecha: fechaOrden,
-        nombreSesion: entrenamiento.nombreSesion || 'Sesion',
-        seriesPlanificadas: Number(ejercicio.seriesPlanificadas) || 0,
-        repeticionesPlanificadas: Number(ejercicio.repeticionesPlanificadas) || 0,
-        pesoPlanificado: Number(ejercicio.pesoPlanificado) || 0,
-        alturaBanco: ejercicio.alturaBanco || '',
-        agarre: ejercicio.agarre || '',
-        seriesRealizadas: ejercicio.seriesRealizadas || [],
-        repeticionesTotales: resumenSerie.repeticionesTotales,
-        volumenTotal: resumenSerie.volumenTotal,
-        pesoMaximo: resumenSerie.pesoMaximo,
-      })
-    })
-  })
-
-  return [...mapa.values()]
-    .map((grupo) => {
-      const entradasOrdenadas = [...grupo.entradas].sort(
-        (primero, segundo) => new Date(segundo.fecha || 0) - new Date(primero.fecha || 0),
-      )
-
-      const entradaMasReciente = entradasOrdenadas[0]
-      const chartData = [...entradasOrdenadas]
-        .reverse()
-        .map((entrada, indice) => ({
-          x: indice,
-          fecha: formatearFecha(entrada.fecha),
-          valor: entrada.pesoMaximo,
-        }))
-
-      return {
-        ...grupo,
-        entradas: entradasOrdenadas,
-        chartData,
-        sesionesTotales: entradasOrdenadas.length,
-        ultimoRegistro: entradaMasReciente?.fecha || '',
-        pesoMaximoHistorico: Math.max(
-          0,
-          ...entradasOrdenadas.map((entrada) => entrada.pesoMaximo || 0),
-        ),
-        volumenHistorico: entradasOrdenadas.reduce(
-          (total, entrada) => total + (entrada.volumenTotal || 0),
-          0,
-        ),
-      }
-    })
-    .sort((primero, segundo) => segundo.sesionesTotales - primero.sesionesTotales)
+function normalizarTexto(valor) {
+  return String(valor || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 }
 
 function GraficaLineal({ data }) {
@@ -157,9 +55,7 @@ function GraficaLineal({ data }) {
             Peso maximo por sesion
           </h3>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Pico: {maxValue} kg
-        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Pico: {maxValue} kg</p>
       </div>
 
       <svg
@@ -207,7 +103,7 @@ function GraficaLineal({ data }) {
         />
 
         {points.map((point) => (
-          <g key={`${point.fecha}-${point.x}`}>
+          <g key={point.id}>
             <circle cx={point.x} cy={point.y} fill="#6900FF" r="6" />
             <circle cx={point.x} cy={point.y} fill="#ffffff" r="2.5" />
             <text
@@ -218,7 +114,7 @@ function GraficaLineal({ data }) {
               fill="currentColor"
               opacity="0.7"
             >
-              {point.fecha}
+              {formatearFecha(point.fecha)}
             </text>
             <text
               x={point.x}
@@ -238,12 +134,31 @@ function GraficaLineal({ data }) {
 }
 
 function OtrosEntrenos() {
-  const [historial, setHistorial] = useState(obtenerHistorialEntrenos)
+  const [ejerciciosAgrupados, setEjerciciosAgrupados] = useState([])
   const [mensaje, setMensaje] = useState('')
+  const [estaCargandoInicial, setEstaCargandoInicial] = useState(true)
   const [estaRecargando, setEstaRecargando] = useState(false)
   const [acordeonesAbiertos, setAcordeonesAbiertos] = useState({})
+  const [busqueda, setBusqueda] = useState('')
 
-  const ejerciciosAgrupados = useMemo(() => agruparHistorialPorEjercicio(historial), [historial])
+  const ejerciciosFiltrados = useMemo(() => {
+    const termino = normalizarTexto(busqueda.trim())
+
+    if (!termino) {
+      return ejerciciosAgrupados
+    }
+
+    return ejerciciosAgrupados.filter((ejercicio) =>
+      [
+        ejercicio.nombre,
+        ejercicio.descripcion,
+        ejercicio.grupoMuscular,
+        ejercicio.patronMovimiento,
+        ejercicio.equipamiento,
+        ejercicio.agarre,
+      ].some((valor) => normalizarTexto(valor).includes(termino)),
+    )
+  }, [busqueda, ejerciciosAgrupados])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -262,19 +177,34 @@ function OtrosEntrenos() {
     }
   }, [ejerciciosAgrupados])
 
+  useEffect(() => {
+    const cargarInicial = async () => {
+      setEstaCargandoInicial(true)
+
+      try {
+        const ejerciciosServidor = await obtenerOtrosEntrenosDesdeServidor()
+        setEjerciciosAgrupados(ejerciciosServidor)
+        setMensaje('Historico de ejercicios cargado desde la base de datos.')
+      } catch (errorCapturado) {
+        setMensaje(errorCapturado.message)
+      } finally {
+        setEstaCargandoInicial(false)
+      }
+    }
+
+    cargarInicial()
+  }, [])
+
   const recargarDesdeServidor = async () => {
     setEstaRecargando(true)
     setMensaje('Recargando historico desde la base de datos...')
 
     try {
-      const historialServidor = await obtenerEntrenamientosDesdeServidor()
-      setHistorial(historialServidor)
-      guardarHistorialEntrenos(historialServidor)
+      const ejerciciosServidor = await obtenerOtrosEntrenosDesdeServidor()
+      setEjerciciosAgrupados(ejerciciosServidor)
       setMensaje('Historico de ejercicios recargado desde la base de datos.')
     } catch (errorCapturado) {
-      setMensaje(
-        `${errorCapturado.message} Se mantiene el historico local como respaldo.`,
-      )
+      setMensaje(errorCapturado.message)
     } finally {
       setEstaRecargando(false)
     }
@@ -313,36 +243,50 @@ function OtrosEntrenos() {
               Otros entrenos
             </p>
             <h1 className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
-              Historico agrupado por ejercicio.
+              Revisa tus ejercicios de un vistazo.
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Cada ejercicio se abre como un acordeon con grafica lineal de progresion y el
-              registro por dias para comparar volumen, peso y contexto de cada sesion.
+              Aqui puedes ver cada ejercicio por separado, revisar tus ultimas sesiones y seguir
+              facilmente como va evolucionando con el tiempo.
             </p>
           </div>
 
-          <button
-            className="hidden rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
-            type="button"
-            disabled={estaRecargando}
-            onClick={recargarDesdeServidor}
-          >
-            {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              className="min-w-72 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
+              type="text"
+              value={busqueda}
+              onChange={(event) => setBusqueda(event.target.value)}
+              placeholder="Filtrar por ejercicio, grupo, patron o equipo"
+            />
+            <button
+              className="hidden rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
+              type="button"
+              disabled={estaRecargando}
+              onClick={recargarDesdeServidor}
+            >
+              {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
+            </button>
+          </div>
         </div>
 
         <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-          {mensaje || 'El historico se construye a partir de tus entrenamientos guardados.'}
+          {mensaje || 'El historico se consulta directamente desde tu cuenta autenticada.'}
+        </p>
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+          {busqueda
+            ? `${ejerciciosFiltrados.length} ejercicios coinciden con tu busqueda.`
+            : 'Usa el buscador para localizar rapido un ejercicio concreto.'}
         </p>
         {gestoRecargaDisponible ? (
           <p className="mt-2 text-xs text-slate-400 sm:hidden dark:text-slate-500">
-            En movil, arriba del todo, mantén el dedo y desliza hacia abajo para recargar.
+            En movil, arriba del todo, manten el dedo y desliza hacia abajo para recargar.
           </p>
         ) : null}
       </section>
 
       <section className="grid gap-5">
-        {ejerciciosAgrupados.map((ejercicio) => {
+        {ejerciciosFiltrados.map((ejercicio) => {
           const estaAbierto = Boolean(acordeonesAbiertos[ejercicio.id])
 
           return (
@@ -476,7 +420,8 @@ function OtrosEntrenos() {
                                 {entrada.nombreSesion}
                               </p>
                               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                {entrada.seriesRealizadas.length} series · {entrada.repeticionesTotales} reps
+                                {entrada.seriesRealizadas} series · {entrada.repeticionesTotales}{' '}
+                                reps
                               </p>
                             </div>
 
@@ -517,9 +462,21 @@ function OtrosEntrenos() {
           )
         })}
 
-        {ejerciciosAgrupados.length === 0 ? (
+        {estaCargandoInicial ? (
+          <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+            Cargando historico de ejercicios...
+          </div>
+        ) : null}
+
+        {!estaCargandoInicial && ejerciciosAgrupados.length === 0 ? (
           <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
             Todavia no hay entrenamientos registrados para construir el historico por ejercicio.
+          </div>
+        ) : null}
+
+        {!estaCargandoInicial && ejerciciosAgrupados.length > 0 && ejerciciosFiltrados.length === 0 ? (
+          <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+            No hay ejercicios que coincidan con el filtro actual.
           </div>
         ) : null}
       </section>

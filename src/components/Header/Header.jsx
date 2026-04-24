@@ -8,6 +8,10 @@ const menuItems = [
   { label: 'Configurar sesiones', href: '/configurar-sesiones' },
 ]
 
+function obtenerNombreVisibleUsuario(usuario) {
+  return usuario?.username || usuario?.nombre || usuario?.email || 'Mi cuenta'
+}
+
 function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogout }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -114,7 +118,7 @@ function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogo
                 type="button"
                 onClick={() => setIsUserMenuOpen((currentValue) => !currentValue)}
               >
-                {usuario?.nombre || 'Mi cuenta'}
+                {obtenerNombreVisibleUsuario(usuario)}
               </button>
             ) : (
               <button
@@ -200,6 +204,17 @@ function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogo
               <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 {usuario?.rol || 'Usuario'}
               </div>
+              <button
+                className="mb-1 block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-all duration-300 ease-out hover:bg-slate-100 hover:text-neon-purple focus:outline-none focus-visible:shadow-[0_0_0_2px_rgba(0,255,237,0.22)] dark:text-slate-300 dark:hover:bg-white/8 dark:hover:text-neon-cyan"
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  closeMenus()
+                  onNavigate('/mi-cuenta')
+                }}
+              >
+                Mi cuenta
+              </button>
               {esAdmin ? (
                 <button
                   className="mb-1 block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-all duration-300 ease-out hover:bg-slate-100 hover:text-neon-purple focus:outline-none focus-visible:shadow-[0_0_0_2px_rgba(0,255,237,0.22)] dark:text-slate-300 dark:hover:bg-white/8 dark:hover:text-neon-cyan"
@@ -237,6 +252,19 @@ function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogo
         aria-label="Menu movil"
       >
         <div className="grid gap-1">
+          {autenticado ? (
+            <button
+              className="rounded-xl px-3 py-3 text-left text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.2)]"
+              type="button"
+              onClick={() => {
+                closeMenus()
+                onNavigate('/mi-cuenta')
+              }}
+            >
+              Mi cuenta
+            </button>
+          ) : null}
+
           {(autenticado ? menuItems : []).map((item) => (
             <a
               className="rounded-xl px-3 py-3 text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.2)]"

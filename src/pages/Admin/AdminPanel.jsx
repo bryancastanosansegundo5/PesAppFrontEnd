@@ -7,6 +7,11 @@ import {
   obtenerRolesUsuario,
   obtenerUsuariosAdmin,
 } from '../../services/admin/adminUsersApiService'
+import {
+  validarEmailOpcional,
+  validarPassword,
+  validarUsername,
+} from '../../services/auth/authValidation'
 
 const claseInput =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan disabled:cursor-not-allowed disabled:opacity-70 dark:border-white/10 dark:bg-pes-black dark:text-white'
@@ -14,6 +19,7 @@ const claseInput =
 const formularioInicial = {
   nombre: '',
   email: '',
+  username: '',
   password: '',
   rol: 'USUARIO',
 }
@@ -53,6 +59,10 @@ function ordenarUsuarios(usuarios) {
   return [...usuarios].sort((usuarioA, usuarioB) => usuarioA.id - usuarioB.id)
 }
 
+function obtenerNombreVisibleUsuario(usuario) {
+  return usuario?.username || usuario?.nombre || usuario?.email || 'Usuario'
+}
+
 function AdminPanel({ usuarioActual }) {
   const [usuarios, setUsuarios] = useState([])
   const [roles, setRoles] = useState([])
@@ -61,6 +71,7 @@ function AdminPanel({ usuarioActual }) {
   const [estaGuardando, setEstaGuardando] = useState(false)
   const [accionUsuarioId, setAccionUsuarioId] = useState(null)
   const [errorCarga, setErrorCarga] = useState('')
+  const [errorFormulario, setErrorFormulario] = useState('')
   const [toast, setToast] = useState(null)
 
   useEffect(() => {
@@ -99,6 +110,10 @@ function AdminPanel({ usuarioActual }) {
   }
 
   const manejarCambioFormulario = (campo, valor) => {
+    if (errorFormulario) {
+      setErrorFormulario('')
+    }
+
     setFormulario((estadoActual) => ({
       ...estadoActual,
       [campo]: valor,
@@ -107,13 +122,47 @@ function AdminPanel({ usuarioActual }) {
 
   const manejarAltaUsuario = async (event) => {
     event.preventDefault()
+    setErrorFormulario('')
+
+    const nombre = formulario.nombre.trim()
+    const email = formulario.email.trim()
+    const username = formulario.username.trim()
+    const password = formulario.password
+
+    if (!nombre) {
+      setErrorFormulario('Debes indicar un nombre para crear la cuenta.')
+      return
+    }
+
+    const errorUsername = validarUsername(username)
+
+    if (errorUsername) {
+      setErrorFormulario(errorUsername)
+      return
+    }
+
+    const errorEmail = validarEmailOpcional(email)
+
+    if (errorEmail) {
+      setErrorFormulario(errorEmail)
+      return
+    }
+
+    const errorPassword = validarPassword(password)
+
+    if (errorPassword) {
+      setErrorFormulario(errorPassword)
+      return
+    }
+
     setEstaGuardando(true)
 
     try {
       const usuarioCreado = await crearUsuarioAdmin({
-        nombre: formulario.nombre.trim(),
-        email: formulario.email.trim(),
-        password: formulario.password,
+        nombre,
+        email,
+        username,
+        password,
         rol: formulario.rol,
       })
 
@@ -122,7 +171,7 @@ function AdminPanel({ usuarioActual }) {
         ...formularioInicial,
         rol: roles[0] || formularioInicial.rol,
       })
-      publicarToast(`Usuario ${usuarioCreado.email} creado correctamente.`)
+      publicarToast(`Usuario ${obtenerNombreVisibleUsuario(usuarioCreado)} creado correctamente.`)
     } catch (errorCapturado) {
       publicarToast(errorCapturado.message || 'No se pudo crear el usuario.', 'error')
     } finally {
@@ -140,7 +189,7 @@ function AdminPanel({ usuarioActual }) {
     try {
       const usuarioActualizado = await cambiarRolUsuarioAdmin(usuario.id, nuevoRol)
       setUsuarios((estadoActual) => reemplazarUsuario(estadoActual, usuarioActualizado))
-      publicarToast(`Rol actualizado para ${usuario.email}.`)
+      publicarToast(`Rol actualizado para ${obtenerNombreVisibleUsuario(usuario)}.`)
     } catch (errorCapturado) {
       publicarToast(errorCapturado.message || 'No se pudo actualizar el rol.', 'error')
     } finally {
@@ -156,8 +205,8 @@ function AdminPanel({ usuarioActual }) {
       setUsuarios((estadoActual) => reemplazarUsuario(estadoActual, usuarioActualizado))
       publicarToast(
         usuarioActualizado.activo
-          ? `Acceso concedido a ${usuario.email}.`
-          : `Acceso denegado a ${usuario.email}.`,
+          ? `Acceso concedido a ${obtenerNombreVisibleUsuario(usuario)}.`
+          : `Acceso denegado a ${obtenerNombreVisibleUsuario(usuario)}.`,
       )
     } catch (errorCapturado) {
       publicarToast(errorCapturado.message || 'No se pudo cambiar el estado.', 'error')
@@ -185,6 +234,8 @@ function AdminPanel({ usuarioActual }) {
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
                   Desde aqui puedes dar de alta nuevas cuentas, asignar su rol y aplicar un
                   borrado logico usando el estado activo sin eliminar nada de la base de datos.
+                  Por norma general trabajaremos con username y el email quedara como dato
+                  opcional de apoyo.
                 </p>
               </div>
             </div>
@@ -243,18 +294,42 @@ function AdminPanel({ usuarioActual }) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Email
+                  Username
+                  <input
+                    className={claseInput}
+                    type="text"
+                    value={formulario.username}
+                    onChange={(event) => manejarCambioFormulario('username', event.target.value)}
+                    placeholder="bryan"
+                    minLength={3}
+                    maxLength={60}
+                    pattern="[A-Za-z0-9._-]{3,60}"
+                    autoComplete="username"
+                    required
+                  />
+                </label>
+
+                <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Email (opcional)
                   <input
                     className={claseInput}
                     type="email"
                     value={formulario.email}
                     onChange={(event) => manejarCambioFormulario('email', event.target.value)}
                     placeholder="usuario@pesapp.local"
+                    autoComplete="email"
                     maxLength={180}
-                    required
                   />
                 </label>
+              </div>
 
+              <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
+                El username es obligatorio y sera el identificador principal para acceso y
+                gestion. Debe tener entre 3 y 60 caracteres y solo usar letras, numeros, punto,
+                guion o guion bajo. El email queda como dato opcional de apoyo.
+              </p>
+
+              <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Rol
                   <select
@@ -285,6 +360,12 @@ function AdminPanel({ usuarioActual }) {
                   required
                 />
               </label>
+
+              {errorFormulario ? (
+                <div className="rounded-xl border border-neon-pink/35 bg-neon-pink/8 px-4 py-3 text-sm text-neon-pink">
+                  {errorFormulario}
+                </div>
+              ) : null}
 
               <button
                 className="mt-2 inline-flex items-center justify-center rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
@@ -339,7 +420,7 @@ function AdminPanel({ usuarioActual }) {
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-xl font-black text-slate-950 dark:text-white">
-                            {usuario.nombre}
+                            {obtenerNombreVisibleUsuario(usuario)}
                           </h3>
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
@@ -358,7 +439,9 @@ function AdminPanel({ usuarioActual }) {
                         </div>
 
                         <div className="grid gap-2 text-sm text-slate-600 dark:text-slate-300">
-                          <p>{usuario.email}</p>
+                          <p>Nombre: {usuario.nombre || 'Sin nombre'}</p>
+                          <p>Username: {usuario.username ? `@${usuario.username}` : 'Sin username'}</p>
+                          <p>Email: {usuario.email || 'Sin email'}</p>
                           <p>Alta: {formatearFecha(usuario.createdAt)}</p>
                           <p>Ultima actualizacion: {formatearFecha(usuario.updatedAt)}</p>
                         </div>

@@ -8,7 +8,8 @@ function normalizarUsuario(usuario) {
   return {
     id: usuario.id,
     nombre: usuario.nombre || '',
-    email: usuario.email || '',
+    email: usuario.email ?? null,
+    username: usuario.username || '',
     rol: usuario.rol || '',
     activo: Boolean(usuario.activo),
     createdAt: usuario.createdAt || '',
@@ -34,11 +35,19 @@ export async function obtenerRolesUsuario() {
   return Array.isArray(payload) ? payload.filter(Boolean) : []
 }
 
-export async function crearUsuarioAdmin({ nombre, email, password, rol }) {
+export async function crearUsuarioAdmin({ nombre, email, username, password, rol }) {
+  const body = {
+    nombre,
+    username,
+    email: email || null,
+    password,
+    rol,
+  }
+
   const payload = await apiRequest('/api/usuarios', {
     method: 'POST',
     auth: true,
-    body: { nombre, email, password, rol },
+    body,
   })
 
   return normalizarUsuario(payload)

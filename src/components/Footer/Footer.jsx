@@ -14,7 +14,7 @@ function PieAccion({
         mensaje={mensaje}
         tipo={mensaje?.toLowerCase().includes('no se pudo') || mensaje?.toLowerCase().includes('error') ? 'error' : 'info'}
       />
-      <footer className="sticky bottom-0 z-40 border-t border-slate-200/80 bg-white/92 backdrop-blur-xl transition-all duration-300 ease-out dark:border-white/10 dark:bg-pes-black/90">
+      <footer className="mt-auto border-t border-slate-200/80 bg-white/92 backdrop-blur-xl transition-all duration-300 ease-out dark:border-white/10 dark:bg-pes-black/90">
         <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-3 px-4 py-4 sm:px-6 lg:px-8">
           {etiquetaAccion ? (
             <button

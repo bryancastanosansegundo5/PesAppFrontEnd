@@ -8,7 +8,8 @@ function normalizarUsuario(usuario) {
   return {
     id: usuario.id,
     nombre: usuario.nombre || '',
-    email: usuario.email || '',
+    email: usuario.email ?? null,
+    username: usuario.username || '',
     rol: usuario.rol || '',
     activo: Boolean(usuario.activo),
     createdAt: usuario.createdAt || '',
@@ -30,11 +31,14 @@ function normalizarSesion(payload) {
   }
 }
 
-export async function iniciarSesion({ email, password }) {
+export async function iniciarSesion({ username, password }) {
   const payload = await apiRequest('/api/auth/login', {
     method: 'POST',
     credentials_mode: 'include',
-    body: { email, password },
+    body: {
+      username,
+      password,
+    },
   })
 
   return normalizarSesion(payload)
