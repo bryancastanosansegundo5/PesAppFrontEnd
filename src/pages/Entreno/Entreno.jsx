@@ -289,6 +289,7 @@ function Entreno() {
       Object.fromEntries(nextWorkout.exercises.map((exercise) => [exercise.exerciseId, true])),
     )
     setIsSessionSelectorOpen(false)
+    setSessionSearch('')
     setMessage('Entreno de hoy cargado desde la plantilla. Puedes modificarlo sin cambiar la base.')
   }
 
@@ -416,6 +417,8 @@ function Entreno() {
       ...currentOpenExercises,
       [exercise.exerciseId]: true,
     }))
+    setIsExerciseSelectorOpen(false)
+    setExerciseSearch('')
   }
 
   const addExerciseFromTemplate = (templateExercise) => {
@@ -520,7 +523,10 @@ function Entreno() {
                 <button
                   className="flex w-full items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-base font-bold text-slate-900 transition-all duration-300 ease-out hover:border-neon-pink dark:border-white/10 dark:bg-pes-black dark:text-white"
                   type="button"
-                  onClick={() => setIsSessionSelectorOpen((current) => !current)}
+                  onClick={() => {
+                    setIsSessionSelectorOpen((current) => !current)
+                    setIsExerciseSelectorOpen(false)
+                  }}
                 >
                   <span>{sessions.find((session) => session.id === selectedSessionId)?.name || '-- Seleccionar --'}</span>
                   <svg
@@ -581,7 +587,10 @@ function Entreno() {
           <button
             className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink"
             type="button"
-            onClick={() => setIsExerciseSelectorOpen((current) => !current)}
+            onClick={() => {
+              setIsExerciseSelectorOpen((current) => !current)
+              setIsSessionSelectorOpen(false)
+            }}
           >
             Anadir ejercicio solo hoy
           </button>
