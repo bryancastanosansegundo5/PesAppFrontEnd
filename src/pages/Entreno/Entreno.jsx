@@ -523,14 +523,58 @@ function Entreno() {
                   </button>
 
                   <div className="flex flex-wrap gap-2">
-                    <label className="inline-flex items-center gap-2 rounded-md border border-emerald-400/50 px-3 py-2 text-sm font-bold text-emerald-600 shadow-[0_0_16px_rgba(16,185,129,0.2)] dark:text-emerald-400">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(exercise.completed)}
-                        onChange={() => toggleExerciseCompleted(exercise.exerciseId)}
-                      />
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(exercise.completed)}
+                      title={exercise.completed ? 'Completado' : 'Pendiente'}
+                      className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
+                      onClick={() => toggleExerciseCompleted(exercise.exerciseId)}
+                    >
+                      <span
+                        className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${
+                          exercise.completed
+                            ? 'border-[#39ff14]/80 bg-[#39ff14]/30 shadow-[0_0_14px_rgba(57,255,20,0.45)]'
+                            : 'border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`absolute left-0.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full transition-all duration-300 ease-out ${
+                            exercise.completed
+                              ? 'translate-x-5 bg-[#39ff14] text-pes-black'
+                              : 'translate-x-0 bg-white text-slate-500 dark:bg-slate-200 dark:text-slate-600'
+                          }`}
+                        >
+                          {exercise.completed ? (
+                            <svg
+                              className="h-3 w-3"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="h-3 w-3"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                          )}
+                        </span>
+                      </span>
                       Completado
-                    </label>
+                    </button>
                     <button
                       className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
                       type="button"
