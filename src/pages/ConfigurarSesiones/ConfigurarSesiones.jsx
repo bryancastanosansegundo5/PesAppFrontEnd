@@ -180,12 +180,12 @@ function ConfigurarSesiones() {
 
                 <span
                   className={`inline-flex h-10 w-10 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan ${
-                    isOpen ? 'rotate-180 border-neon-pink text-neon-pink shadow-glow-pink' : ''
+                    isOpen ? 'border-neon-pink text-neon-pink shadow-glow-pink' : ''
                   }`}
                   aria-hidden="true"
                 >
                   <svg
-                    className="h-5 w-5"
+                    className={`h-5 w-5 transition-transform duration-300 ease-out ${isOpen ? 'rotate-180' : ''}`}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer/Footer'
 import {
   TRAINING_SYNC_ENDPOINT,
@@ -57,6 +57,13 @@ function hasMultipleWeights(sets) {
   return new Set(sets.map((set) => Number(set.weight))).size > 1
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 function createTodayExercise() {
   return {
     exerciseId: `today-${Date.now()}`,
@@ -67,8 +74,34 @@ function createTodayExercise() {
     plannedWeight: 0,
     benchHeight: '',
     grip: '',
+    completed: false,
     skipped: false,
     performedSets: [{ id: `set-${Date.now()}`, setNumber: 1, reps: 10, weight: 0 }],
+  }
+}
+
+function createTodayExerciseFromTemplate(templateExercise) {
+  const series = Number(templateExercise.series) || 0
+  const repetitions = Number(templateExercise.repetitions) || 0
+  const weight = Number(templateExercise.weight) || 0
+
+  return {
+    exerciseId: templateExercise.id,
+    name: templateExercise.name,
+    description: templateExercise.description || '',
+    plannedSeries: series,
+    plannedRepetitions: repetitions,
+    plannedWeight: weight,
+    benchHeight: templateExercise.benchHeight || '',
+    grip: templateExercise.grip || '',
+    completed: false,
+    skipped: false,
+    performedSets: Array.from({ length: series || 1 }, (_, index) => ({
+      id: `set-${Date.now()}-${index + 1}`,
+      setNumber: index + 1,
+      reps: repetitions,
+      weight,
+    })),
   }
 }
 
@@ -90,6 +123,7 @@ function createExampleWorkout() {
         plannedWeight: 60,
         benchHeight: 4,
         grip: 'Medio',
+        completed: false,
         skipped: false,
         performedSets: [
           { id: `example-set-${timestamp}-1`, setNumber: 1, reps: 12, weight: 60 },
@@ -107,6 +141,7 @@ function createExampleWorkout() {
         plannedWeight: 22,
         benchHeight: 7,
         grip: 'Neutro',
+        completed: false,
         skipped: false,
         performedSets: [
           { id: `example-set-${timestamp}-5`, setNumber: 1, reps: 10, weight: 22 },
@@ -122,6 +157,7 @@ function createExampleWorkout() {
         plannedWeight: 35,
         benchHeight: '',
         grip: 'Paralelo',
+        completed: false,
         skipped: false,
         performedSets: [
           { id: `example-set-${timestamp}-7`, setNumber: 1, reps: 12, weight: 35 },
@@ -197,6 +233,42 @@ function Entreno() {
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [openExercises, setOpenExercises] = useState({})
+  const [isSessionSelectorOpen, setIsSessionSelectorOpen] = useState(false)
+  const [sessionSearch, setSessionSearch] = useState('')
+  const [isExerciseSelectorOpen, setIsExerciseSelectorOpen] = useState(false)
+  const [exerciseSearch, setExerciseSearch] = useState('')
+
+  const filteredSessions = useMemo(() => {
+    const normalizedSearch = normalizeText(sessionSearch)
+
+    if (!normalizedSearch) return sessions
+
+    return sessions.filter((session) => normalizeText(session.name).includes(normalizedSearch))
+  }, [sessions, sessionSearch])
+
+  const addableExerciseTemplates = useMemo(() => {
+    const existingExerciseIds = new Set(workout?.exercises.map((exercise) => exercise.exerciseId))
+    const uniqueTemplatesById = new Map()
+
+    sessions.forEach((session) => {
+      session.exercises.forEach((exercise) => {
+        if (!uniqueTemplatesById.has(exercise.id) && !existingExerciseIds.has(exercise.id)) {
+          uniqueTemplatesById.set(exercise.id, exercise)
+        }
+      })
+    })
+
+    const normalizedSearch = normalizeText(exerciseSearch)
+    const templates = Array.from(uniqueTemplatesById.values())
+
+    if (!normalizedSearch) return templates
+
+    return templates.filter(
+      (exercise) =>
+        normalizeText(exercise.name).includes(normalizedSearch) ||
+        normalizeText(exercise.description).includes(normalizedSearch),
+    )
+  }, [sessions, workout, exerciseSearch])
 
   useEffect(() => {
     if (workout) {
@@ -216,13 +288,34 @@ function Entreno() {
     setOpenExercises(
       Object.fromEntries(nextWorkout.exercises.map((exercise) => [exercise.exerciseId, true])),
     )
+    setIsSessionSelectorOpen(false)
     setMessage('Entreno de hoy cargado desde la plantilla. Puedes modificarlo sin cambiar la base.')
   }
 
   const toggleExercise = (exerciseId) => {
+    const exercise = workout?.exercises.find((item) => item.exerciseId === exerciseId)
+
+    if (exercise?.completed) return
+
     setOpenExercises((currentOpenExercises) => ({
       ...currentOpenExercises,
       [exerciseId]: !(currentOpenExercises[exerciseId] ?? true),
+    }))
+  }
+
+  const toggleExerciseCompleted = (exerciseId) => {
+    setWorkout((currentWorkout) => ({
+      ...currentWorkout,
+      exercises: currentWorkout.exercises.map((exercise) =>
+        exercise.exerciseId === exerciseId
+          ? { ...exercise, completed: !exercise.completed }
+          : exercise,
+      ),
+    }))
+
+    setOpenExercises((currentOpenExercises) => ({
+      ...currentOpenExercises,
+      [exerciseId]: false,
     }))
   }
 
@@ -325,6 +418,21 @@ function Entreno() {
     }))
   }
 
+  const addExerciseFromTemplate = (templateExercise) => {
+    const exercise = createTodayExerciseFromTemplate(templateExercise)
+
+    setWorkout((currentWorkout) => ({
+      ...currentWorkout,
+      exercises: [...currentWorkout.exercises, exercise],
+    }))
+    setOpenExercises((currentOpenExercises) => ({
+      ...currentOpenExercises,
+      [exercise.exerciseId]: true,
+    }))
+    setIsExerciseSelectorOpen(false)
+    setExerciseSearch('')
+  }
+
   const loadExampleWorkout = () => {
     const exampleWorkout = createExampleWorkout()
     const examplePreviousWorkout = createExamplePreviousWorkout()
@@ -406,20 +514,59 @@ function Entreno() {
               </p>
             </div>
 
-            <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Entreno a realizar
-              <select
-                className="rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-                value={selectedSessionId}
-                onChange={(event) => selectSession(event.target.value)}
-              >
-                {sessions.map((session) => (
-                  <option value={session.id} key={session.id}>
-                    {session.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              <p>Entreno a realizar</p>
+              <div className="rounded-lg border border-neon-cyan/40 bg-white/70 p-2 dark:bg-pes-black/40">
+                <button
+                  className="flex w-full items-center justify-between rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-base font-bold text-slate-900 transition-all duration-300 ease-out hover:border-neon-pink dark:border-white/10 dark:bg-pes-black dark:text-white"
+                  type="button"
+                  onClick={() => setIsSessionSelectorOpen((current) => !current)}
+                >
+                  <span>{sessions.find((session) => session.id === selectedSessionId)?.name || '-- Seleccionar --'}</span>
+                  <svg
+                    className={`h-5 w-5 text-neon-cyan transition-transform duration-300 ${isSessionSelectorOpen ? 'rotate-180' : ''}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+
+                {isSessionSelectorOpen ? (
+                  <div className="mt-2 rounded-md border border-slate-200 bg-white/95 dark:border-white/10 dark:bg-pes-black/95">
+                    <div className="border-b border-slate-200 p-2 dark:border-white/10">
+                      <input
+                        className="w-full rounded-md border border-neon-cyan/40 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:bg-pes-black dark:text-white"
+                        placeholder="Buscar entreno..."
+                        value={sessionSearch}
+                        onChange={(event) => setSessionSearch(event.target.value)}
+                      />
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto">
+                      {filteredSessions.map((session) => (
+                        <button
+                          className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 last:border-b-0 dark:border-white/10 ${
+                            selectedSessionId === session.id
+                              ? 'bg-neon-cyan/15 text-neon-cyan'
+                              : 'text-slate-800 hover:bg-neon-pink/10 hover:text-neon-pink dark:text-slate-200'
+                          }`}
+                          key={session.id}
+                          type="button"
+                          onClick={() => selectSession(session.id)}
+                        >
+                          {session.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -434,11 +581,63 @@ function Entreno() {
           <button
             className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink"
             type="button"
-            onClick={addExerciseOnlyToday}
+            onClick={() => setIsExerciseSelectorOpen((current) => !current)}
           >
             Anadir ejercicio solo hoy
           </button>
         </section>
+
+        {isExerciseSelectorOpen ? (
+          <section className="rounded-lg border border-neon-purple/30 bg-white p-3 shadow-glow-purple dark:bg-white/[0.04]">
+            <div className="grid gap-2">
+              <input
+                className="w-full rounded-md border border-neon-cyan/40 bg-white px-3 py-3 text-sm text-slate-900 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:bg-pes-black dark:text-white"
+                placeholder="Buscar ejercicio para hoy..."
+                value={exerciseSearch}
+                onChange={(event) => setExerciseSearch(event.target.value)}
+              />
+
+              <div className="max-h-64 overflow-y-auto rounded-md border border-slate-200 dark:border-white/10">
+                {addableExerciseTemplates.length > 0 ? (
+                  addableExerciseTemplates.map((exercise) => (
+                    <button
+                      className="w-full border-b border-slate-200 px-4 py-3 text-left transition-all duration-200 last:border-b-0 hover:bg-neon-cyan/10 dark:border-white/10 dark:hover:bg-neon-purple/10"
+                      key={exercise.id}
+                      type="button"
+                      onClick={() => addExerciseFromTemplate(exercise)}
+                    >
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{exercise.name}</p>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                        {exercise.series}x{exercise.repetitions} · {exercise.weight}kg · {exercise.grip || 'Sin agarre'}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <p className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                    No hay ejercicios disponibles con ese filtro.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-600 hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:text-slate-300"
+                  type="button"
+                  onClick={() => setIsExerciseSelectorOpen(false)}
+                >
+                  Cerrar
+                </button>
+                <button
+                  className="rounded-md border border-neon-cyan/50 px-3 py-2 text-xs font-bold text-neon-cyan hover:border-neon-pink hover:text-neon-pink"
+                  type="button"
+                  onClick={addExerciseOnlyToday}
+                >
+                  Crear ejercicio manual
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="grid gap-5">
           {workout?.exercises.map((exercise) => {
@@ -459,15 +658,11 @@ function Entreno() {
                     onClick={() => toggleExercise(exercise.exerciseId)}
                   >
                     <span
-                      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan ${
-                        isExerciseOpen
-                          ? 'rotate-180 border-neon-pink text-neon-pink shadow-glow-pink'
-                          : ''
-                      }`}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan"
                       aria-hidden="true"
                     >
                       <svg
-                        className="h-5 w-5"
+                        className={`h-5 w-5 transition-transform duration-300 ease-out ${isExerciseOpen ? 'rotate-180 text-neon-pink' : ''}`}
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -484,12 +679,64 @@ function Entreno() {
                       </span>
                       <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
                         {setGroups.length} series · {exercise.performedSets.length} tramos ·{' '}
-                        {exercise.skipped ? 'omitido hoy' : 'activo'}
+                        {exercise.completed ? 'completado' : exercise.skipped ? 'omitido hoy' : 'activo'}
                       </span>
                     </span>
                   </button>
 
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(exercise.completed)}
+                      title={exercise.completed ? 'Completado' : 'Pendiente'}
+                      className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
+                      onClick={() => toggleExerciseCompleted(exercise.exerciseId)}
+                    >
+                      <span
+                        className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${
+                          exercise.completed
+                            ? 'border-[#39ff14]/80 bg-[#39ff14]/30 shadow-[0_0_14px_rgba(57,255,20,0.45)]'
+                            : 'border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`absolute left-0.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full transition-all duration-300 ease-out ${
+                            exercise.completed
+                              ? 'translate-x-5 bg-[#39ff14] text-pes-black'
+                              : 'translate-x-0 bg-white text-slate-500 dark:bg-slate-200 dark:text-slate-600'
+                          }`}
+                        >
+                          {exercise.completed ? (
+                            <svg
+                              className="h-3 w-3"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="h-3 w-3"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                          )}
+                        </span>
+                      </span>
+                      Completado
+                    </button>
                     <button
                       className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
                       type="button"
@@ -511,7 +758,7 @@ function Entreno() {
 
                 <div
                   className={`grid transition-[grid-template-rows] duration-500 ease-out ${
-                    isExerciseOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                    isExerciseOpen && !exercise.completed ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
                   }`}
                 >
                   <div className="overflow-hidden">
