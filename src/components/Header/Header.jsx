@@ -28,183 +28,154 @@ function Header({ theme, onNavigate, onToggleTheme }) {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 shadow-[0_0_24px_rgba(0,255,237,0.08)] backdrop-blur-xl transition-all duration-300 ease-out dark:border-white/10 dark:bg-pes-black/86 dark:shadow-[0_0_28px_rgba(105,0,255,0.18)]">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-        <a
-          className="group inline-flex items-center rounded-md transition-all duration-300 ease-out hover:drop-shadow-[0_0_10px_rgba(105,0,255,0.45)] focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-4 focus:ring-offset-white dark:hover:drop-shadow-[0_0_12px_rgba(0,255,237,0.55)] dark:focus:ring-offset-pes-black"
-          href="/"
-          onClick={(event) => handleNavigate(event, '/')}
-        >
-          <span className="flex h-20 w-40 items-center justify-center overflow-hidden rounded-md">
+    <header className="sticky top-0 z-50 bg-transparent px-4 py-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl">
+        <div className="relative flex items-center justify-between rounded-full border border-slate-300/80 bg-white/85 px-4 py-3 text-sm text-slate-900 shadow-[0_0_28px_rgba(0,255,237,0.1)] backdrop-blur-xl transition-all duration-300 ease-out dark:border-white/15 dark:bg-pes-black/85 dark:text-white dark:shadow-[0_0_32px_rgba(105,0,255,0.22)]">
+          <a
+            className="group inline-flex items-center rounded-full p-1 transition-all duration-300 ease-out hover:drop-shadow-[0_0_10px_rgba(0,255,237,0.45)] focus:outline-none focus:ring-2 focus:ring-neon-cyan"
+            href="/"
+            onClick={(event) => handleNavigate(event, '/')}
+          >
             <img
-              className="h-20 w-20 object-contain drop-shadow-[0_0_12px_rgba(0,255,237,0.4)] transition-all duration-300 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_0_20px_rgba(255,102,255,0.52)]"
+              className="h-10 w-10 object-contain drop-shadow-[0_0_12px_rgba(0,255,237,0.42)] transition-all duration-300 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_0_20px_rgba(255,102,255,0.5)]"
               src={logo}
               alt="PesApp"
             />
-          </span>
-        </a>
+          </a>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Menu principal">
-          {menuItems.map((item) => (
-            <a
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.22)] focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.24)] dark:focus:ring-offset-pes-black"
-              href={item.href}
-              key={item.href}
-              onClick={(event) => handleNavigate(event, item.href)}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <button
-            className="group relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white text-slate-800 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink dark:hover:shadow-glow-pink dark:focus:ring-offset-pes-black"
-            type="button"
-            id="themeToggle"
-            aria-label={isDarkTheme ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-            onClick={onToggleTheme}
-          >
-            <span
-              className={`absolute inset-0 rounded-md bg-neon-cyan/0 transition-all duration-300 ease-out ${
-                isDarkTheme ? 'group-hover:bg-neon-pink/10' : 'group-hover:bg-neon-cyan/10'
-              }`}
-              aria-hidden="true"
-            />
-            <span className="relative h-5 w-5" aria-hidden="true">
-              <svg
-                className={`absolute inset-0 h-5 w-5 transition-all duration-300 ease-out ${
-                  isDarkTheme
-                    ? 'rotate-0 scale-100 text-neon-pink opacity-100'
-                    : 'rotate-90 scale-75 opacity-0'
-                }`}
-                id="iconSun"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+          <nav className="ml-6 hidden items-center gap-6 md:flex" aria-label="Menu principal">
+            {menuItems.map((item) => (
+              <a
+                className="group relative h-6 overflow-hidden font-semibold text-slate-700 transition-colors duration-300 hover:text-neon-purple dark:text-slate-200 dark:hover:text-neon-cyan"
+                href={item.href}
+                key={item.href}
+                onClick={(event) => handleNavigate(event, item.href)}
               >
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2" />
-                <path d="M12 20v2" />
-                <path d="m4.93 4.93 1.41 1.41" />
-                <path d="m17.66 17.66 1.41 1.41" />
-                <path d="M2 12h2" />
-                <path d="M20 12h2" />
-                <path d="m6.34 17.66-1.41 1.41" />
-                <path d="m19.07 4.93-1.41 1.41" />
-              </svg>
-              <svg
-                className={`absolute inset-0 h-5 w-5 transition-all duration-300 ease-out ${
-                  isDarkTheme
-                    ? '-rotate-90 scale-75 opacity-0'
-                    : 'rotate-0 scale-100 text-neon-pink opacity-100'
-                }`}
-                id="iconMoon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-              </svg>
-            </span>
-          </button>
+                <span className="block transition-transform duration-300 ease-out group-hover:-translate-y-full">
+                  {item.label}
+                </span>
+                <span className="absolute left-0 top-full block transition-transform duration-300 ease-out group-hover:-translate-y-full">
+                  {item.label}
+                </span>
+              </a>
+            ))}
+          </nav>
 
-          <div className="relative">
+          <div className="hidden items-center gap-3 md:ml-8 md:flex">
             <button
-              className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-neon-pink dark:hover:text-neon-pink dark:hover:shadow-glow-pink dark:focus:ring-offset-pes-black"
+              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:text-slate-200 dark:hover:border-neon-pink dark:hover:text-neon-pink"
               type="button"
-              aria-expanded={isUserMenuOpen}
-              aria-haspopup="menu"
+              onClick={onToggleTheme}
+            >
+              {isDarkTheme ? 'Tema claro' : 'Tema oscuro'}
+            </button>
+
+            <button
+              className="rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-900 shadow-[0_0_20px_rgba(255,255,255,0.45)] transition-all duration-300 hover:shadow-[0_0_26px_rgba(255,255,255,0.62)] dark:bg-neon-cyan/90 dark:text-pes-black dark:shadow-[0_0_22px_rgba(0,255,237,0.45)] dark:hover:shadow-[0_0_28px_rgba(0,255,237,0.65)]"
+              type="button"
               onClick={() => setIsUserMenuOpen((currentValue) => !currentValue)}
             >
               Bryan
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/5 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+              type="button"
+              aria-label={isDarkTheme ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+              onClick={onToggleTheme}
+            >
               <svg
-                className={`ml-2 h-4 w-4 transition-all duration-300 ease-out ${
-                  isUserMenuOpen ? 'rotate-180 text-neon-pink' : ''
-                }`}
+                className="h-5 w-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                aria-hidden="true"
               >
-                <path d="m6 9 6 6 6-6" />
+                {isDarkTheme ? (
+                  <>
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2" />
+                    <path d="M12 20v2" />
+                    <path d="m4.93 4.93 1.41 1.41" />
+                    <path d="m17.66 17.66 1.41 1.41" />
+                    <path d="M2 12h2" />
+                    <path d="M20 12h2" />
+                    <path d="m6.34 17.66-1.41 1.41" />
+                    <path d="m19.07 4.93-1.41 1.41" />
+                  </>
+                ) : (
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                )}
               </svg>
             </button>
 
-            {isUserMenuOpen ? (
-              <div
-                className="absolute right-0 mt-2 w-44 rounded-lg border border-slate-200 bg-white p-2 shadow-[0_14px_34px_rgba(15,23,42,0.16)] transition-all duration-300 ease-out dark:border-white/10 dark:bg-[#0B0D14] dark:shadow-[0_0_30px_rgba(105,0,255,0.22)]"
-                role="menu"
-              >
-                {userActions.map((action) => (
-                  <button
-                    className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_16px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_16px_rgba(0,255,237,0.2)]"
-                    type="button"
-                    key={action}
-                    role="menuitem"
-                    onClick={closeMenus}
-                  >
-                    {action}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <button
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/5 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+              type="button"
+              aria-label="Abrir menu"
+              aria-expanded={isMenuOpen}
+              aria-controls="mobile-menu"
+              onClick={() => {
+                setIsMenuOpen((currentValue) => !currentValue)
+                setIsUserMenuOpen(false)
+              }}
+            >
+              <span className="relative h-4 w-5" aria-hidden="true">
+                <span
+                  className={`absolute left-0 top-0 h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out ${
+                    isMenuOpen ? 'translate-y-[7px] rotate-45' : ''
+                  }`}
+                />
+                <span
+                  className={`absolute left-0 top-[7px] h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out ${
+                    isMenuOpen ? 'opacity-0' : ''
+                  }`}
+                />
+                <span
+                  className={`absolute bottom-0 left-0 h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out ${
+                    isMenuOpen ? '-translate-y-[7px] -rotate-45' : ''
+                  }`}
+                />
+              </span>
+            </button>
           </div>
 
-          <button
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-800 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white md:hidden dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink dark:hover:shadow-glow-pink dark:focus:ring-offset-pes-black"
-            type="button"
-            aria-label="Abrir menu"
-            aria-expanded={isMenuOpen}
-            aria-controls="mobile-menu"
-            onClick={() => {
-              setIsMenuOpen((currentValue) => !currentValue)
-              setIsUserMenuOpen(false)
-            }}
-          >
-            <span className="relative h-4 w-5" aria-hidden="true">
-              <span
-                className={`absolute left-0 top-0 h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out ${
-                  isMenuOpen ? 'translate-y-[7px] rotate-45' : ''
-                }`}
-              />
-              <span
-                className={`absolute left-0 top-[7px] h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out ${
-                  isMenuOpen ? 'opacity-0' : ''
-                }`}
-              />
-              <span
-                className={`absolute bottom-0 left-0 h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out ${
-                  isMenuOpen ? '-translate-y-[7px] -rotate-45' : ''
-                }`}
-              />
-            </span>
-          </button>
+          {isUserMenuOpen ? (
+            <div
+              className="absolute right-4 top-[calc(100%+12px)] hidden w-44 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_14px_34px_rgba(15,23,42,0.16)] md:block dark:border-white/10 dark:bg-[#0B0D14] dark:shadow-[0_0_30px_rgba(105,0,255,0.22)]"
+              role="menu"
+            >
+              {userActions.map((action) => (
+                <button
+                  className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_16px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_16px_rgba(0,255,237,0.2)]"
+                  type="button"
+                  key={action}
+                  role="menuitem"
+                  onClick={closeMenus}
+                >
+                  {action}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
       <nav
-        className={`border-t border-slate-200 bg-white px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.1)] transition-all duration-300 ease-out md:hidden dark:border-white/10 dark:bg-pes-black dark:shadow-[0_0_26px_rgba(0,255,237,0.12)] ${
+        className={`mx-auto mt-3 w-full max-w-7xl rounded-3xl border border-slate-300/80 bg-white/92 px-4 py-3 shadow-[0_14px_30px_rgba(15,23,42,0.1)] transition-all duration-300 ease-out md:hidden dark:border-white/10 dark:bg-pes-black dark:shadow-[0_0_26px_rgba(0,255,237,0.12)] ${
           isMenuOpen ? 'block' : 'hidden'
         }`}
         id="mobile-menu"
         aria-label="Menu movil"
       >
-        <div className="mx-auto grid max-w-7xl gap-1">
+        <div className="grid gap-1">
           {menuItems.map((item) => (
             <a
-              className="rounded-md px-3 py-3 text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.2)] dark:focus:ring-offset-pes-black"
+              className="rounded-xl px-3 py-3 text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.2)]"
               href={item.href}
               key={item.href}
               onClick={(event) => handleNavigate(event, item.href)}
@@ -212,6 +183,14 @@ function Header({ theme, onNavigate, onToggleTheme }) {
               {item.label}
             </a>
           ))}
+
+          <button
+            className="mt-2 rounded-xl border border-slate-300 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:text-slate-200 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+            type="button"
+            onClick={closeMenus}
+          >
+            Perfil
+          </button>
         </div>
       </nav>
     </header>
