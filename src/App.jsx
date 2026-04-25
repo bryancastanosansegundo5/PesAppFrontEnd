@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Encabezado from './components/Header/Header'
 import BotonVolverArriba from './components/ScrollToTopButton/ScrollToTopButton'
 import Login from './pages/Login/Login'
@@ -10,8 +10,6 @@ import OtrosEntrenos from './pages/OtrosEntrenos/OtrosEntrenos'
 import AdminPanel from './pages/Admin/AdminPanel'
 import MiCuenta from './pages/MiCuenta/MiCuenta'
 import imagenHero from './assets/LogoConTexto.png'
-import { ejerciciosPredeterminados } from './services/exercises/exerciseCatalogModel'
-import { historialPredeterminado, sesionesPredeterminadas } from './services/training/trainingModel'
 import {
   cerrarSesion,
   iniciarSesion,
@@ -19,6 +17,11 @@ import {
   refrescarSesion,
 } from './services/auth/authApiService'
 import { ApiError } from './services/http/apiClient'
+import {
+  obtenerHistorialEntrenamientosGuardado,
+  obtenerSesionesGuardadas,
+} from './services/storage/trainingStorage'
+import { obtenerCatalogoEjerciciosGuardado } from './services/storage/exerciseCatalogStorage'
 
 const rutasProtegidas = new Set([
   'entreno',
@@ -91,6 +94,9 @@ function App() {
   const [estaHaciendoLogin, setEstaHaciendoLogin] = useState(false)
   const [errorLogin, setErrorLogin] = useState('')
   const [rutaProtegidaPendiente, setRutaProtegidaPendiente] = useState('')
+  const sesionesInicio = useMemo(() => obtenerSesionesGuardadas(), [ruta, sesion])
+  const historialInicio = useMemo(() => obtenerHistorialEntrenamientosGuardado(), [ruta, sesion])
+  const catalogoInicio = useMemo(() => obtenerCatalogoEjerciciosGuardado(), [ruta, sesion])
 
   const caracteristicas = [
     { title: 'Configura', text: 'Define sesiones base con estructura clara y lista para repetir.' },
@@ -102,11 +108,11 @@ function App() {
   ]
 
   const resumenInicio = [
-    { label: 'Sesiones base', value: sesionesPredeterminadas.length, accent: 'cyan' },
-    { label: 'Ejercicios en catalogo', value: ejerciciosPredeterminados.length, accent: 'purple' },
+    { label: 'Sesiones base', value: sesionesInicio.length, accent: 'cyan' },
+    { label: 'Ejercicios en catalogo', value: catalogoInicio.length, accent: 'purple' },
     {
       label: 'Ultimo entreno',
-      value: formatearFechaResumen(historialPredeterminado[0]?.fechaFin),
+      value: formatearFechaResumen(historialInicio[0]?.fechaFin),
       accent: 'pink',
     },
   ]
@@ -142,9 +148,9 @@ function App() {
     sesion?.usuario?.username ||
     sesion?.usuario?.nombre ||
     sesion?.usuario?.email ||
-    'tu espacio de trabajo'
-  const ultimoEntreno = historialPredeterminado[0]
-  const proximaSesion = sesionesPredeterminadas[0]
+    'Tu espacio de trabajo'
+  const ultimoEntreno = historialInicio[0]
+  const proximaSesion = sesionesInicio[0]
   const totalEjerciciosSesion = proximaSesion?.ejercicios?.length || 0
   const totalSeriesSesion =
     proximaSesion?.ejercicios?.reduce(
@@ -340,38 +346,38 @@ function App() {
         className="grid gap-6 rounded-[32px] border border-slate-200/80 bg-white/85 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-sm lg:grid-cols-[1.1fr_0.9fr] lg:p-8 dark:border-white/10 dark:bg-white/[0.05]"
         id="inicio"
       >
-        <div className="space-y-7">
+        <div className="space-y-6">
           <div className="inline-flex rounded-full border border-neon-cyan/35 bg-white/90 px-4 py-2 text-sm font-semibold text-neon-purple shadow-glow-cyan dark:bg-white/5 dark:text-neon-cyan">
             Plataforma de entrenamiento y seguimiento
           </div>
 
-          <div className="space-y-5">
-            <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="space-y-2">
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
                 PesApp
               </p>
-              <h1 className="max-w-4xl text-4xl font-black leading-tight text-slate-950 sm:text-5xl lg:text-6xl dark:text-white">
+              <h1 className="font-display max-w-4xl text-[2.76rem] font-black leading-[0.94] tracking-[0.008em] text-slate-950 sm:text-[3.41rem] lg:text-[3.76rem] dark:text-white">
                 Gestiona tus entrenamientos con una interfaz clara, rapida y preparada para el dia
                 a dia.
               </h1>
             </div>
 
-            <p className="max-w-2xl text-base leading-7 text-slate-600 sm:text-lg dark:text-slate-300">
+            <p className="max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
               Centraliza sesiones, ejercicios y variantes de entreno en un entorno visual pensado
               para trabajar con ritmo, mantener contexto y revisar el progreso sin friccion.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2.5">
             <button
-              className="rounded-xl border border-neon-cyan/45 bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-[0_0_28px_rgba(0,255,237,0.26)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:shadow-glow-pink dark:bg-white dark:text-slate-950"
+              className="rounded-xl border border-neon-cyan/45 bg-slate-950 px-4 py-2.5 text-sm font-black text-white shadow-[0_0_28px_rgba(0,255,237,0.26)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:shadow-glow-pink dark:bg-white dark:text-slate-950"
               type="button"
               onClick={() => navegarA('/entreno')}
             >
               Empezar entreno
             </button>
             <button
-              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
               type="button"
               onClick={() => navegarA('/ejercicios')}
             >
@@ -379,7 +385,7 @@ function App() {
             </button>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 pt-1 sm:grid-cols-3">
             {resumenInicio.map((item) => (
               <article
                 className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:-translate-y-1 dark:border-white/10 dark:bg-white/[0.04]"
@@ -387,7 +393,7 @@ function App() {
               >
                 <p className="text-sm text-slate-500 dark:text-slate-400">{item.label}</p>
                 <p
-                  className={`mt-3 text-2xl font-black ${
+                  className={`font-display mt-3 text-2xl font-black tracking-[0.01em] ${
                     item.accent === 'cyan'
                       ? 'text-neon-cyan'
                       : item.accent === 'purple'
@@ -402,13 +408,13 @@ function App() {
           </div>
         </div>
 
-        <aside className="rounded-[28px] border border-slate-200/80 bg-slate-950 p-5 text-white shadow-[0_28px_80px_rgba(2,6,23,0.42)] dark:border-white/10">
+        <aside className="rounded-[28px] border border-neon-cyan/20 bg-[linear-gradient(160deg,rgba(239,252,255,0.98),rgba(255,255,255,0.92))] p-5 text-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(2,6,23,0.98),rgba(15,23,42,0.96))] dark:text-white dark:shadow-[0_28px_80px_rgba(2,6,23,0.42)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-neon-cyan/90">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:text-neon-cyan/90">
                 Vista operativa
               </p>
-              <h2 className="mt-3 text-2xl font-black">Tu centro de control</h2>
+              <h2 className="font-display mt-3 text-[1.75rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">Tu centro de control</h2>
             </div>
             <img
               className="h-14 w-auto object-contain opacity-90 drop-shadow-[0_0_24px_rgba(0,255,237,0.28)]"
@@ -419,50 +425,50 @@ function App() {
 
           <div className="mt-6 grid gap-4">
             <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-sm text-slate-400">Espacio activo</p>
-              <p className="mt-2 text-xl font-bold text-white">{nombreUsuario}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Espacio activo</p>
+              <p className="mt-2 text-xl font-bold text-slate-950 dark:text-white">{nombreUsuario}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                 Accede rápido al flujo principal y mantén a mano la estructura semanal.
               </p>
             </article>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <article className="rounded-2xl border border-neon-cyan/25 bg-neon-cyan/10 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-cyan">
+              <article className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 dark:border-neon-cyan/25 dark:bg-neon-cyan/10">
+                <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 dark:text-neon-cyan">
                   Proxima sesion
                 </p>
-                <p className="mt-3 text-2xl font-black text-white">
+                <p className="font-display mt-3 text-[1.8rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">
                   {proximaSesion?.nombreSesion || 'Sin definir'}
                 </p>
-                <p className="mt-3 text-sm text-slate-200">
+                <p className="mt-3 text-sm text-slate-800 dark:text-slate-200">
                   {totalEjerciciosSesion} ejercicios preparados
                 </p>
-                <p className="text-sm text-slate-400">{totalSeriesSesion} series previstas</p>
+                <p className="text-sm text-slate-700 dark:text-slate-400">{totalSeriesSesion} series previstas</p>
               </article>
 
-              <article className="rounded-2xl border border-neon-pink/25 bg-neon-pink/10 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neon-pink">
+              <article className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50/70 p-4 dark:border-neon-pink/25 dark:bg-neon-pink/10">
+                <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-fuchsia-700 dark:text-neon-pink">
                   Ultima actividad
                 </p>
-                <p className="mt-3 text-2xl font-black text-white">
+                <p className="font-display mt-3 text-[1.8rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">
                   {formatearFechaResumen(ultimoEntreno?.fechaFin)}
                 </p>
-                <p className="mt-3 text-sm text-slate-200">
+                <p className="mt-3 text-sm text-slate-800 dark:text-slate-200">
                   {ultimoEntreno?.nombreSesion || 'Sin historial'}
                 </p>
-                <p className="text-sm text-slate-400">{totalSeriesUltimoEntreno} series registradas</p>
+                <p className="text-sm text-slate-700 dark:text-slate-400">{totalSeriesUltimoEntreno} series registradas</p>
               </article>
             </div>
 
             <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-300">Estado general</p>
-                  <p className="mt-1 text-sm text-slate-400">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Estado general</p>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-400">
                     Todo listo para entrar, registrar y revisar entrenos.
                   </p>
                 </div>
-                <span className="rounded-full border border-[#39ff14]/45 bg-[#39ff14]/15 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-[#7dff6e] shadow-[0_0_20px_rgba(57,255,20,0.18)]">
+                <span className="rounded-full border border-green-500/35 bg-green-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-green-700 shadow-[0_0_14px_rgba(34,197,94,0.12)] dark:border-[#39ff14]/45 dark:bg-[#39ff14]/15 dark:text-[#7dff6e] dark:shadow-[0_0_20px_rgba(57,255,20,0.18)]">
                   Operativo
                 </span>
               </div>

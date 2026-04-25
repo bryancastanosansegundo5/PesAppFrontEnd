@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import MobilePullToRefreshIndicator from '../../components/MobilePullToRefreshIndicator/MobilePullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { obtenerOtrosEntrenosDesdeServidor } from './services/otrosEntrenosApiService'
 
@@ -161,23 +162,6 @@ function OtrosEntrenos() {
   }, [busqueda, ejerciciosAgrupados])
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setAcordeonesAbiertos((estadoActual) => {
-        if (Object.keys(estadoActual).length > 0) {
-          return estadoActual
-        }
-
-        const primerEjercicio = ejerciciosAgrupados[0]
-        return primerEjercicio ? { [primerEjercicio.id]: true } : {}
-      })
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [ejerciciosAgrupados])
-
-  useEffect(() => {
     const cargarInicial = async () => {
       setEstaCargandoInicial(true)
 
@@ -210,10 +194,20 @@ function OtrosEntrenos() {
     }
   }
 
-  const { isEnabled: gestoRecargaDisponible, isPulling, isReady, isRefreshing } =
+  const {
+    isEnabled: _gestoRecargaDisponible,
+    isPulling,
+    isReady,
+    isRefreshing,
+    pullDistance,
+    progress,
+  } =
     usePullToRefresh({
-      onRefresh: recargarDesdeServidor,
+      forceReload: true,
     })
+
+  const ocultarAyudaGesto = true
+  const gestoRecargaDisponible = _gestoRecargaDisponible && !ocultarAyudaGesto
 
   const alternarAcordeon = (idEjercicio) => {
     setAcordeonesAbiertos((estadoActual) => ({
@@ -224,19 +218,14 @@ function OtrosEntrenos() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div className={`sm:hidden ${isPulling || isRefreshing ? 'block' : 'hidden'}`}>
-        <div className="flex justify-center">
-          <div className="rounded-full border border-neon-cyan/35 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-[0_10px_26px_rgba(15,23,42,0.08)] dark:bg-[#0B0D14] dark:text-slate-200">
-            {isRefreshing
-              ? 'Recargando...'
-              : isReady
-                ? 'Suelta para recargar'
-                : 'Desliza hacia abajo para recargar'}
-          </div>
-        </div>
-      </div>
-
       <section className="rounded-[28px] border border-neon-purple/25 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:bg-white/[0.04]">
+        <MobilePullToRefreshIndicator
+          isPulling={isPulling}
+          isReady={isReady}
+          isRefreshing={isRefreshing}
+          pullDistance={pullDistance}
+          progress={progress}
+        />
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">

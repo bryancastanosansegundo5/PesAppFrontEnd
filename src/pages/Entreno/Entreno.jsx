@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import PieAccion from '../../components/Footer/Footer'
+import MobilePullToRefreshIndicator from '../../components/MobilePullToRefreshIndicator/MobilePullToRefreshIndicator'
 import Toast from '../../components/Toast/Toast'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import {
@@ -76,6 +77,10 @@ function normalizarTexto(valor) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+}
+
+function crearEstadoEjerciciosCerrados(ejercicios) {
+  return Object.fromEntries(ejercicios.map((ejercicio) => [ejercicio.idEjercicio, false]))
 }
 
 function crearEjercicioDeHoy() {
@@ -279,11 +284,9 @@ function Entreno() {
       return entrenamientoActual
     }
 
-    return sesiones[0] ? crearEntrenamientoDesdeSesion(sesiones[0]) : null
+    return null
   })
-  const [idSesionSeleccionada, setIdSesionSeleccionada] = useState(
-    entrenamiento?.idSesion || sesiones[0]?.id || '',
-  )
+  const [idSesionSeleccionada, setIdSesionSeleccionada] = useState(entrenamiento?.idSesion || '')
   const [estaGuardando, setEstaGuardando] = useState(false)
   const [estaRecargando, setEstaRecargando] = useState(false)
   const [mensaje, setMensaje] = useState('')
@@ -398,7 +401,24 @@ function Entreno() {
     }
   }, [entrenamiento])
 
+  const limpiarSeleccionSesion = () => {
+    setIdSesionSeleccionada('')
+    setEntrenamiento(null)
+    setEjerciciosAbiertos({})
+    setEstaAbiertoSelectorSesiones(false)
+    setEstaAbiertoSelectorEjercicios(false)
+    setBusquedaSesion('')
+    setBusquedaEjercicio('')
+    setMensaje('')
+    limpiarEntrenamientoBorrador()
+  }
+
   const seleccionarSesion = (idSesion) => {
+    if (!idSesion) {
+      limpiarSeleccionSesion()
+      return
+    }
+
     const sesion = sesiones.find((elemento) => elemento.id === idSesion)
 
     if (!sesion) return
@@ -407,11 +427,7 @@ function Entreno() {
     const siguienteEntrenamiento = crearEntrenamientoDesdeSesion(sesion)
 
     setEntrenamiento(siguienteEntrenamiento)
-    setEjerciciosAbiertos(
-      Object.fromEntries(
-        siguienteEntrenamiento.ejercicios.map((ejercicio) => [ejercicio.idEjercicio, true]),
-      ),
-    )
+    setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(siguienteEntrenamiento.ejercicios))
     setEstaAbiertoSelectorSesiones(false)
     setBusquedaSesion('')
     setMensaje(
@@ -428,7 +444,7 @@ function Entreno() {
 
     setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
       ...ejerciciosAbiertosActuales,
-      [idEjercicio]: !(ejerciciosAbiertosActuales[idEjercicio] ?? true),
+      [idEjercicio]: !Boolean(ejerciciosAbiertosActuales[idEjercicio]),
     }))
   }
 
@@ -577,15 +593,11 @@ function Entreno() {
     )
     const historialActualizado = [ejemploEntrenamientoAnterior, ...historialSinEjemplo]
 
-    setIdSesionSeleccionada(ejemploEntrenamiento.idSesion)
+    setIdSesionSeleccionada('')
     setHistorial(historialActualizado)
     guardarHistorialEntrenos(historialActualizado)
     setEntrenamiento(ejemploEntrenamiento)
-    setEjerciciosAbiertos(
-      Object.fromEntries(
-        ejemploEntrenamiento.ejercicios.map((ejercicio) => [ejercicio.idEjercicio, true]),
-      ),
-    )
+    setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(ejemploEntrenamiento.ejercicios))
     setMensaje(
       'Ejemplo completo cargado con entreno actual y registro anterior para comparar en linea.',
     )
@@ -619,7 +631,9 @@ function Entreno() {
       guardarHistorialEntrenos(historialActualizado)
       limpiarEntrenamientoBorrador()
       setHistorial(historialActualizado)
+      setIdSesionSeleccionada('')
       setEntrenamiento(null)
+      setEjerciciosAbiertos({})
       setMensaje('Servidor OK. Entreno guardado y borrador local limpiado.')
     } catch (errorCapturado) {
       setMensaje(`${errorCapturado.message} El borrador sigue guardado en localStorage.`)
@@ -628,9 +642,11 @@ function Entreno() {
     }
   }
 
-  const recargarDesdeServidor = async () => {
+  const recargarDesdeServidor = async ({ silencioso = false } = {}) => {
     setEstaRecargando(true)
-    setMensaje('Recargando datos originales desde la base de datos...')
+    if (silencioso) {
+      setMensaje('')
+    }
 
     try {
       const [sesionesServidor, historialServidor, catalogoServidor] = await Promise.all([
@@ -646,18 +662,15 @@ function Entreno() {
       guardarHistorialEntrenos(historialServidor)
       guardarCatalogoEjerciciosEntreno(catalogoServidor)
 
-      const sesionSeleccionada =
-        sesionesServidor.find((sesion) => sesion.id === idSesionSeleccionada) || sesionesServidor[0]
+      const sesionSeleccionada = idSesionSeleccionada
+        ? sesionesServidor.find((sesion) => sesion.id === idSesionSeleccionada) || null
+        : null
 
       if (sesionSeleccionada) {
         const siguienteEntrenamiento = crearEntrenamientoDesdeSesion(sesionSeleccionada)
         setIdSesionSeleccionada(sesionSeleccionada.id)
         setEntrenamiento(siguienteEntrenamiento)
-        setEjerciciosAbiertos(
-          Object.fromEntries(
-            siguienteEntrenamiento.ejercicios.map((ejercicio) => [ejercicio.idEjercicio, true]),
-          ),
-        )
+        setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(siguienteEntrenamiento.ejercicios))
       } else {
         setIdSesionSeleccionada('')
         setEntrenamiento(null)
@@ -668,7 +681,9 @@ function Entreno() {
       setEstaAbiertoSelectorSesiones(false)
       setBusquedaEjercicio('')
       setBusquedaSesion('')
-      setMensaje('Entreno, historial y catalogo recargados desde la base de datos.')
+      if (!silencioso) {
+        setMensaje('')
+      }
     } catch (errorCapturado) {
       setMensaje(
         `${errorCapturado.message} No se pudieron recuperar los datos originales desde la base de datos.`,
@@ -678,30 +693,33 @@ function Entreno() {
     }
   }
 
-  const { isEnabled: gestoRecargaDisponible, isPulling, isReady, isRefreshing } =
+  const {
+    isEnabled: _gestoRecargaDisponible,
+    isPulling,
+    isReady,
+    isRefreshing,
+    pullDistance,
+    progress,
+  } =
     usePullToRefresh({
-      onRefresh: recargarDesdeServidor,
+      onRefresh: () => recargarDesdeServidor({ silencioso: true }),
     })
+
+  const ocultarAyudaGesto = true
+  const gestoRecargaDisponible = _gestoRecargaDisponible && !ocultarAyudaGesto
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
+      <MobilePullToRefreshIndicator
+        isPulling={isPulling}
+        isReady={isReady}
+        isRefreshing={isRefreshing}
+        pullDistance={pullDistance}
+        progress={progress}
+      />
       <main
         className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8"
       >
-        <div
-          className={`sm:hidden ${isPulling || isRefreshing ? 'block' : 'hidden'}`}
-        >
-          <div className="flex justify-center">
-            <div className="rounded-full border border-neon-cyan/35 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-[0_10px_26px_rgba(15,23,42,0.08)] dark:bg-[#0B0D14] dark:text-slate-200">
-              {isRefreshing
-                ? 'Recargando...'
-                : isReady
-                  ? 'Suelta para recargar'
-                  : 'Desliza hacia abajo para recargar'}
-            </div>
-          </div>
-        </div>
-
         <section className="rounded-lg border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan transition-all duration-300 ease-out dark:bg-white/[0.04]">
           <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-start">
             <div>
@@ -765,6 +783,17 @@ function Entreno() {
                     </div>
 
                     <div className="max-h-60 overflow-y-auto">
+                      <button
+                        className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 dark:border-white/10 ${
+                          idSesionSeleccionada === ''
+                            ? 'bg-neon-cyan/15 text-neon-cyan'
+                            : 'text-slate-800 hover:bg-neon-pink/10 hover:text-neon-pink dark:text-slate-200'
+                        }`}
+                        type="button"
+                        onClick={() => seleccionarSesion('')}
+                      >
+                        -- Seleccionar --
+                      </button>
                       {sesionesFiltradas.map((sesion) => (
                         <button
                           className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 last:border-b-0 dark:border-white/10 ${
@@ -804,8 +833,9 @@ function Entreno() {
             Cargar ejemplo
           </button>
           <button
-            className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink"
+            className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-50 dark:text-neon-pink"
             type="button"
+            disabled={!entrenamiento}
             onClick={() => {
               setEstaAbiertoSelectorEjercicios((valorActual) => !valorActual)
               setEstaAbiertoSelectorSesiones(false)
@@ -820,7 +850,7 @@ function Entreno() {
           </p>
         ) : null}
 
-        {estaAbiertoSelectorEjercicios ? (
+        {estaAbiertoSelectorEjercicios && entrenamiento ? (
           <section className="rounded-lg border border-neon-purple/30 bg-white p-3 shadow-glow-purple dark:bg-white/[0.04]">
             <div className="grid gap-2">
               <input
@@ -883,7 +913,7 @@ function Entreno() {
                 ejercicio.catalogoEjercicioId || ejercicio.idEjercicio,
                 historial,
               )
-            const estaAbiertoEjercicio = ejerciciosAbiertos[ejercicio.idEjercicio] ?? true
+            const estaAbiertoEjercicio = Boolean(ejerciciosAbiertos[ejercicio.idEjercicio])
             const gruposSeries = agruparSeriesPorNumeroSerie(ejercicio.seriesRealizadas)
 
             return (
@@ -917,7 +947,7 @@ function Entreno() {
                       </svg>
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-xl font-black text-slate-950 dark:text-white">
+                      <span className="font-display block truncate text-xl font-black text-slate-950 dark:text-white">
                         {ejercicio.nombre}
                       </span>
                       <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
@@ -1014,7 +1044,7 @@ function Entreno() {
                     <div className="grid gap-4 border-t border-slate-200 p-5 dark:border-white/10">
                       <div>
                         <input
-                          className="w-full bg-transparent text-xl font-black text-slate-950 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-white dark:focus:text-neon-pink"
+                          className="font-display w-full bg-transparent text-xl font-black text-slate-950 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-white dark:focus:text-neon-pink"
                           value={ejercicio.nombre}
                           onChange={(evento) =>
                             actualizarEjercicio(

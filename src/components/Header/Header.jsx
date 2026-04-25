@@ -48,7 +48,7 @@ function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogo
           <nav className="ml-3 hidden items-center justify-center gap-5 md:flex" aria-label="Menu principal">
             {(autenticado ? menuItems : []).map((item) => (
               <a
-                className="group relative h-6 overflow-hidden text-[0.95rem] font-semibold text-slate-700 transition-colors duration-300 hover:text-neon-purple dark:text-slate-200 dark:hover:text-neon-cyan"
+                className="font-display group relative h-6 overflow-hidden text-[0.95rem] font-semibold text-slate-700 transition-colors duration-300 hover:text-neon-purple dark:text-slate-200 dark:hover:text-neon-cyan"
                 href={item.href}
                 key={item.href}
                 onClick={(event) => handleNavigate(event, item.href)}
@@ -132,41 +132,73 @@ function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogo
           </div>
 
           <div className="flex items-center gap-2 md:hidden">
+            {autenticado ? (
+              <button
+                className="max-w-[8.5rem] truncate rounded-full border border-neon-cyan/45 bg-white/42 px-4 py-2 text-sm font-bold text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_16px_rgba(0,255,237,0.14)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_22px_rgba(0,255,237,0.22)] dark:border-neon-cyan/45 dark:bg-neon-cyan/18 dark:text-neon-cyan dark:shadow-[0_0_18px_rgba(0,255,237,0.26)] dark:hover:shadow-[0_0_24px_rgba(0,255,237,0.34)]"
+                type="button"
+                onClick={() => {
+                  closeMenus()
+                  onNavigate('/mi-cuenta')
+                }}
+              >
+                {obtenerNombreVisibleUsuario(usuario)}
+              </button>
+            ) : null}
+
             <button
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/50 bg-white/30 text-slate-800 backdrop-blur-xl transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+              className="group relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/50 bg-white/30 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_14px_rgba(0,255,237,0.16)] backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-[0_0_20px_rgba(255,102,255,0.22)] dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-cyan dark:hover:text-neon-cyan dark:hover:shadow-[0_0_20px_rgba(0,255,237,0.28)]"
               type="button"
               aria-label={isDarkTheme ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
               onClick={onToggleTheme}
             >
-              <svg
-                className="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {isDarkTheme ? (
-                  <>
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2" />
-                    <path d="M12 20v2" />
-                    <path d="m4.93 4.93 1.41 1.41" />
-                    <path d="m17.66 17.66 1.41 1.41" />
-                    <path d="M2 12h2" />
-                    <path d="M20 12h2" />
-                    <path d="m6.34 17.66-1.41 1.41" />
-                    <path d="m19.07 4.93-1.41 1.41" />
-                  </>
-                ) : (
+              <span className="relative h-5 w-5" aria-hidden="true">
+                <svg
+                  className={`absolute inset-0 h-5 w-5 transition-all duration-300 ease-out ${
+                    isDarkTheme
+                      ? 'rotate-0 scale-100 text-neon-pink opacity-100'
+                      : 'rotate-90 scale-75 opacity-0'
+                  }`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2" />
+                  <path d="M12 20v2" />
+                  <path d="m4.93 4.93 1.41 1.41" />
+                  <path d="m17.66 17.66 1.41 1.41" />
+                  <path d="M2 12h2" />
+                  <path d="M20 12h2" />
+                  <path d="m6.34 17.66-1.41 1.41" />
+                  <path d="m19.07 4.93-1.41 1.41" />
+                </svg>
+                <svg
+                  className={`absolute inset-0 h-5 w-5 transition-all duration-300 ease-out ${
+                    isDarkTheme
+                      ? '-rotate-90 scale-75 opacity-0'
+                      : 'rotate-0 scale-100 text-neon-pink opacity-100'
+                  }`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-                )}
-              </svg>
+                </svg>
+              </span>
             </button>
 
             <button
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/50 bg-white/30 text-slate-800 backdrop-blur-xl transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink"
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white/30 backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-0.5 dark:bg-white/10 ${
+                isMenuOpen
+                  ? 'border-neon-pink/70 text-neon-pink shadow-[0_0_18px_rgba(255,102,255,0.22)] dark:border-neon-cyan/70 dark:text-neon-cyan dark:shadow-[0_0_20px_rgba(0,255,237,0.28)]'
+                  : 'border-white/50 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_0_14px_rgba(0,255,237,0.16)] hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:text-slate-100 dark:hover:border-neon-pink dark:hover:text-neon-pink'
+              }`}
               type="button"
               aria-label="Abrir menu"
               aria-expanded={isMenuOpen}
@@ -245,65 +277,75 @@ function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogo
       </div>
 
       <nav
-        className={`mx-auto mt-3 w-full max-w-5xl rounded-3xl border border-white/45 bg-white/55 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_30px_rgba(15,23,42,0.1)] backdrop-blur-2xl transition-all duration-300 ease-out md:hidden dark:border-white/15 dark:bg-pes-black/72 dark:shadow-[0_0_26px_rgba(0,255,237,0.12)] ${
+        className={`mx-auto mt-3 w-full max-w-5xl rounded-3xl border border-neon-cyan/30 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(236,252,255,0.9))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_0_0_1px_rgba(0,255,237,0.08),0_18px_34px_rgba(15,23,42,0.12),0_0_24px_rgba(0,255,237,0.1)] backdrop-blur-2xl transition-all duration-300 ease-out md:hidden dark:border-neon-cyan/30 dark:bg-[linear-gradient(135deg,rgba(5,18,24,0.94),rgba(11,13,20,0.96))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_0_1px_rgba(0,255,237,0.08),0_18px_34px_rgba(2,6,23,0.34),0_0_28px_rgba(0,255,237,0.12)] ${
           isMenuOpen ? 'block' : 'hidden'
         }`}
         id="mobile-menu"
         aria-label="Menu movil"
       >
-        <div className="grid gap-1">
+        <div className="grid gap-4">
+          <div className="grid gap-1">
+            {(autenticado ? menuItems : []).map((item) => (
+              <a
+                className="font-display rounded-2xl px-3 py-3 text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neon-cyan/10 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.14)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-200 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.14)]"
+                href={item.href}
+                key={item.href}
+                onClick={(event) => handleNavigate(event, item.href)}
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+
           {autenticado ? (
+            <div className="grid gap-1 border-t border-slate-200/80 pt-3 dark:border-white/10">
+              <button
+                className="font-display rounded-2xl px-3 py-3 text-left text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neon-cyan/10 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.14)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-200 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.14)]"
+                type="button"
+                onClick={() => {
+                  closeMenus()
+                  onNavigate('/mi-cuenta')
+                }}
+              >
+                Mi cuenta
+              </button>
+
+              {esAdmin ? (
+                <button
+                  className="font-display rounded-2xl px-3 py-3 text-left text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neon-cyan/10 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.14)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-200 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.14)]"
+                  type="button"
+                  onClick={() => {
+                    closeMenus()
+                    onNavigate('/admin')
+                  }}
+                >
+                  Administracion
+                </button>
+              ) : null}
+
+              <button
+                className="mt-2 rounded-2xl border border-neon-pink/35 bg-neon-pink/[0.04] px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-neon-pink hover:bg-neon-pink/10 hover:text-neon-pink hover:shadow-[0_0_20px_rgba(255,102,255,0.18)] dark:text-slate-100"
+                type="button"
+                onClick={() => {
+                  closeMenus()
+                  onLogout()
+                }}
+              >
+                Cerrar sesion
+              </button>
+            </div>
+          ) : (
             <button
-              className="rounded-xl px-3 py-3 text-left text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.2)]"
+              className="rounded-2xl border border-neon-cyan/35 bg-neon-cyan/[0.04] px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-neon-cyan hover:bg-neon-cyan/10 hover:text-neon-cyan hover:shadow-[0_0_20px_rgba(0,255,237,0.16)] dark:text-slate-100"
               type="button"
               onClick={() => {
                 closeMenus()
-                onNavigate('/mi-cuenta')
+                onNavigate('/login')
               }}
             >
-              Mi cuenta
+              Login
             </button>
-          ) : null}
-
-          {(autenticado ? menuItems : []).map((item) => (
-            <a
-              className="rounded-xl px-3 py-3 text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.2)]"
-              href={item.href}
-              key={item.href}
-              onClick={(event) => handleNavigate(event, item.href)}
-            >
-              {item.label}
-            </a>
-          ))}
-
-          {autenticado && esAdmin ? (
-            <button
-              className="rounded-xl px-3 py-3 text-left text-base font-medium text-slate-700 transition-all duration-300 ease-out hover:translate-x-1 hover:text-neon-purple hover:shadow-[0_0_18px_rgba(105,0,255,0.18)] focus:outline-none focus:ring-2 focus:ring-neon-cyan dark:text-slate-300 dark:hover:text-neon-cyan dark:hover:shadow-[0_0_18px_rgba(0,255,237,0.2)]"
-              type="button"
-              onClick={() => {
-                closeMenus()
-                onNavigate('/admin')
-              }}
-            >
-              Administracion
-            </button>
-          ) : null}
-
-          <button
-            className="mt-2 rounded-xl border border-slate-300 px-3 py-2 text-left text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-neon-cyan hover:text-neon-cyan dark:border-white/20 dark:text-slate-200 dark:hover:border-neon-pink dark:hover:text-neon-pink"
-            type="button"
-            onClick={() => {
-              closeMenus()
-              if (autenticado) {
-                onLogout()
-                return
-              }
-
-              onNavigate('/login')
-            }}
-          >
-            {autenticado ? 'Cerrar sesion' : 'Login'}
-          </button>
+          )}
         </div>
       </nav>
     </header>

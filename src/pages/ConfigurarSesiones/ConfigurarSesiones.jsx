@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import MobilePullToRefreshIndicator from '../../components/MobilePullToRefreshIndicator/MobilePullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import {
   crearEjercicioDesdeCatalogo,
@@ -25,7 +26,7 @@ function ConfigurarSesiones() {
   const [sesiones, setSesiones] = useState(obtenerSesionesConfiguracion)
   const [sesionesAbiertas, setSesionesAbiertas] = useState(() => {
     const sesionesIniciales = obtenerSesionesConfiguracion()
-    return Object.fromEntries(sesionesIniciales.map((sesion, indice) => [sesion.id, indice === 0]))
+    return Object.fromEntries(sesionesIniciales.map((sesion) => [sesion.id, false]))
   })
   const [estadoGuardado, setEstadoGuardado] = useState({})
   const [selectorSesionAbierto, setSelectorSesionAbierto] = useState('')
@@ -203,9 +204,7 @@ function ConfigurarSesiones() {
       setSesiones(sesionesServidor)
       setCatalogoEjercicios(catalogoServidor)
       setSesionesAbiertas(
-        Object.fromEntries(
-          sesionesServidor.map((sesion, indice) => [sesion.id, indice === 0]),
-        ),
+        Object.fromEntries(sesionesServidor.map((sesion) => [sesion.id, false])),
       )
       guardarSesionesConfiguracion(sesionesServidor)
       guardarCatalogoEjerciciosConfiguracion(catalogoServidor)
@@ -221,28 +220,31 @@ function ConfigurarSesiones() {
     }
   }
 
-  const { isEnabled: gestoRecargaDisponible, isPulling, isReady, isRefreshing } =
+  const {
+    isEnabled: _gestoRecargaDisponible,
+    isPulling,
+    isReady,
+    isRefreshing,
+    pullDistance,
+    progress,
+  } =
     usePullToRefresh({
-      onRefresh: recargarSesionesDesdeServidor,
+      forceReload: true,
     })
+
+  const ocultarAyudaGesto = true
+  const gestoRecargaDisponible = _gestoRecargaDisponible && !ocultarAyudaGesto
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div
-        className={`sm:hidden ${isPulling || isRefreshing ? 'block' : 'hidden'}`}
-      >
-        <div className="flex justify-center">
-          <div className="rounded-full border border-neon-cyan/35 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-[0_10px_26px_rgba(15,23,42,0.08)] dark:bg-[#0B0D14] dark:text-slate-200">
-            {isRefreshing
-              ? 'Recargando...'
-              : isReady
-                ? 'Suelta para recargar'
-                : 'Desliza hacia abajo para recargar'}
-          </div>
-        </div>
-      </div>
-
       <section className="rounded-lg border border-neon-purple/30 bg-white p-5 shadow-glow-purple transition-all duration-300 ease-out dark:bg-white/[0.04]">
+        <MobilePullToRefreshIndicator
+          isPulling={isPulling}
+          isReady={isReady}
+          isRefreshing={isRefreshing}
+          pullDistance={pullDistance}
+          progress={progress}
+        />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-pink">
