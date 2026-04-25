@@ -1,4 +1,5 @@
-import { crearId } from '../training/trainingModel'
+import { aIsoString } from '../data/dateUtils'
+import { crearIdLocal, normalizarIdTexto, normalizarVersion } from '../data/syncModel'
 
 export const ejerciciosPredeterminados = [
   {
@@ -141,15 +142,25 @@ function obtenerIdCatalogo(ejercicio, indice = 0) {
     ejercicio?.idEjercicio ??
     ejercicio?.exerciseId
 
-  return idCatalogo ? String(idCatalogo) : crearId(`catalogo-${indice + 1}`)
+  return idCatalogo ? String(idCatalogo) : crearIdLocal(`catalogo-${indice + 1}`)
 }
 
 export function normalizarPlantillaEjercicio(ejercicio, indice = 0) {
   const idCatalogo = obtenerIdCatalogo(ejercicio, indice)
-  const idEjercicio = ejercicio?.idEjercicio ? String(ejercicio.idEjercicio) : idCatalogo
+  const clientId = normalizarIdTexto(
+    ejercicio?.clientId,
+    ejercicio?.idEjercicio,
+    ejercicio?.localId,
+    idCatalogo,
+  )
+  const idEjercicio = clientId || idCatalogo
+  const createdAt = aIsoString(ejercicio?.createdAt, '')
+  const updatedAt = aIsoString(ejercicio?.updatedAt, createdAt)
 
   return {
+    id: normalizarIdTexto(ejercicio?.id, idCatalogo) || idCatalogo,
     idEjercicio,
+    clientId,
     catalogoEjercicioId: idCatalogo,
     nombre: ejercicio?.nombre || ejercicio?.name || 'Ejercicio sin nombre',
     descripcion: ejercicio?.descripcion || ejercicio?.description || '',
@@ -169,6 +180,10 @@ export function normalizarPlantillaEjercicio(ejercicio, indice = 0) {
     ),
     alturaBanco: normalizarAlturaBanco(ejercicio?.alturaBanco ?? ejercicio?.benchHeight),
     agarre: ejercicio?.agarre || ejercicio?.grip || '',
+    createdAt,
+    updatedAt,
+    version: normalizarVersion(ejercicio?.version, 1),
+    syncStatus: ejercicio?.syncStatus || (ejercicio?.esBorrador ? 'pending' : 'synced'),
   }
 }
 
@@ -181,25 +196,31 @@ export function normalizarListaEjercicios(lista) {
 }
 
 export function crearPayloadEjercicioCatalogo(ejercicio) {
+  const ejercicioNormalizado = normalizarPlantillaEjercicio(ejercicio)
+
   return {
-    nombre: String(ejercicio?.nombre || '').trim(),
-    descripcion: normalizarTextoPayload(ejercicio?.descripcion),
-    grupoMuscular: normalizarTextoPayload(ejercicio?.grupoMuscular),
-    patronMovimiento: normalizarTextoPayload(ejercicio?.patronMovimiento),
-    equipamiento: normalizarTextoPayload(ejercicio?.equipamiento),
-    seriesPlanificadas: normalizarNumero(ejercicio?.seriesPlanificadas),
-    repeticionesPlanificadas: normalizarNumero(ejercicio?.repeticionesPlanificadas),
-    pesoPlanificado: normalizarNumero(ejercicio?.pesoPlanificado),
-    alturaBanco: normalizarTextoPayload(ejercicio?.alturaBanco),
-    agarre: normalizarTextoPayload(ejercicio?.agarre),
+    clientId: ejercicioNormalizado.clientId,
+    version: ejercicioNormalizado.version,
+    nombre: String(ejercicioNormalizado?.nombre || '').trim(),
+    descripcion: normalizarTextoPayload(ejercicioNormalizado?.descripcion),
+    grupoMuscular: normalizarTextoPayload(ejercicioNormalizado?.grupoMuscular),
+    patronMovimiento: normalizarTextoPayload(ejercicioNormalizado?.patronMovimiento),
+    equipamiento: normalizarTextoPayload(ejercicioNormalizado?.equipamiento),
+    seriesPlanificadas: normalizarNumero(ejercicioNormalizado?.seriesPlanificadas),
+    repeticionesPlanificadas: normalizarNumero(ejercicioNormalizado?.repeticionesPlanificadas),
+    pesoPlanificado: normalizarNumero(ejercicioNormalizado?.pesoPlanificado),
+    alturaBanco: normalizarTextoPayload(ejercicioNormalizado?.alturaBanco),
+    agarre: normalizarTextoPayload(ejercicioNormalizado?.agarre),
   }
 }
 
 export function crearPlantillaEjercicioVacia() {
-  const idTemporal = crearId('catalogo')
+  const idTemporal = crearIdLocal('catalogo')
 
   return {
+    id: idTemporal,
     idEjercicio: idTemporal,
+    clientId: idTemporal,
     catalogoEjercicioId: '',
     nombre: 'Nuevo ejercicio',
     descripcion: '',
@@ -211,6 +232,8 @@ export function crearPlantillaEjercicioVacia() {
     pesoPlanificado: 0,
     alturaBanco: '',
     agarre: '',
+    version: 1,
     esBorrador: true,
+    syncStatus: 'pending',
   }
 }

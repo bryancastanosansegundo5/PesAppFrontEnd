@@ -102,11 +102,11 @@ function AdminPanel({ usuarioActual }) {
   }, [])
 
   const publicarToast = (mensaje, tipo = 'info') => {
-    setToast({
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    setToast((toastActual) => ({
+      id: (toastActual?.id || 0) + 1,
       mensaje,
       tipo,
-    })
+    }))
   }
 
   const manejarCambioFormulario = (campo, valor) => {

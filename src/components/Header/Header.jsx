@@ -4,6 +4,7 @@ import logo from '../../assets/PesAppMark.png'
 const menuItems = [
   { label: 'Entreno', href: '/entreno' },
   { label: 'Ejercicios', href: '/ejercicios' },
+  { label: 'Peso', href: '/peso' },
   { label: 'Otros entrenos', href: '/otros-entrenos' },
   { label: 'Configurar sesiones', href: '/configurar-sesiones' },
 ]
@@ -12,7 +13,38 @@ function obtenerNombreVisibleUsuario(usuario) {
   return usuario?.username || usuario?.nombre || usuario?.email || 'Mi cuenta'
 }
 
-function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogout }) {
+function OfflineStatusIcon() {
+  return (
+    <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/70 bg-transparent text-red-400 shadow-[0_0_18px_rgba(255,40,40,0.34),0_0_36px_rgba(220,38,38,0.18)] ring-1 ring-red-500/28">
+      <svg
+        className="relative z-10 h-[18px] w-[18px] drop-shadow-[0_0_8px_rgba(255,70,70,0.45)]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4.75 9.25A11.2 11.2 0 0 1 12 6.5c2.78 0 5.33 1 7.3 2.66" />
+        <path d="M7.7 12.3A7 7 0 0 1 12 10.9c1.64 0 3.15.56 4.34 1.5" />
+        <path d="M10.68 15.36A2.62 2.62 0 0 1 12 15c.5 0 .98.13 1.38.35" />
+        <circle cx="12" cy="18.1" r="1.2" fill="currentColor" stroke="none" />
+        <path d="M5 4.5 19.5 19" />
+      </svg>
+    </span>
+  )
+}
+
+function Header({
+  theme,
+  onNavigate,
+  onToggleTheme,
+  usuario,
+  autenticado,
+  onLogout,
+  estaDesconectadoServidor,
+}) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const isDarkTheme = theme === 'dark'
@@ -31,6 +63,17 @@ function Header({ theme, onNavigate, onToggleTheme, usuario, autenticado, onLogo
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 bg-transparent px-4 py-4 sm:px-6 lg:px-8">
+      {estaDesconectadoServidor ? (
+        <div className="pointer-events-none fixed right-4 top-4 z-[60] sm:right-6 lg:right-8">
+          <div className="pointer-events-auto inline-flex items-center justify-center rounded-full border border-red-500/45 bg-[rgba(20,3,3,0.42)] px-1.5 py-1.5 text-red-50 shadow-[0_0_22px_rgba(255,40,40,0.2)] backdrop-blur-xl sm:gap-2 sm:px-2.5">
+            <OfflineStatusIcon />
+            <span className="hidden text-[11px] font-black uppercase tracking-[0.18em] text-red-100 sm:inline">
+              Sin servidor
+            </span>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto w-fit max-w-5xl">
         <div className="relative flex items-center justify-center rounded-full border border-neon-cyan/40 bg-white/18 pl-2 pr-3 py-2 text-sm text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_0_18px_rgba(0,255,237,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-300 ease-out dark:border-neon-cyan/35 dark:bg-[#090D1A]/38 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_24px_rgba(0,255,237,0.2)]">
           <a

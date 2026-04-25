@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 
-function Toast({ mensaje, tipo = 'info', duracion = 4200 }) {
+function Toast({ mensaje, tipo = 'info', duracion = 4200, persistente = false, onClose }) {
   const [mensajeVisible, setMensajeVisible] = useState(() => mensaje)
 
   useEffect(() => {
+    if (persistente) {
+      return undefined
+    }
+
     if (!mensajeVisible) {
       return undefined
     }
@@ -15,7 +19,7 @@ function Toast({ mensaje, tipo = 'info', duracion = 4200 }) {
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [duracion, mensajeVisible])
+  }, [duracion, mensajeVisible, persistente])
 
   if (!mensajeVisible) {
     return null
@@ -44,7 +48,10 @@ function Toast({ mensaje, tipo = 'info', duracion = 4200 }) {
             }`}
             type="button"
             aria-label="Cerrar notificacion"
-            onClick={() => setMensajeVisible('')}
+            onClick={() => {
+              setMensajeVisible('')
+              onClose?.()
+            }}
           >
             <svg
               className="h-4 w-4"

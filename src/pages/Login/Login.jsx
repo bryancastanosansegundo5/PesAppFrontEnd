@@ -4,7 +4,7 @@ import { validarPassword, validarUsername } from '../../services/auth/authValida
 const claseInput =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
-function Login({ onLogin, estaCargando, error, tema }) {
+function Login({ onLogin, estaCargando, error, tema, modoOfflineDisponible, estaDesconectadoServidor }) {
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('*_*Passw0rd*_*')
   const [errorFormulario, setErrorFormulario] = useState('')
@@ -140,6 +140,15 @@ function Login({ onLogin, estaCargando, error, tema }) {
                 Accede con tu username y password. El correo ya no se usa como credencial de
                 login.
               </p>
+
+              {estaDesconectadoServidor ? (
+                <div className="rounded-xl border border-red-500/35 bg-red-500/8 px-4 py-3 text-sm text-red-600 dark:text-red-300">
+                  El servidor no esta disponible.{' '}
+                  {modoOfflineDisponible
+                    ? 'Puedes entrar en modo offline si este dispositivo ya valido antes esas credenciales.'
+                    : 'Necesitas haber iniciado sesion antes en este dispositivo para poder entrar offline.'}
+                </div>
+              ) : null}
 
               <button
                 className="mt-2 inline-flex items-center justify-center rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"

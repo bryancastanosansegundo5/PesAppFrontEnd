@@ -1,15 +1,29 @@
 import {
   crearPayloadEntrenamiento,
   normalizarListaSesiones,
+  normalizarSesion,
 } from '../../../services/training/trainingModel'
 import { apiRequest } from '../../../services/http/apiClient'
 
-export function guardarEntrenamientoEnServidor(entrenamiento) {
-  return apiRequest('/api/entrenamientos', {
+export async function guardarEntrenamientoEnServidor(entrenamiento) {
+  const body = crearPayloadEntrenamiento(entrenamiento)
+
+  console.log('[EntrenoSync] POST /api/entrenamientos', {
+    clientId: body.clientId,
+    idSesion: body.idSesion,
+    ejercicios: body.ejercicios?.length || 0,
+    referenciasCatalogo: body.ejercicios
+      ?.map((ejercicio) => ejercicio.catalogoEjercicioId)
+      .filter(Boolean),
+  })
+
+  const payload = await apiRequest('/api/entrenamientos', {
     method: 'POST',
     auth: true,
-    body: crearPayloadEntrenamiento(entrenamiento),
+    body,
   })
+
+  return normalizarSesion(payload || entrenamiento)
 }
 
 export async function obtenerEntrenamientosDesdeServidor() {

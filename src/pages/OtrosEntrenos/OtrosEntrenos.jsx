@@ -304,12 +304,14 @@ function OtrosEntrenos() {
 
                 <span
                   className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan ${
-                    estaAbierto ? 'rotate-180 border-neon-pink text-neon-pink shadow-glow-pink' : ''
+                    estaAbierto ? 'border-neon-pink text-neon-pink shadow-glow-pink' : ''
                   }`}
                   aria-hidden="true"
                 >
                   <svg
-                    className="h-5 w-5"
+                    className={`h-5 w-5 transition-transform duration-300 ease-out ${
+                      estaAbierto ? 'rotate-180' : ''
+                    }`}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"

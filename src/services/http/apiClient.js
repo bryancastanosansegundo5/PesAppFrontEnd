@@ -6,10 +6,33 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
     this.payload = payload
+    this.backendError = payload?.error || ''
+    this.backendMessage = payload?.mensaje || ''
+    this.backendStatusCode = payload?.statusCode || status
+    this.backendTimestamp = payload?.timestamp || ''
   }
 }
 
 let refreshPromise = null
+
+function publicarServidorNoDisponible(message, detail = {}) {
+  window.dispatchEvent(
+    new CustomEvent('pesapp:server-unreachable', {
+      detail: {
+        message,
+        ...detail,
+      },
+    }),
+  )
+}
+
+function publicarServidorDisponible(detail = {}) {
+  window.dispatchEvent(
+    new CustomEvent('pesapp:server-reachable', {
+      detail,
+    }),
+  )
+}
 
 function construirUrl(path) {
   if (/^https?:\/\//i.test(path)) {
@@ -48,7 +71,7 @@ function construirMensajeError(payload, fallbackMessage) {
     return payload.mensajes.join(' ')
   }
 
-  return payload.error || fallbackMessage
+  return payload.mensaje || payload.error || fallbackMessage
 }
 
 function esEndpointAuth(path) {
@@ -63,20 +86,50 @@ function esEndpointAuth(path) {
 async function solicitarRefresh() {
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const response = await fetch(construirUrl('/api/auth/refresh'), {
-        method: 'POST',
-        credentials: 'include',
-      })
+      let response
+
+      try {
+        response = await fetch(construirUrl('/api/auth/refresh'), {
+          method: 'POST',
+          credentials: 'include',
+        })
+      } catch (errorCapturado) {
+        publicarServidorNoDisponible(
+          'No se pudo refrescar la sesion porque el servidor no responde.',
+          {
+            path: '/api/auth/refresh',
+            cause: errorCapturado?.message || 'network-error',
+          },
+        )
+
+        throw new ApiError(
+          'No se pudo refrescar la sesion porque el servidor no responde.',
+          0,
+          null,
+        )
+      }
 
       const payload = await extraerPayload(response)
 
       if (!response.ok) {
+        if (response.status >= 500) {
+          publicarServidorNoDisponible(
+            'No se pudo refrescar la sesion porque el servidor no responde.',
+            {
+              path: '/api/auth/refresh',
+              status: response.status,
+            },
+          )
+        }
+
         throw new ApiError(
           construirMensajeError(payload, 'No se pudo refrescar la sesion.'),
           response.status,
           payload,
         )
       }
+
+      publicarServidorDisponible({ path: '/api/auth/refresh', status: response.status })
 
       return payload
     })().finally(() => {
@@ -104,20 +157,49 @@ async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
     requestHeaders.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(construirUrl(path), {
-    ...restOptions,
-    headers: requestHeaders,
-    credentials,
-    body:
-      body === undefined || isFormData || typeof body === 'string'
-        ? body
-        : JSON.stringify(body),
-  })
+  let response
+
+  try {
+    response = await fetch(construirUrl(path), {
+      ...restOptions,
+      headers: requestHeaders,
+      credentials,
+      body:
+        body === undefined || isFormData || typeof body === 'string'
+          ? body
+          : JSON.stringify(body),
+    })
+  } catch (errorCapturado) {
+    publicarServidorNoDisponible(
+      'No se pudo conectar con el servidor. La app seguira funcionando con los datos locales disponibles.',
+      {
+        path,
+        cause: errorCapturado?.message || 'network-error',
+      },
+    )
+
+    throw new ApiError(
+      'No se pudo conectar con el servidor. Revisa la conexion o usa el modo local.',
+      0,
+      null,
+    )
+  }
 
   const payload = await extraerPayload(response)
 
   if (response.ok) {
+    publicarServidorDisponible({ path, status: response.status })
     return payload
+  }
+
+  if (response.status >= 500) {
+    publicarServidorNoDisponible(
+      'El servidor no responde correctamente. Seguimos mostrando la informacion guardada en local.',
+      {
+        path,
+        status: response.status,
+      },
+    )
   }
 
   if (

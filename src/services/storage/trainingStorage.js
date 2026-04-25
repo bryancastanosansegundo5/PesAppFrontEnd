@@ -1,4 +1,5 @@
 import {
+  combinarHistorialEntrenamientos,
   historialPredeterminado,
   normalizarListaSesiones,
   normalizarSesion,
@@ -29,7 +30,9 @@ export function obtenerSesionesGuardadas() {
 }
 
 export function guardarSesionesGuardadas(sesiones) {
-  escribirJson(CLAVE_SESIONES, sesiones.map(normalizarSesion))
+  const sesionesNormalizadas = sesiones.map(normalizarSesion)
+  escribirJson(CLAVE_SESIONES, sesionesNormalizadas)
+  return sesionesNormalizadas
 }
 
 export function obtenerEntrenamientoActualGuardado() {
@@ -38,7 +41,9 @@ export function obtenerEntrenamientoActualGuardado() {
 }
 
 export function guardarEntrenamientoActualGuardado(entrenamiento) {
-  escribirJson(CLAVE_ENTRENAMIENTO_ACTUAL, normalizarSesion(entrenamiento))
+  const entrenamientoNormalizado = normalizarSesion(entrenamiento)
+  escribirJson(CLAVE_ENTRENAMIENTO_ACTUAL, entrenamientoNormalizado)
+  return entrenamientoNormalizado
 }
 
 export function limpiarEntrenamientoActualGuardado() {
@@ -52,5 +57,17 @@ export function obtenerHistorialEntrenamientosGuardado() {
 }
 
 export function guardarHistorialEntrenamientosGuardado(historial) {
-  escribirJson(CLAVE_HISTORIAL, historial.map(normalizarSesion))
+  const historialNormalizado = historial.map(normalizarSesion)
+  escribirJson(CLAVE_HISTORIAL, historialNormalizado)
+  return historialNormalizado
+}
+
+export function fusionarHistorialEntrenamientosGuardado(historialRemoto) {
+  const historialFusionado = combinarHistorialEntrenamientos(
+    obtenerHistorialEntrenamientosGuardado(),
+    historialRemoto,
+  )
+
+  escribirJson(CLAVE_HISTORIAL, historialFusionado)
+  return historialFusionado
 }

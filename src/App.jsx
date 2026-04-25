@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Encabezado from './components/Header/Header'
 import BotonVolverArriba from './components/ScrollToTopButton/ScrollToTopButton'
+import Toast from './components/Toast/Toast'
 import Login from './pages/Login/Login'
 import NotFound from './pages/NotFound/NotFound'
 import ConfigurarSesiones from './pages/ConfigurarSesiones/ConfigurarSesiones'
@@ -9,6 +10,7 @@ import Entreno from './pages/Entreno/Entreno'
 import OtrosEntrenos from './pages/OtrosEntrenos/OtrosEntrenos'
 import AdminPanel from './pages/Admin/AdminPanel'
 import MiCuenta from './pages/MiCuenta/MiCuenta'
+import Peso from './pages/Peso/Peso'
 import imagenHero from './assets/LogoConTexto.png'
 import {
   cerrarSesion,
@@ -16,18 +18,35 @@ import {
   obtenerUsuarioActual,
   refrescarSesion,
 } from './services/auth/authApiService'
+import {
+  guardarSesionOffline,
+  guardarSesionOfflineDesdeServidor,
+  limpiarSesionOffline,
+  obtenerSesionOfflineGuardada,
+  validarInicioOffline,
+} from './services/auth/authLocalSession'
 import { ApiError } from './services/http/apiClient'
 import {
   obtenerHistorialEntrenamientosGuardado,
   obtenerSesionesGuardadas,
 } from './services/storage/trainingStorage'
 import { obtenerCatalogoEjerciciosGuardado } from './services/storage/exerciseCatalogStorage'
+import {
+  obtenerRegistroPesoDeHoy,
+  obtenerRegistrosPesoGuardados,
+} from './services/storage/weightStorage'
+import {
+  cargarRegistrosPeso,
+  guardarPesoConRespaldo,
+} from './services/weight/weightDataService'
+import { aFechaRegistro } from './services/data/dateUtils'
 
 const rutasProtegidas = new Set([
   'entreno',
   'ejercicios',
   'otros-entrenos',
   'configurar-sesiones',
+  'peso',
   'admin',
   'mi-cuenta',
 ])
@@ -55,6 +74,7 @@ function obtenerRutaDesdePath() {
   if (ruta === '/entreno') return 'entreno'
   if (ruta === '/otros-entrenos') return 'otros-entrenos'
   if (ruta === '/configurar-sesiones') return 'configurar-sesiones'
+  if (ruta === '/peso') return 'peso'
   if (ruta === '/admin') return 'admin'
   if (ruta === '/mi-cuenta') return 'mi-cuenta'
 
@@ -67,6 +87,7 @@ function obtenerPathDesdeRuta(ruta) {
   if (ruta === 'entreno') return '/entreno'
   if (ruta === 'otros-entrenos') return '/otros-entrenos'
   if (ruta === 'configurar-sesiones') return '/configurar-sesiones'
+  if (ruta === 'peso') return '/peso'
   if (ruta === 'admin') return '/admin'
   if (ruta === 'mi-cuenta') return '/mi-cuenta'
   if (ruta === 'not-found') return '/404'
@@ -86,6 +107,14 @@ function formatearFechaResumen(fecha) {
   })
 }
 
+function formatearPesoResumen(registro) {
+  if (!registro) {
+    return 'Sin registro'
+  }
+
+  return `${Number(registro.peso || 0).toFixed(1)} kg`
+}
+
 function App() {
   const [tema, setTema] = useState(obtenerTemaInicial)
   const [ruta, setRuta] = useState(obtenerRutaDesdePath)
@@ -94,16 +123,27 @@ function App() {
   const [estaHaciendoLogin, setEstaHaciendoLogin] = useState(false)
   const [errorLogin, setErrorLogin] = useState('')
   const [rutaProtegidaPendiente, setRutaProtegidaPendiente] = useState('')
-  const sesionesInicio = useMemo(() => obtenerSesionesGuardadas(), [ruta, sesion])
-  const historialInicio = useMemo(() => obtenerHistorialEntrenamientosGuardado(), [ruta, sesion])
-  const catalogoInicio = useMemo(() => obtenerCatalogoEjerciciosGuardado(), [ruta, sesion])
+  const [estaDesconectadoServidor, setEstaDesconectadoServidor] = useState(false)
+  const [toastConexion, setToastConexion] = useState(null)
+  const [, setPesoVersion] = useState(0)
+  const [pesoRapido, setPesoRapido] = useState(() => {
+    const registroHoy = obtenerRegistroPesoDeHoy()
+    return registroHoy ? String(registroHoy.peso) : ''
+  })
+  const [mensajePesoRapido, setMensajePesoRapido] = useState('')
+
+  const sesionesInicio = obtenerSesionesGuardadas()
+  const historialInicio = obtenerHistorialEntrenamientosGuardado()
+  const catalogoInicio = obtenerCatalogoEjerciciosGuardado()
+  const registrosPeso = obtenerRegistrosPesoGuardados()
+  const ultimoPesoRegistrado = registrosPeso[0] || null
 
   const caracteristicas = [
     { title: 'Configura', text: 'Define sesiones base con estructura clara y lista para repetir.' },
     { title: 'Ejecuta', text: 'Lanza el entreno del dia y ajusta series, peso o variantes al vuelo.' },
     {
       title: 'Revisa',
-      text: 'Consulta el ultimo registro y mantén continuidad entre sesiones.',
+      text: 'Consulta el ultimo registro y manten continuidad entre sesiones.',
     },
   ]
 
@@ -131,14 +171,14 @@ function App() {
       rutaDestino: '/ejercicios',
     },
     {
-      titulo: 'Otros entrenos',
-      descripcion: 'Organiza variantes, bloques extra y sesiones complementarias.',
-      accion: 'Gestionar variantes',
-      rutaDestino: '/otros-entrenos',
+      titulo: 'Peso',
+      descripcion: 'Registra el peso de la bascula en segundos y revisa su historico semanal.',
+      accion: 'Abrir peso',
+      rutaDestino: '/peso',
     },
     {
       titulo: 'Configurar sesiones',
-      descripcion: 'Mantén la estructura semanal lista para arrancar cada entreno con un clic.',
+      descripcion: 'Manten la estructura semanal lista para arrancar cada entreno con un clic.',
       accion: 'Configurar',
       rutaDestino: '/configurar-sesiones',
     },
@@ -183,11 +223,32 @@ function App() {
   useEffect(() => {
     const restaurarSesion = async () => {
       try {
-        await refrescarSesion()
+        const sesionRefrescada = await refrescarSesion()
         const usuarioActual = await obtenerUsuarioActual()
-        setSesion({ usuario: usuarioActual, authenticated: true })
-      } catch {
-        setSesion(null)
+        const sesionRestaurada = {
+          ...sesionRefrescada,
+          usuario: usuarioActual,
+          offline: false,
+        }
+
+        guardarSesionOfflineDesdeServidor(sesionRestaurada)
+        setSesion(sesionRestaurada)
+      } catch (errorCapturado) {
+        const sesionOffline = obtenerSesionOfflineGuardada()?.sesion || null
+        const backendNoDisponible =
+          errorCapturado instanceof ApiError &&
+          (errorCapturado.status === 0 || errorCapturado.status >= 500)
+
+        if (sesionOffline && backendNoDisponible) {
+          setSesion({
+            ...sesionOffline,
+            authenticated: true,
+            offline: true,
+          })
+          setErrorLogin('')
+        } else {
+          setSesion(null)
+        }
       } finally {
         setEstaInicializandoAuth(false)
       }
@@ -197,8 +258,41 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!sesion) {
+      return
+    }
+
+    let cancelado = false
+
+    const sincronizarPeso = async () => {
+      const resultado = await cargarRegistrosPeso()
+
+      if (cancelado) {
+        return
+      }
+
+      setPesoVersion((versionActual) => versionActual + 1)
+
+      const registroHoy =
+        resultado.registros.find(
+          (registro) => registro.fechaRegistro === aFechaRegistro(new Date()),
+        ) || null
+      if (registroHoy) {
+        setPesoRapido(String(registroHoy.peso))
+      }
+    }
+
+    sincronizarPeso()
+
+    return () => {
+      cancelado = true
+    }
+  }, [sesion])
+
+  useEffect(() => {
     const manejarAuthInvalida = () => {
       setSesion(null)
+      limpiarSesionOffline()
       setErrorLogin('Tu sesion ha expirado. Vuelve a iniciar sesion.')
       setRutaProtegidaPendiente(ruta)
       window.history.replaceState({}, '', '/login')
@@ -208,6 +302,30 @@ function App() {
     window.addEventListener('pesapp:auth-invalid', manejarAuthInvalida)
     return () => window.removeEventListener('pesapp:auth-invalid', manejarAuthInvalida)
   }, [ruta])
+
+  useEffect(() => {
+    const manejarServidorNoDisponible = (evento) => {
+      setEstaDesconectadoServidor(true)
+      setToastConexion({
+        id: Date.now(),
+        mensaje:
+          evento.detail?.message ||
+          'Sin conexion con el servidor. La app sigue funcionando con los datos locales disponibles.',
+      })
+    }
+
+    const manejarServidorDisponible = () => {
+      setEstaDesconectadoServidor(false)
+    }
+
+    window.addEventListener('pesapp:server-unreachable', manejarServidorNoDisponible)
+    window.addEventListener('pesapp:server-reachable', manejarServidorDisponible)
+
+    return () => {
+      window.removeEventListener('pesapp:server-unreachable', manejarServidorNoDisponible)
+      window.removeEventListener('pesapp:server-reachable', manejarServidorDisponible)
+    }
+  }, [])
 
   useEffect(() => {
     if (estaInicializandoAuth) {
@@ -266,6 +384,28 @@ function App() {
     setRuta(obtenerRutaDesdePath())
   }
 
+  const registrarPesoRapido = async () => {
+    const pesoNumerico = Number(pesoRapido)
+
+    if (!pesoNumerico || pesoNumerico <= 0) {
+      setMensajePesoRapido('Introduce un peso valido para guardar el registro.')
+      return
+    }
+
+    try {
+      const resultado = await guardarPesoConRespaldo(pesoNumerico)
+      setPesoVersion((versionActual) => versionActual + 1)
+      setPesoRapido(String(pesoNumerico))
+      setMensajePesoRapido(
+        resultado.online
+          ? 'Peso guardado y sincronizado.'
+          : `${resultado.error?.message || 'No se pudo sincronizar ahora.'} El dato queda guardado en local.`,
+      )
+    } catch (errorCapturado) {
+      setMensajePesoRapido(errorCapturado.message || 'No se pudo guardar el peso.')
+    }
+  }
+
   const renderizarAccesoDenegado = () => (
     <main className="mx-auto flex min-h-[60svh] w-full max-w-5xl items-center px-4 py-8 sm:px-6 lg:px-8">
       <section className="w-full rounded-[32px] border border-slate-200 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/[0.04]">
@@ -298,9 +438,36 @@ function App() {
 
     try {
       const sesionIniciada = await iniciarSesion({ username, password })
-      setSesion(sesionIniciada)
+      const usuarioActual = sesionIniciada?.usuario || (await obtenerUsuarioActual())
+      const sesionFinal = {
+        ...sesionIniciada,
+        usuario: usuarioActual,
+        offline: false,
+      }
+
+      await guardarSesionOffline({
+        username,
+        password,
+        sesion: sesionFinal,
+      })
+      setSesion(sesionFinal)
     } catch (errorCapturado) {
-      if (errorCapturado instanceof ApiError && errorCapturado.status === 401) {
+      const backendNoDisponible =
+        errorCapturado instanceof ApiError &&
+        (errorCapturado.status === 0 || errorCapturado.status >= 500)
+
+      if (backendNoDisponible) {
+        const sesionOffline = await validarInicioOffline({ username, password })
+
+        if (sesionOffline) {
+          setSesion(sesionOffline)
+          setErrorLogin('')
+        } else {
+          setErrorLogin(
+            'No hay conexion con el servidor y este dispositivo no tiene una sesion offline valida para ese usuario.',
+          )
+        }
+      } else if (errorCapturado instanceof ApiError && errorCapturado.status === 401) {
         setErrorLogin(errorCapturado.message || 'Credenciales no validas.')
       } else {
         setErrorLogin(errorCapturado.message || 'No se pudo iniciar sesion.')
@@ -330,13 +497,17 @@ function App() {
         return sesionActual
       }
 
-      return {
+      const sesionSiguiente = {
         ...sesionActual,
         usuario: {
           ...sesionActual.usuario,
           ...usuarioActualizado,
         },
       }
+
+      guardarSesionOfflineDesdeServidor(sesionSiguiente)
+
+      return sesionSiguiente
     })
   }
 
@@ -363,8 +534,9 @@ function App() {
             </div>
 
             <p className="max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-              Centraliza sesiones, ejercicios y variantes de entreno en un entorno visual pensado
-              para trabajar con ritmo, mantener contexto y revisar el progreso sin friccion.
+              Centraliza sesiones, ejercicios, peso corporal y variantes de entreno en un entorno
+              visual pensado para trabajar con ritmo, mantener contexto y revisar el progreso sin
+              friccion.
             </p>
           </div>
 
@@ -379,9 +551,9 @@ function App() {
             <button
               className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
               type="button"
-              onClick={() => navegarA('/ejercicios')}
+              onClick={() => navegarA('/peso')}
             >
-              Explorar ejercicios
+              Registrar peso
             </button>
           </div>
 
@@ -414,7 +586,9 @@ function App() {
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:text-neon-cyan/90">
                 Vista operativa
               </p>
-              <h2 className="font-display mt-3 text-[1.75rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">Tu centro de control</h2>
+              <h2 className="font-display mt-3 text-[1.75rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">
+                Tu centro de control
+              </h2>
             </div>
             <img
               className="h-14 w-auto object-contain opacity-90 drop-shadow-[0_0_24px_rgba(0,255,237,0.28)]"
@@ -428,7 +602,7 @@ function App() {
               <p className="text-sm text-slate-500 dark:text-slate-400">Espacio activo</p>
               <p className="mt-2 text-xl font-bold text-slate-950 dark:text-white">{nombreUsuario}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                Accede rápido al flujo principal y mantén a mano la estructura semanal.
+                Accede rapido al flujo principal y manten a mano la estructura semanal.
               </p>
             </article>
 
@@ -443,7 +617,9 @@ function App() {
                 <p className="mt-3 text-sm text-slate-800 dark:text-slate-200">
                   {totalEjerciciosSesion} ejercicios preparados
                 </p>
-                <p className="text-sm text-slate-700 dark:text-slate-400">{totalSeriesSesion} series previstas</p>
+                <p className="text-sm text-slate-700 dark:text-slate-400">
+                  {totalSeriesSesion} series previstas
+                </p>
               </article>
 
               <article className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50/70 p-4 dark:border-neon-pink/25 dark:bg-neon-pink/10">
@@ -456,25 +632,113 @@ function App() {
                 <p className="mt-3 text-sm text-slate-800 dark:text-slate-200">
                   {ultimoEntreno?.nombreSesion || 'Sin historial'}
                 </p>
-                <p className="text-sm text-slate-700 dark:text-slate-400">{totalSeriesUltimoEntreno} series registradas</p>
+                <p className="text-sm text-slate-700 dark:text-slate-400">
+                  {totalSeriesUltimoEntreno} series registradas
+                </p>
               </article>
             </div>
+
+            <article className="rounded-2xl border border-neon-purple/25 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Peso mas reciente
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-400">
+                    {ultimoPesoRegistrado
+                      ? formatearFechaResumen(ultimoPesoRegistrado.fecha)
+                      : 'Aun no hay registro de bascula'}
+                  </p>
+                </div>
+                <span className="rounded-full border border-neon-purple/35 bg-neon-purple/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-neon-purple shadow-glow-purple">
+                  {formatearPesoResumen(ultimoPesoRegistrado)}
+                </span>
+              </div>
+            </article>
 
             <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Estado general</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Estado general
+                  </p>
                   <p className="mt-1 text-sm text-slate-700 dark:text-slate-400">
-                    Todo listo para entrar, registrar y revisar entrenos.
+                    {estaDesconectadoServidor
+                      ? 'Trabajando en modo local por desconexion con el servidor.'
+                      : 'Todo listo para entrar, registrar y revisar entrenos.'}
                   </p>
                 </div>
-                <span className="rounded-full border border-green-500/35 bg-green-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-green-700 shadow-[0_0_14px_rgba(34,197,94,0.12)] dark:border-[#39ff14]/45 dark:bg-[#39ff14]/15 dark:text-[#7dff6e] dark:shadow-[0_0_20px_rgba(57,255,20,0.18)]">
-                  Operativo
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${
+                    estaDesconectadoServidor
+                      ? 'border-red-500/45 bg-red-500/12 text-red-600 shadow-[0_0_20px_rgba(239,68,68,0.18)] dark:text-red-300'
+                      : 'border-green-500/35 bg-green-400/10 text-green-700 shadow-[0_0_14px_rgba(34,197,94,0.12)] dark:border-[#39ff14]/45 dark:bg-[#39ff14]/15 dark:text-[#7dff6e] dark:shadow-[0_0_20px_rgba(57,255,20,0.18)]'
+                  }`}
+                >
+                  {estaDesconectadoServidor ? 'Modo local' : 'Operativo'}
                 </span>
               </div>
             </article>
           </div>
         </aside>
+      </section>
+
+      <section className="grid gap-5 rounded-[28px] border border-neon-cyan/25 bg-white/88 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.1)] lg:grid-cols-[0.9fr_1.1fr] dark:border-white/10 dark:bg-white/[0.04]">
+        <div className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-neon-purple dark:text-neon-cyan">
+            Peso rapido
+          </p>
+          <h2 className="text-3xl font-black text-slate-950 dark:text-white">
+            Registra la bascula sin navegar.
+          </h2>
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+            Pensado para entrar, escribir el numero y guardarlo al instante. Luego lo ves en la
+            pantalla de peso con historico, medias semanales y grafica.
+          </p>
+        </div>
+
+        <div className="grid gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-white/10 dark:bg-pes-black/50 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+            Peso de hoy
+            <input
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="82.4"
+              value={pesoRapido}
+              onChange={(evento) => {
+                setPesoRapido(evento.target.value)
+                if (mensajePesoRapido) {
+                  setMensajePesoRapido('')
+                }
+              }}
+            />
+          </label>
+
+          <button
+            className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
+            type="button"
+            onClick={registrarPesoRapido}
+          >
+            Guardar peso
+          </button>
+
+          <button
+            className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
+            type="button"
+            onClick={() => navegarA('/peso')}
+          >
+            Ver pantalla
+          </button>
+
+          <p className="sm:col-span-3 text-sm text-slate-500 dark:text-slate-400">
+            {mensajePesoRapido ||
+              `Ultimo dato: ${formatearPesoResumen(ultimoPesoRegistrado)}${
+                ultimoPesoRegistrado ? ` · ${formatearFechaResumen(ultimoPesoRegistrado.fecha)}` : ''
+              }`}
+          </p>
+        </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-4">
@@ -513,57 +777,6 @@ function App() {
           </article>
         ))}
       </section>
-
-      <section className="grid gap-5 rounded-[28px] border border-slate-200/80 bg-white/88 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.1)] md:grid-cols-[0.8fr_1.2fr] md:p-6 dark:border-white/10 dark:bg-white/[0.04]">
-        <div className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-neon-purple dark:text-neon-cyan">
-            Flujo de trabajo
-          </p>
-          <h2 className="text-3xl font-black text-slate-950 dark:text-white">
-            Un recorrido sencillo para trabajar mejor.
-          </h2>
-          <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-            La home ya no vende estilo: orienta al usuario hacia el siguiente paso correcto.
-          </p>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <article className="rounded-2xl border border-neon-cyan/20 bg-neon-cyan/8 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-neon-cyan">1. Configura</p>
-            <p className="mt-2 text-lg font-bold text-slate-950 dark:text-white">Prepara sesiones base</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Define nombres, bloques y ejercicios para no empezar de cero cada vez.
-            </p>
-          </article>
-          <article className="rounded-2xl border border-neon-purple/20 bg-neon-purple/8 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-neon-purple">
-              2. Selecciona
-            </p>
-            <p className="mt-2 text-lg font-bold text-slate-950 dark:text-white">Carga el entreno del dia</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Arranca desde una plantilla y adapta series, pesos o ejercicios extra.
-            </p>
-          </article>
-          <article className="rounded-2xl border border-neon-pink/20 bg-neon-pink/8 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-neon-pink">3. Ejecuta</p>
-            <p className="mt-2 text-lg font-bold text-slate-950 dark:text-white">Registra el trabajo real</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Guarda repeticiones, pesos y ajustes sobre la marcha sin perder continuidad.
-            </p>
-          </article>
-          <article className="rounded-2xl border border-slate-300/80 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-              4. Revisa
-            </p>
-            <p className="mt-2 text-lg font-bold text-slate-950 dark:text-white">
-              Consulta el ultimo registro
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Usa el historial reciente para mantener criterio y progresion entre sesiones.
-            </p>
-          </article>
-        </div>
-      </section>
     </main>
   )
 
@@ -585,6 +798,8 @@ function App() {
           estaCargando={estaHaciendoLogin}
           error={errorLogin}
           onLogin={manejarLogin}
+          modoOfflineDisponible={Boolean(obtenerSesionOfflineGuardada()?.sesion)}
+          estaDesconectadoServidor={estaDesconectadoServidor}
         />
       )
     }
@@ -599,6 +814,10 @@ function App() {
 
     if (ruta === 'ejercicios') {
       return <Ejercicios />
+    }
+
+    if (ruta === 'peso') {
+      return <Peso />
     }
 
     if (ruta === 'otros-entrenos') {
@@ -649,6 +868,7 @@ function App() {
           theme={tema}
           usuario={sesion?.usuario || null}
           autenticado={Boolean(sesion)}
+          estaDesconectadoServidor={estaDesconectadoServidor}
           onNavigate={navegarA}
           onToggleTheme={alternarTema}
           onLogout={manejarLogout}
@@ -656,6 +876,16 @@ function App() {
         <div className="flex flex-1 flex-col pt-24 sm:pt-28">{renderizarPagina()}</div>
         {ruta !== 'login' ? <BotonVolverArriba /> : null}
       </div>
+
+      {toastConexion ? (
+        <Toast
+          key={toastConexion.id}
+          mensaje={toastConexion.mensaje}
+          tipo="error"
+          persistente
+          onClose={() => setToastConexion(null)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -1,12 +1,18 @@
-import { crearPayloadSesion, normalizarListaSesiones } from '../../../services/training/trainingModel'
+import {
+  crearPayloadSesion,
+  normalizarListaSesiones,
+  normalizarSesion,
+} from '../../../services/training/trainingModel'
 import { apiRequest } from '../../../services/http/apiClient'
 
-export function guardarSesionEnServidor(sesion) {
-  return apiRequest('/api/sesiones-entrenamiento', {
+export async function guardarSesionEnServidor(sesion) {
+  const payload = await apiRequest('/api/sesiones-entrenamiento', {
     method: 'POST',
     auth: true,
     body: crearPayloadSesion(sesion),
   })
+
+  return normalizarSesion(payload || sesion)
 }
 
 export async function obtenerSesionesDesdeServidor() {

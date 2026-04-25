@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PieAccion from '../../components/Footer/Footer'
 import MobilePullToRefreshIndicator from '../../components/MobilePullToRefreshIndicator/MobilePullToRefreshIndicator'
 import Toast from '../../components/Toast/Toast'
@@ -17,7 +17,6 @@ import {
   obtenerUltimoRegistroEjercicio,
 } from './services/entrenoLocalService'
 import {
-  guardarEntrenamientoEnServidor,
   obtenerEntrenamientosDesdeServidor,
   obtenerSesionesEntrenoDesdeServidor,
 } from './services/entrenoApiService'
@@ -25,15 +24,36 @@ import {
   obtenerEjerciciosDesdeServidor,
   obtenerUltimoRegistroEjercicioDesdeServidor,
 } from '../Ejercicios/services/ejerciciosApiService'
+import {
+  guardarEntrenamientoConRespaldo,
+  sincronizarEntrenamientosPendientes,
+} from '../../services/training/trainingDataService'
+import { fusionarHistorialEntrenamientosGuardado } from '../../services/storage/trainingStorage'
+import {
+  clonarPendientes,
+  crearMensajeResumenSincronizacion,
+  crearMensajeToastSincronizacion,
+  crearOpcionesCatalogo,
+  crearOpcionesSesiones,
+  formatearFechaEntrenamiento,
+  obtenerEstadoPendiente,
+  sugerirCorreccionesPendiente,
+} from './services/entrenoPendingService'
 
 const claseInputNumero =
-  'w-20 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
 const claseInputPeso =
-  'w-24 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
 const claseInputTexto =
-  'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+
+const claseInputPendiente =
+  'min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-[#04070F] dark:text-white'
+
+const claseCampoCompacto =
+  'grid gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/85 p-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-pes-black/45 dark:text-slate-400'
 
 function formatearSerieAnterior(serieAnterior) {
   if (!serieAnterior) {
@@ -83,6 +103,15 @@ function crearEstadoEjerciciosCerrados(ejercicios) {
   return Object.fromEntries(ejercicios.map((ejercicio) => [ejercicio.idEjercicio, false]))
 }
 
+function crearEstadoAcordeonPendientes(pendientes) {
+  return Object.fromEntries(
+    (pendientes || []).map((entrenamientoPendiente, indice) => [
+      entrenamientoPendiente.clientId,
+      indice === 0,
+    ]),
+  )
+}
+
 function crearEjercicioDeHoy() {
   return {
     idEjercicio: `hoy-${Date.now()}`,
@@ -111,11 +140,8 @@ function crearEjercicioDeHoyDesdePlantilla(ejercicioPlantilla) {
 
   return {
     idEjercicio: `hoy-${Date.now()}`,
-    // Los ejercicios anadidos desde el catalogo durante el entreno no son
-    // plantillas de sesion persistidas; backend los espera como ad hoc.
-    plantillaEjercicioId: ejercicioPlantilla.plantillaEjercicioId
-      ? String(ejercicioPlantilla.plantillaEjercicioId)
-      : null,
+    // Los ejercicios anadidos durante el entreno se mandan como ad hoc.
+    plantillaEjercicioId: null,
     catalogoEjercicioId: String(
       ejercicioPlantilla.catalogoEjercicioId ||
         ejercicioPlantilla.idEjercicio ||
@@ -296,6 +322,15 @@ function Entreno() {
   const [estaAbiertoSelectorEjercicios, setEstaAbiertoSelectorEjercicios] = useState(false)
   const [busquedaEjercicio, setBusquedaEjercicio] = useState('')
   const [registrosPreviosPorCatalogo, setRegistrosPreviosPorCatalogo] = useState({})
+  const [toastSincronizacion, setToastSincronizacion] = useState(null)
+  const [estaAbiertoModalPendientes, setEstaAbiertoModalPendientes] = useState(false)
+  const [pendientesEditados, setPendientesEditados] = useState([])
+  const [pendientesAbiertos, setPendientesAbiertos] = useState({})
+  const [ejerciciosPendientesAbiertos, setEjerciciosPendientesAbiertos] = useState({})
+  const [clientIdPendienteForzando, setClientIdPendienteForzando] = useState('')
+  const sincronizacionPendientesActivaRef = useRef(null)
+  const ultimaClaveSincronizacionRef = useRef('')
+  const ultimoEventoConexionRef = useRef(0)
 
   const sesionesFiltradas = useMemo(() => {
     const busquedaNormalizada = normalizarTexto(busquedaSesion)
@@ -330,6 +365,16 @@ function Entreno() {
     )
   }, [catalogoEjercicios, entrenamiento, busquedaEjercicio])
 
+  const entrenamientosPendientes = useMemo(
+    () => historial.filter((itemHistorial) => itemHistorial.syncStatus === 'pending'),
+    [historial],
+  )
+  const opcionesSesionesPendientes = useMemo(() => crearOpcionesSesiones(sesiones), [sesiones])
+  const opcionesCatalogoPendientes = useMemo(
+    () => crearOpcionesCatalogo(catalogoEjercicios),
+    [catalogoEjercicios],
+  )
+
   useEffect(() => {
     if (entrenamiento) {
       guardarEntrenamientoBorrador(entrenamiento)
@@ -350,6 +395,135 @@ function Entreno() {
     }
 
     sincronizarCatalogo()
+  }, [])
+
+  const aplicarResultadoSincronizacionPendientes = (resultado) => {
+    console.log('[EntrenoSync] Aplicando resultado de sincronizacion', {
+      sincronizados: resultado.sincronizados,
+      pendientesRestantes: resultado.pendientesRestantes,
+      entrenamientosSincronizados: resultado.entrenamientosSincronizados?.map((entrenamiento) => ({
+        clientId: entrenamiento.clientId,
+        fechaFin: entrenamiento.fechaFin,
+        nombreSesion: entrenamiento.nombreSesion,
+      })),
+    })
+
+    setHistorial(resultado.historial)
+    const pendientesRestantes = clonarPendientes(
+      resultado.historial.filter((itemHistorial) => itemHistorial.syncStatus === 'pending'),
+    )
+    setPendientesEditados(pendientesRestantes)
+    setPendientesAbiertos((estadoActual) => ({
+      ...crearEstadoAcordeonPendientes(pendientesRestantes),
+      ...estadoActual,
+    }))
+
+    if (resultado.sincronizados === 0) {
+      if (resultado.entrenamientosFallidos?.length) {
+        setMensaje(crearMensajeResumenSincronizacion(resultado))
+      }
+      return
+    }
+
+    setToastSincronizacion({
+      id: Date.now(),
+      mensaje: crearMensajeToastSincronizacion(resultado.entrenamientosSincronizados),
+    })
+    setMensaje(crearMensajeResumenSincronizacion(resultado))
+  }
+
+  const sincronizarPendientesEntreno = async (clientIds = []) => {
+    const clientIdsNormalizados = [...new Set((clientIds || []).filter(Boolean))].sort()
+    const claveSincronizacion = clientIdsNormalizados.join('|') || '__all__'
+
+    if (
+      sincronizacionPendientesActivaRef.current &&
+      ultimaClaveSincronizacionRef.current === claveSincronizacion
+    ) {
+      console.log('[EntrenoSync] Reutilizando sincronizacion en curso', {
+        claveSincronizacion,
+      })
+      return sincronizacionPendientesActivaRef.current
+    }
+
+    if (sincronizacionPendientesActivaRef.current) {
+      console.log('[EntrenoSync] Sincronizacion en curso, se evita un duplicado', {
+        claveEnCurso: ultimaClaveSincronizacionRef.current,
+        claveSolicitada: claveSincronizacion,
+      })
+      return sincronizacionPendientesActivaRef.current
+    }
+
+    ultimaClaveSincronizacionRef.current = claveSincronizacion
+    console.log('[EntrenoSync] Lanzando sincronizacion de pendientes', {
+      claveSincronizacion,
+    })
+
+    sincronizacionPendientesActivaRef.current = sincronizarEntrenamientosPendientes(
+      clientIdsNormalizados,
+    ).finally(() => {
+      sincronizacionPendientesActivaRef.current = null
+      ultimaClaveSincronizacionRef.current = ''
+      console.log('[EntrenoSync] Sincronizacion de pendientes finalizada')
+    })
+
+    return sincronizacionPendientesActivaRef.current
+  }
+
+  useEffect(() => {
+    let cancelado = false
+
+    const sincronizarPendientes = async () => {
+      const resultado = await sincronizarPendientesEntreno()
+
+      if (cancelado || !resultado) {
+        return
+      }
+
+      aplicarResultadoSincronizacionPendientes(resultado)
+    }
+
+    sincronizarPendientes()
+
+    return () => {
+      cancelado = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelado = false
+
+    const manejarConexionRecuperada = async () => {
+      const ahora = Date.now()
+
+      if (ahora - ultimoEventoConexionRef.current < 1200) {
+        console.log('[EntrenoSync] Evento de conexion ignorado por deduplicacion')
+        return
+      }
+
+      ultimoEventoConexionRef.current = ahora
+      console.log('[EntrenoSync] Evento de conexion recuperada detectado')
+      const resultado = await sincronizarPendientesEntreno()
+
+      if (cancelado || !resultado) {
+        console.log('[EntrenoSync] No se aplica resultado tras recuperar conexion', {
+          cancelado,
+          hayResultado: Boolean(resultado),
+        })
+        return
+      }
+
+      aplicarResultadoSincronizacionPendientes(resultado)
+    }
+
+    window.addEventListener('online', manejarConexionRecuperada)
+    window.addEventListener('pesapp:server-reachable', manejarConexionRecuperada)
+
+    return () => {
+      cancelado = true
+      window.removeEventListener('online', manejarConexionRecuperada)
+      window.removeEventListener('pesapp:server-reachable', manejarConexionRecuperada)
+    }
   }, [])
 
   useEffect(() => {
@@ -413,6 +587,190 @@ function Entreno() {
     limpiarEntrenamientoBorrador()
   }
 
+  const abrirModalPendientes = () => {
+    const pendientesClonados = clonarPendientes(entrenamientosPendientes)
+    setPendientesEditados(pendientesClonados)
+    setPendientesAbiertos(crearEstadoAcordeonPendientes(pendientesClonados))
+    setEjerciciosPendientesAbiertos({})
+    setEstaAbiertoModalPendientes(true)
+  }
+
+  const cerrarModalPendientes = () => {
+    setEstaAbiertoModalPendientes(false)
+    setClientIdPendienteForzando('')
+  }
+
+  const guardarPendientesEditados = (pendientesActualizados) => {
+    const pendientesConservados = new Set(
+      (pendientesActualizados || []).map((entrenamientoPendiente) => entrenamientoPendiente.clientId),
+    )
+    const mapaPendientes = new Map(
+      (pendientesActualizados || []).map((entrenamientoPendiente) => [
+        entrenamientoPendiente.clientId,
+        {
+          ...entrenamientoPendiente,
+          syncStatus: 'pending',
+          syncError: '',
+          syncFieldErrors: {},
+          ejercicios: (entrenamientoPendiente.ejercicios || []).map((ejercicio) => ({
+            ...ejercicio,
+            syncError: '',
+            syncFieldErrors: {},
+            syncStatus: 'pending',
+          })),
+        },
+      ]),
+    )
+
+    const historialActualizado = historial.reduce((acumulado, itemHistorial) => {
+      if (
+        itemHistorial.syncStatus === 'pending' &&
+        !pendientesConservados.has(itemHistorial.clientId)
+      ) {
+        return acumulado
+      }
+
+      return [...acumulado, mapaPendientes.get(itemHistorial.clientId) || itemHistorial]
+    }, [])
+
+    setHistorial(historialActualizado)
+    guardarHistorialEntrenos(historialActualizado)
+    setPendientesEditados(clonarPendientes(pendientesActualizados))
+    setMensaje(
+      mapaPendientes.size === 0
+        ? mensaje
+        : `Cambios guardados en local para ${mapaPendientes.size} pendiente${mapaPendientes.size === 1 ? '' : 's'}.`,
+    )
+
+    return historialActualizado
+  }
+
+  const alternarPendiente = (clientId) => {
+    setPendientesAbiertos((estadoActual) => ({
+      ...estadoActual,
+      [clientId]: !estadoActual[clientId],
+    }))
+  }
+
+  const alternarEjercicioPendiente = (clientId, indiceEjercicio) => {
+    const clave = `${clientId}-${indiceEjercicio}`
+
+    setEjerciciosPendientesAbiertos((estadoActual) => ({
+      ...estadoActual,
+      [clave]: !estadoActual[clave],
+    }))
+  }
+
+  const eliminarPendienteEditado = (clientId) => {
+    setPendientesEditados((pendientesActuales) =>
+      pendientesActuales.filter((entrenamientoPendiente) => entrenamientoPendiente.clientId !== clientId),
+    )
+    setPendientesAbiertos((estadoActual) => {
+      const siguienteEstado = { ...estadoActual }
+      delete siguienteEstado[clientId]
+      return siguienteEstado
+    })
+    setEjerciciosPendientesAbiertos((estadoActual) =>
+      Object.fromEntries(
+        Object.entries(estadoActual).filter(([clave]) => !clave.startsWith(`${clientId}-`)),
+      ),
+    )
+  }
+
+  const eliminarEjercicioPendiente = (clientId, indiceEjercicio) => {
+    setPendientesEditados((pendientesActuales) =>
+      pendientesActuales.flatMap((entrenamientoPendiente) => {
+        if (entrenamientoPendiente.clientId !== clientId) {
+          return [entrenamientoPendiente]
+        }
+
+        const ejerciciosActualizados = entrenamientoPendiente.ejercicios.filter(
+          (_, indiceActual) => indiceActual !== indiceEjercicio,
+        )
+
+        if (ejerciciosActualizados.length === 0) {
+          return []
+        }
+
+        return [
+          {
+            ...entrenamientoPendiente,
+            ejercicios: ejerciciosActualizados,
+          },
+        ]
+      }),
+    )
+
+    setEjerciciosPendientesAbiertos((estadoActual) =>
+      Object.fromEntries(
+        Object.entries(estadoActual).filter(([clave]) => clave !== `${clientId}-${indiceEjercicio}`),
+      ),
+    )
+  }
+
+  const actualizarPendienteCampo = (clientId, campo, valor) => {
+    setPendientesEditados((pendientesActuales) =>
+      pendientesActuales.map((entrenamientoPendiente) =>
+        entrenamientoPendiente.clientId === clientId
+          ? { ...entrenamientoPendiente, [campo]: valor }
+          : entrenamientoPendiente,
+      ),
+    )
+  }
+
+  const actualizarPendienteEjercicioCampo = (clientId, indiceEjercicio, campo, valor) => {
+    setPendientesEditados((pendientesActuales) =>
+      pendientesActuales.map((entrenamientoPendiente) =>
+        entrenamientoPendiente.clientId === clientId
+          ? {
+              ...entrenamientoPendiente,
+              ejercicios: entrenamientoPendiente.ejercicios.map((ejercicio, indiceActual) =>
+                indiceActual === indiceEjercicio ? { ...ejercicio, [campo]: valor } : ejercicio,
+              ),
+            }
+          : entrenamientoPendiente,
+      ),
+    )
+  }
+
+  const sugerirPendiente = (clientId) => {
+    setPendientesEditados((pendientesActuales) =>
+      pendientesActuales.map((entrenamientoPendiente) =>
+        entrenamientoPendiente.clientId === clientId
+          ? sugerirCorreccionesPendiente(entrenamientoPendiente, sesiones, catalogoEjercicios)
+          : entrenamientoPendiente,
+      ),
+    )
+  }
+
+  const sugerirTodosLosPendientes = () => {
+    setPendientesEditados((pendientesActuales) =>
+      pendientesActuales.map((entrenamientoPendiente) =>
+        sugerirCorreccionesPendiente(entrenamientoPendiente, sesiones, catalogoEjercicios),
+      ),
+    )
+  }
+
+  const forzarSubidaPendientes = async (clientIds = []) => {
+    const pendientesObjetivo =
+      clientIds.length === 0
+        ? pendientesEditados.map((entrenamientoPendiente) => entrenamientoPendiente.clientId)
+        : clientIds
+
+    guardarPendientesEditados(pendientesEditados)
+    setClientIdPendienteForzando(clientIds.length === 1 ? clientIds[0] : '__all__')
+
+    try {
+      const resultado = await sincronizarPendientesEntreno(pendientesObjetivo)
+
+      if (resultado) {
+        aplicarResultadoSincronizacionPendientes(resultado)
+      }
+    } finally {
+      setClientIdPendienteForzando('')
+    }
+  }
+
   const seleccionarSesion = (idSesion) => {
     if (!idSesion) {
       limpiarSeleccionSesion()
@@ -444,7 +802,7 @@ function Entreno() {
 
     setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
       ...ejerciciosAbiertosActuales,
-      [idEjercicio]: !Boolean(ejerciciosAbiertosActuales[idEjercicio]),
+      [idEjercicio]: !ejerciciosAbiertosActuales[idEjercicio],
     }))
   }
 
@@ -617,25 +975,46 @@ function Entreno() {
 
     setEstaGuardando(true)
     setMensaje('Enviando entreno al servidor...')
+    console.log('[EntrenoSync] Finalizar entreno pulsado', {
+      clientId: entrenamiento.clientId,
+      fechaInicio: entrenamiento.fechaInicio,
+      nombreSesion: entrenamiento.nombreSesion,
+      ejercicios: entrenamiento.ejercicios?.length || 0,
+    })
 
     const entrenamientoCompletado = {
       ...entrenamiento,
       fechaFin: new Date().toISOString(),
     }
 
-    try {
-      await guardarEntrenamientoEnServidor(entrenamientoCompletado)
+      try {
+        const resultado = await guardarEntrenamientoConRespaldo(entrenamientoCompletado)
 
-      const historialActualizado = [entrenamientoCompletado, ...historial]
-
-      guardarHistorialEntrenos(historialActualizado)
-      limpiarEntrenamientoBorrador()
-      setHistorial(historialActualizado)
+        limpiarEntrenamientoBorrador()
+        setHistorial(resultado.historial)
       setIdSesionSeleccionada('')
       setEntrenamiento(null)
       setEjerciciosAbiertos({})
-      setMensaje('Servidor OK. Entreno guardado y borrador local limpiado.')
+
+        setMensaje(
+          resultado.online
+            ? 'Servidor OK. Entreno guardado y borrador local limpiado.'
+            : `${resultado.error?.message || 'No se pudo sincronizar ahora mismo.'} El entreno queda guardado en local y pendiente de sincronizar.`,
+        )
+      if (resultado.online && resultado.entrenamientosSincronizados?.length) {
+        setToastSincronizacion({
+          id: Date.now(),
+          mensaje: crearMensajeToastSincronizacion(resultado.entrenamientosSincronizados),
+        })
+      }
     } catch (errorCapturado) {
+      console.log('[EntrenoSync] Error finalizando entreno', {
+        message: errorCapturado?.message,
+        status: errorCapturado?.status,
+      })
+      if (errorCapturado?.historial) {
+        setHistorial(errorCapturado.historial)
+      }
       setMensaje(`${errorCapturado.message} El borrador sigue guardado en localStorage.`)
     } finally {
       setEstaGuardando(false)
@@ -648,6 +1027,8 @@ function Entreno() {
       setMensaje('')
     }
 
+    console.log('[EntrenoSync] Recarga desde servidor iniciada', { silencioso })
+
     try {
       const [sesionesServidor, historialServidor, catalogoServidor] = await Promise.all([
         obtenerSesionesEntrenoDesdeServidor(),
@@ -656,11 +1037,17 @@ function Entreno() {
       ])
 
       setSesiones(sesionesServidor)
-      setHistorial(historialServidor)
+      const historialFusionado = fusionarHistorialEntrenamientosGuardado(historialServidor)
+      setHistorial(historialFusionado)
       setCatalogoEjercicios(catalogoServidor)
       guardarSesionesEntreno(sesionesServidor)
-      guardarHistorialEntrenos(historialServidor)
       guardarCatalogoEjerciciosEntreno(catalogoServidor)
+
+      const resultadoSincronizacion = await sincronizarPendientesEntreno()
+
+      if (resultadoSincronizacion) {
+        aplicarResultadoSincronizacionPendientes(resultadoSincronizacion)
+      }
 
       const sesionSeleccionada = idSesionSeleccionada
         ? sesionesServidor.find((sesion) => sesion.id === idSesionSeleccionada) || null
@@ -682,9 +1069,13 @@ function Entreno() {
       setBusquedaEjercicio('')
       setBusquedaSesion('')
       if (!silencioso) {
-        setMensaje('')
+        setMensaje(crearMensajeResumenSincronizacion(resultadoSincronizacion))
       }
     } catch (errorCapturado) {
+      console.log('[EntrenoSync] Error en recarga desde servidor', {
+        message: errorCapturado?.message,
+        status: errorCapturado?.status,
+      })
       setMensaje(
         `${errorCapturado.message} No se pudieron recuperar los datos originales desde la base de datos.`,
       )
@@ -818,6 +1209,13 @@ function Entreno() {
 
         <section className="flex flex-wrap justify-end gap-3">
           <button
+            className="rounded-md border border-amber-400/60 px-4 py-3 text-sm font-bold text-amber-600 shadow-[0_0_20px_rgba(251,191,36,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-amber-300"
+            type="button"
+            onClick={abrirModalPendientes}
+          >
+            Pendientes{entrenamientosPendientes.length ? ` (${entrenamientosPendientes.length})` : ''}
+          </button>
+          <button
             className="hidden rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
             type="button"
             disabled={estaRecargando}
@@ -848,6 +1246,18 @@ function Entreno() {
           <p className="text-center text-xs text-slate-400 sm:hidden dark:text-slate-500">
             En movil, arriba del todo, mantén el dedo y desliza hacia abajo para recargar.
           </p>
+        ) : null}
+
+        {mensaje && !entrenamiento ? (
+          <section
+            className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+              mensaje.toLowerCase().includes('no se pudo') || mensaje.toLowerCase().includes('error')
+                ? 'border-neon-pink/35 bg-neon-pink/8 text-neon-pink'
+                : 'border-neon-cyan/30 bg-neon-cyan/8 text-slate-700 dark:text-slate-200'
+            }`}
+          >
+            {mensaje}
+          </section>
         ) : null}
 
         {estaAbiertoSelectorEjercicios && entrenamiento ? (
@@ -965,7 +1375,7 @@ function Entreno() {
                     <button
                       type="button"
                       role="switch"
-                      aria-checked={Boolean(ejercicio.completado)}
+                      aria-checked={ejercicio.completado}
                       title={ejercicio.completado ? 'Completado' : 'Pendiente'}
                       className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
                       onClick={() => alternarEjercicioCompletado(ejercicio.idEjercicio)}
@@ -1056,6 +1466,30 @@ function Entreno() {
                         />
                         <input
                           className="mt-2 w-full bg-transparent text-sm text-slate-600 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-slate-400 dark:focus:text-neon-cyan"
+                          value={ejercicio.grupoMuscular}
+                          placeholder="Grupo muscular"
+                          onChange={(evento) =>
+                            actualizarEjercicio(
+                              ejercicio.idEjercicio,
+                              'grupoMuscular',
+                              evento.target.value,
+                            )
+                          }
+                        />
+                        <input
+                          className="mt-2 w-full bg-transparent text-sm text-slate-600 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-slate-400 dark:focus:text-neon-cyan"
+                          value={ejercicio.patronMovimiento}
+                          placeholder="Patron"
+                          onChange={(evento) =>
+                            actualizarEjercicio(
+                              ejercicio.idEjercicio,
+                              'patronMovimiento',
+                              evento.target.value,
+                            )
+                          }
+                        />
+                        <input
+                          className="mt-2 w-full bg-transparent text-sm text-slate-600 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-slate-400 dark:focus:text-neon-cyan"
                           value={ejercicio.descripcion}
                           placeholder="Descripcion"
                           onChange={(evento) =>
@@ -1068,70 +1502,93 @@ function Entreno() {
                         />
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[90px_90px_120px_minmax(150px,1fr)]">
-                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                          Series base
-                          <input
-                            className={claseInputNumero}
-                            type="number"
-                            min="0"
-                            max="99"
-                            value={ejercicio.seriesPlanificadas}
-                            onChange={(evento) =>
-                              actualizarEjercicio(
-                                ejercicio.idEjercicio,
-                                'seriesPlanificadas',
-                                evento.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                          Reps base
-                          <input
-                            className={claseInputNumero}
-                            type="number"
-                            min="0"
-                            max="99"
-                            value={ejercicio.repeticionesPlanificadas}
-                            onChange={(evento) =>
-                              actualizarEjercicio(
-                                ejercicio.idEjercicio,
-                                'repeticionesPlanificadas',
-                                evento.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                          Altura banco
-                          <input
-                            className={`${claseInputTexto} w-28`}
-                            type="text"
-                            value={ejercicio.alturaBanco}
-                            onChange={(evento) =>
-                              actualizarEjercicio(
-                                ejercicio.idEjercicio,
-                                'alturaBanco',
-                                evento.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                          Agarre
-                          <input
-                            className={`${claseInputTexto} min-w-36`}
-                            value={ejercicio.agarre}
-                            onChange={(evento) =>
-                              actualizarEjercicio(
-                                ejercicio.idEjercicio,
-                                'agarre',
-                                evento.target.value,
-                              )
-                            }
-                          />
-                        </label>
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          <label className={claseCampoCompacto}>
+                            Series base
+                            <input
+                              className={claseInputNumero}
+                              type="number"
+                              min="0"
+                              max="99"
+                              value={ejercicio.seriesPlanificadas}
+                              onChange={(evento) =>
+                                actualizarEjercicio(
+                                  ejercicio.idEjercicio,
+                                  'seriesPlanificadas',
+                                  evento.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                          <label className={claseCampoCompacto}>
+                            Reps base
+                            <input
+                              className={claseInputNumero}
+                              type="number"
+                              min="0"
+                              max="99"
+                              value={ejercicio.repeticionesPlanificadas}
+                              onChange={(evento) =>
+                                actualizarEjercicio(
+                                  ejercicio.idEjercicio,
+                                  'repeticionesPlanificadas',
+                                  evento.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                          <label className={claseCampoCompacto}>
+                            Peso base
+                            <input
+                              className={claseInputPeso}
+                              type="number"
+                              min="0"
+                              max="999"
+                              value={ejercicio.pesoPlanificado}
+                              onChange={(evento) =>
+                                actualizarEjercicio(
+                                  ejercicio.idEjercicio,
+                                  'pesoPlanificado',
+                                  evento.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className={claseCampoCompacto}>
+                            Altura banco
+                            <input
+                              className={claseInputTexto}
+                              type="text"
+                              value={ejercicio.alturaBanco}
+                              placeholder="Sin definir"
+                              onChange={(evento) =>
+                                actualizarEjercicio(
+                                  ejercicio.idEjercicio,
+                                  'alturaBanco',
+                                  evento.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                          <label className={claseCampoCompacto}>
+                            Agarre
+                            <input
+                              className={claseInputTexto}
+                              value={ejercicio.agarre}
+                              placeholder="Sin definir"
+                              onChange={(evento) =>
+                                actualizarEjercicio(
+                                  ejercicio.idEjercicio,
+                                  'agarre',
+                                  evento.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       <div className="grid gap-2 rounded-lg border border-neon-purple/30 bg-slate-50 p-3 text-xs text-slate-600 shadow-glow-purple dark:bg-pes-black/60 dark:text-slate-400 sm:grid-cols-3">
@@ -1211,60 +1668,64 @@ function Entreno() {
                                 <div className="mt-3 grid gap-2">
                                   {grupoSeries.series.map((serie, indiceSerie) => (
                                     <div
-                                      className="grid gap-3 rounded-md border border-slate-200/80 bg-slate-50/70 p-3 md:grid-cols-[90px_100px_150px_96px] md:items-end dark:border-white/10 dark:bg-pes-black/50"
+                                      className="grid gap-3 rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-pes-black/50"
                                       key={serie.id}
                                     >
-                                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Reps hechas
-                                        <input
-                                          className={claseInputNumero}
-                                          type="number"
-                                          min="0"
-                                          max="99"
-                                          value={serie.repeticiones}
-                                          onChange={(evento) =>
-                                            actualizarSerie(
-                                              ejercicio.idEjercicio,
-                                              serie.id,
-                                              'repeticiones',
-                                              evento.target.value,
-                                            )
-                                          }
-                                        />
-                                      </label>
-                                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Peso
-                                        <input
-                                          className={claseInputPeso}
-                                          type="number"
-                                          min="0"
-                                          max="999"
-                                          value={serie.peso}
-                                          onChange={(evento) =>
-                                            actualizarSerie(
-                                              ejercicio.idEjercicio,
-                                              serie.id,
-                                              'peso',
-                                              evento.target.value,
-                                            )
-                                          }
-                                        />
-                                      </label>
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                          Reps hechas
+                                          <input
+                                            className={claseInputNumero}
+                                            type="number"
+                                            min="0"
+                                            max="99"
+                                            value={serie.repeticiones}
+                                            onChange={(evento) =>
+                                              actualizarSerie(
+                                                ejercicio.idEjercicio,
+                                                serie.id,
+                                                'repeticiones',
+                                                evento.target.value,
+                                              )
+                                            }
+                                          />
+                                        </label>
+                                        <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                          Peso
+                                          <input
+                                            className={claseInputPeso}
+                                            type="number"
+                                            min="0"
+                                            max="999"
+                                            value={serie.peso}
+                                            onChange={(evento) =>
+                                              actualizarSerie(
+                                                ejercicio.idEjercicio,
+                                                serie.id,
+                                                'peso',
+                                                evento.target.value,
+                                              )
+                                            }
+                                          />
+                                        </label>
+                                      </div>
                                       <div className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                                         Anterior
                                         <div className="flex min-h-10 items-center rounded-md border border-neon-purple/30 bg-white px-3 py-2 text-sm font-bold text-slate-950 shadow-[0_0_18px_rgba(105,0,255,0.12)] dark:bg-pes-black/70 dark:text-neon-pink">
                                           {formatearSerieAnterior(seriesAnteriores[indiceSerie])}
                                         </div>
                                       </div>
-                                      <button
-                                        className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
-                                        type="button"
-                                        onClick={() =>
-                                          eliminarSerie(ejercicio.idEjercicio, serie.id)
-                                        }
-                                      >
-                                        Borrar
-                                      </button>
+                                      <div className="flex justify-end">
+                                        <button
+                                          className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
+                                          type="button"
+                                          onClick={() =>
+                                            eliminarSerie(ejercicio.idEjercicio, serie.id)
+                                          }
+                                        >
+                                          Borrar
+                                        </button>
+                                      </div>
                                     </div>
                                   ))}
                                   {seriesAnteriores.length > grupoSeries.series.length ? (
@@ -1309,18 +1770,422 @@ function Entreno() {
           mensaje={mensaje}
           alAccionar={finalizarEntrenamiento}
         />
-      ) : (
+      ) : null}
+
+      {estaAbiertoModalPendientes ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[#080B14]">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-white/10">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
+                  Pendientes
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
+                  Cola offline de entrenos
+                </h2>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                  Revisa ids, corrige lo que haga falta y fuerza la subida cuando quieras.
+                </p>
+              </div>
+
+              <button
+                className="rounded-full border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:text-slate-300"
+                type="button"
+                onClick={cerrarModalPendientes}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10">
+              <button
+                className="rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
+                type="button"
+                onClick={sugerirTodosLosPendientes}
+              >
+                Sugerir correcciones
+              </button>
+              <button
+                className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink"
+                type="button"
+                onClick={() => guardarPendientesEditados(pendientesEditados)}
+              >
+                Guardar cambios
+              </button>
+              <button
+                className="rounded-md border border-amber-400/60 px-4 py-3 text-sm font-bold text-amber-600 shadow-[0_0_20px_rgba(251,191,36,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                disabled={
+                  pendientesEditados.length === 0 || clientIdPendienteForzando === '__all__'
+                }
+                onClick={() => forzarSubidaPendientes()}
+              >
+                {clientIdPendienteForzando === '__all__'
+                  ? 'Subiendo pendientes...'
+                  : 'Forzar subida de todos'}
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-5">
+              <datalist id="pendientes-sesiones-sugeridas">
+                {opcionesSesionesPendientes.map((sesion) => (
+                  <option
+                    key={`${sesion.idSesion}-${sesion.nombreSesion}`}
+                    value={sesion.idSesion}
+                    label={sesion.nombreSesion}
+                  />
+                ))}
+              </datalist>
+              <datalist id="pendientes-catalogo-sugerido">
+                {opcionesCatalogoPendientes.map((ejercicio) => (
+                  <option
+                    key={`${ejercicio.catalogoEjercicioId}-${ejercicio.nombre}`}
+                    value={ejercicio.catalogoEjercicioId}
+                    label={ejercicio.nombre}
+                  />
+                ))}
+              </datalist>
+              {pendientesEditados.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-pes-black/40 dark:text-slate-400">
+                  No hay entrenos pendientes de sincronizar.
+                </div>
+              ) : (
+                <div className="grid gap-5">
+                  {pendientesEditados.map((entrenamientoPendiente) => {
+                    const estadoPendiente = obtenerEstadoPendiente(entrenamientoPendiente)
+                    const estaAbiertoPendiente = Boolean(
+                      pendientesAbiertos[entrenamientoPendiente.clientId],
+                    )
+
+                    return (
+                      <article
+                        className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-pes-black/45"
+                        key={entrenamientoPendiente.clientId}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <button
+                            className="min-w-0 flex-1 text-left"
+                            type="button"
+                            onClick={() => alternarPendiente(entrenamientoPendiente.clientId)}
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neon-cyan/35 text-neon-cyan">
+                                <svg
+                                  className={`h-4 w-4 transition-transform duration-300 ${
+                                    estaAbiertoPendiente ? 'rotate-180' : ''
+                                  }`}
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="m6 9 6 6 6-6" />
+                                </svg>
+                              </span>
+                              <span>
+                          <h3 className="text-lg font-black text-slate-950 dark:text-white">
+                            {entrenamientoPendiente.nombreSesion}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            {formatearFechaEntrenamiento(
+                              entrenamientoPendiente.fechaFin || entrenamientoPendiente.fechaInicio,
+                            )}{' '}
+                            · {entrenamientoPendiente.ejercicios.length} ejercicios
+                          </p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                                estadoPendiente.variante === 'error'
+                                  ? 'border-neon-pink/40 bg-neon-pink/10 text-neon-pink'
+                                  : 'border-amber-400/50 bg-amber-400/10 text-amber-600 dark:text-amber-300'
+                              }`}
+                            >
+                              {estadoPendiente.etiqueta}
+                            </span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              {estadoPendiente.detalle}
+                            </span>
+                                </div>
+                              </span>
+                            </div>
+                          </button>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="rounded-md border border-neon-cyan/50 px-3 py-2 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
+                            type="button"
+                            onClick={() => sugerirPendiente(entrenamientoPendiente.clientId)}
+                          >
+                            Sugerir ids
+                          </button>
+                          <button
+                            className="rounded-md border border-amber-400/60 px-3 py-2 text-sm font-bold text-amber-600 shadow-[0_0_20px_rgba(251,191,36,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled={clientIdPendienteForzando === entrenamientoPendiente.clientId}
+                            onClick={() => forzarSubidaPendientes([entrenamientoPendiente.clientId])}
+                          >
+                            {clientIdPendienteForzando === entrenamientoPendiente.clientId
+                              ? 'Subiendo...'
+                              : 'Forzar subida'}
+                          </button>
+                          <button
+                            className="rounded-md border border-neon-pink/45 px-3 py-2 text-sm font-bold text-neon-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
+                            type="button"
+                            onClick={() => eliminarPendienteEditado(entrenamientoPendiente.clientId)}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+
+                        <div
+                          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                            estaAbiertoPendiente
+                              ? 'mt-4 grid-rows-[1fr] opacity-100'
+                              : 'grid-rows-[0fr] opacity-0'
+                          }`}
+                        >
+                          <div className="overflow-hidden">
+                        <div className="grid gap-3 md:grid-cols-2">
+                        <label className="grid content-start gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          ID entreno
+                          <input
+                            className={claseInputPendiente}
+                            value={entrenamientoPendiente.id || ''}
+                            onChange={(evento) =>
+                              actualizarPendienteCampo(
+                                entrenamientoPendiente.clientId,
+                                'id',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                          {entrenamientoPendiente.syncFieldErrors?.id ? (
+                            <span className="text-[11px] font-medium normal-case text-neon-pink">
+                              {entrenamientoPendiente.syncFieldErrors.id}
+                            </span>
+                          ) : null}
+                        </label>
+                        <label className="grid content-start gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          ID sesion
+                          <input
+                            className={claseInputPendiente}
+                            list="pendientes-sesiones-sugeridas"
+                            value={entrenamientoPendiente.idSesion || ''}
+                            onChange={(evento) =>
+                              actualizarPendienteCampo(
+                                entrenamientoPendiente.clientId,
+                                'idSesion',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                          <span className="text-[11px] font-medium normal-case text-slate-500 dark:text-slate-400">
+                            Usa una sesion real del backend; vacio si no aplica.
+                          </span>
+                          {entrenamientoPendiente.syncFieldErrors?.idSesion ? (
+                            <span className="text-[11px] font-medium normal-case text-neon-pink">
+                              {entrenamientoPendiente.syncFieldErrors.idSesion}
+                            </span>
+                          ) : null}
+                        </label>
+                        </div>
+
+                        <div className="mt-4 grid gap-3">
+                          {entrenamientoPendiente.ejercicios.map((ejercicio, indiceEjercicio) => {
+                            const claveEjercicioPendiente = `${entrenamientoPendiente.clientId}-${indiceEjercicio}`
+                            const estaAbiertoEjercicioPendiente = Boolean(
+                              ejerciciosPendientesAbiertos[claveEjercicioPendiente],
+                            )
+
+                            return (
+                            <div
+                              className="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-white/10 dark:bg-[#0B1020]/75"
+                              key={`${entrenamientoPendiente.clientId}-${ejercicio.clientId}-${indiceEjercicio}`}
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <button
+                                  className="min-w-0 flex-1 text-left"
+                                  type="button"
+                                  onClick={() =>
+                                    alternarEjercicioPendiente(
+                                      entrenamientoPendiente.clientId,
+                                      indiceEjercicio,
+                                    )
+                                  }
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neon-cyan/30 text-neon-cyan">
+                                      <svg
+                                        className={`h-4 w-4 transition-transform duration-300 ${
+                                          estaAbiertoEjercicioPendiente ? 'rotate-180' : ''
+                                        }`}
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <path d="m6 9 6 6 6-6" />
+                                      </svg>
+                                    </span>
+                                    <span>
+                                      <p className="text-sm font-bold text-slate-950 dark:text-white">
+                                        {ejercicio.nombre}
+                                      </p>
+                                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                        {ejercicio.catalogoEjercicioId
+                                          ? `Catalogo ${ejercicio.catalogoEjercicioId}`
+                                          : 'Ejercicio ad hoc'}
+                                      </p>
+                                    </span>
+                                  </div>
+                                </button>
+                                <button
+                                  className="rounded-md border border-neon-pink/45 px-3 py-2 text-xs font-bold text-neon-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
+                                  type="button"
+                                  onClick={() =>
+                                    eliminarEjercicioPendiente(
+                                      entrenamientoPendiente.clientId,
+                                      indiceEjercicio,
+                                    )
+                                  }
+                                >
+                                  Eliminar ejercicio
+                                </button>
+                              </div>
+                              {ejercicio.syncError ? (
+                                <p className="mt-2 rounded-xl border border-neon-pink/35 bg-neon-pink/8 px-3 py-2 text-xs font-semibold text-neon-pink">
+                                  {ejercicio.syncError}
+                                </p>
+                              ) : null}
+                              <div
+                                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                                  estaAbiertoEjercicioPendiente
+                                    ? 'mt-3 grid-rows-[1fr] opacity-100'
+                                    : 'grid-rows-[0fr] opacity-0'
+                                }`}
+                              >
+                                <div className="overflow-hidden">
+                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                              <label className="grid content-start gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                ID ejercicio
+                                <input
+                                  className={claseInputPendiente}
+                                  value={ejercicio.idEjercicio || ''}
+                                  onChange={(evento) =>
+                                    actualizarPendienteEjercicioCampo(
+                                      entrenamientoPendiente.clientId,
+                                      indiceEjercicio,
+                                      'idEjercicio',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                                {ejercicio.syncFieldErrors?.idEjercicio ? (
+                                  <span className="text-[11px] font-medium normal-case text-neon-pink">
+                                    {ejercicio.syncFieldErrors.idEjercicio}
+                                  </span>
+                                ) : null}
+                              </label>
+                              <label className="grid content-start gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                ID interno
+                                <input
+                                  className={claseInputPendiente}
+                                  value={ejercicio.id || ''}
+                                  onChange={(evento) =>
+                                    actualizarPendienteEjercicioCampo(
+                                      entrenamientoPendiente.clientId,
+                                      indiceEjercicio,
+                                      'id',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                                {ejercicio.syncFieldErrors?.id ? (
+                                  <span className="text-[11px] font-medium normal-case text-neon-pink">
+                                    {ejercicio.syncFieldErrors.id}
+                                  </span>
+                                ) : null}
+                              </label>
+                              <label className="grid content-start gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                Catalogo
+                                <input
+                                  className={claseInputPendiente}
+                                  list="pendientes-catalogo-sugerido"
+                                  value={ejercicio.catalogoEjercicioId || ''}
+                                  onChange={(evento) =>
+                                    actualizarPendienteEjercicioCampo(
+                                      entrenamientoPendiente.clientId,
+                                      indiceEjercicio,
+                                      'catalogoEjercicioId',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                                <span className="text-[11px] font-medium normal-case text-slate-500 dark:text-slate-400">
+                                  Referencia real del catalogo. Vacio = ad hoc.
+                                </span>
+                                {ejercicio.syncFieldErrors?.catalogoEjercicioId ? (
+                                  <span className="text-[11px] font-medium normal-case text-neon-pink">
+                                    {ejercicio.syncFieldErrors.catalogoEjercicioId}
+                                  </span>
+                                ) : null}
+                              </label>
+                              <label className="grid content-start gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                Plantilla
+                                <input
+                                  className={claseInputPendiente}
+                                  value={ejercicio.plantillaEjercicioId || ''}
+                                  onChange={(evento) =>
+                                    actualizarPendienteEjercicioCampo(
+                                      entrenamientoPendiente.clientId,
+                                      indiceEjercicio,
+                                      'plantillaEjercicioId',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                                {ejercicio.syncFieldErrors?.plantillaEjercicioId ? (
+                                  <span className="text-[11px] font-medium normal-case text-neon-pink">
+                                    {ejercicio.syncFieldErrors.plantillaEjercicioId}
+                                  </span>
+                                ) : null}
+                              </label>
+                              </div>
+                                </div>
+                              </div>
+                            </div>
+                            )
+                          })}
+                        </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {toastSincronizacion ? (
         <Toast
-          key={mensaje || 'toast-vacio'}
-          mensaje={mensaje}
-          tipo={
-            mensaje?.toLowerCase().includes('no se pudo') ||
-            mensaje?.toLowerCase().includes('error')
-              ? 'error'
-              : 'info'
-          }
+          key={toastSincronizacion.id}
+          mensaje={toastSincronizacion.mensaje}
+          tipo="info"
+          onClose={() => setToastSincronizacion(null)}
         />
-      )}
+      ) : null}
     </div>
   )
 }

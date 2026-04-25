@@ -16,10 +16,13 @@ import {
 import { obtenerEjerciciosDesdeServidor } from '../Ejercicios/services/ejerciciosApiService'
 
 const claseInputNumero =
-  'w-20 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
 const claseInputTexto =
-  'rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+
+const claseCampoCompacto =
+  'grid gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/85 p-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-pes-black/45 dark:text-slate-400'
 
 function ConfigurarSesiones() {
   const [catalogoEjercicios, setCatalogoEjercicios] = useState(obtenerCatalogoEjerciciosConfiguracion)
@@ -445,7 +448,55 @@ function ConfigurarSesiones() {
                             </button>
                           </div>
 
-                          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(260px,1.4fr)_80px_80px_90px_110px_minmax(150px,0.8fr)] lg:items-end">
+                          <div className="mt-4 grid gap-3">
+                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                              Nombre
+                              <input
+                                className={claseInputTexto}
+                                value={ejercicio.nombre}
+                                onChange={(evento) =>
+                                  actualizarEjercicio(
+                                    sesion.id,
+                                    ejercicio.idEjercicio,
+                                    'nombre',
+                                    evento.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+
+                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                              Grupo muscular
+                              <input
+                                className={claseInputTexto}
+                                value={ejercicio.grupoMuscular}
+                                onChange={(evento) =>
+                                  actualizarEjercicio(
+                                    sesion.id,
+                                    ejercicio.idEjercicio,
+                                    'grupoMuscular',
+                                    evento.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+
+                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                              Patron
+                              <input
+                                className={claseInputTexto}
+                                value={ejercicio.patronMovimiento}
+                                onChange={(evento) =>
+                                  actualizarEjercicio(
+                                    sesion.id,
+                                    ejercicio.idEjercicio,
+                                    'patronMovimiento',
+                                    evento.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+
                             <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                               Descripcion
                               <input
@@ -462,95 +513,101 @@ function ConfigurarSesiones() {
                               />
                             </label>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Series
-                              <input
-                                className={claseInputNumero}
-                                type="number"
-                                min="0"
-                                max="99"
-                                value={ejercicio.seriesPlanificadas}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'seriesPlanificadas',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                            <div className="grid grid-cols-3 gap-3">
+                              <label className={claseCampoCompacto}>
+                                Series
+                                <input
+                                  className={claseInputNumero}
+                                  type="number"
+                                  min="0"
+                                  max="99"
+                                  value={ejercicio.seriesPlanificadas}
+                                  onChange={(evento) =>
+                                    actualizarEjercicio(
+                                      sesion.id,
+                                      ejercicio.idEjercicio,
+                                      'seriesPlanificadas',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Reps
-                              <input
-                                className={claseInputNumero}
-                                type="number"
-                                min="0"
-                                max="99"
-                                value={ejercicio.repeticionesPlanificadas}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'repeticionesPlanificadas',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                              <label className={claseCampoCompacto}>
+                                Reps
+                                <input
+                                  className={claseInputNumero}
+                                  type="number"
+                                  min="0"
+                                  max="99"
+                                  value={ejercicio.repeticionesPlanificadas}
+                                  onChange={(evento) =>
+                                    actualizarEjercicio(
+                                      sesion.id,
+                                      ejercicio.idEjercicio,
+                                      'repeticionesPlanificadas',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Peso
-                              <input
-                                className="w-24 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-                                type="number"
-                                min="0"
-                                max="999"
-                                value={ejercicio.pesoPlanificado}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'pesoPlanificado',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                              <label className={claseCampoCompacto}>
+                                Peso
+                                <input
+                                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
+                                  type="number"
+                                  min="0"
+                                  max="999"
+                                  value={ejercicio.pesoPlanificado}
+                                  onChange={(evento) =>
+                                    actualizarEjercicio(
+                                      sesion.id,
+                                      ejercicio.idEjercicio,
+                                      'pesoPlanificado',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                            </div>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Altura banco
-                              <input
-                                className={`${claseInputTexto} w-28`}
-                                type="text"
-                                value={ejercicio.alturaBanco}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'alturaBanco',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <label className={claseCampoCompacto}>
+                                Altura banco
+                                <input
+                                  className={claseInputTexto}
+                                  type="text"
+                                  value={ejercicio.alturaBanco}
+                                  placeholder="Sin definir"
+                                  onChange={(evento) =>
+                                    actualizarEjercicio(
+                                      sesion.id,
+                                      ejercicio.idEjercicio,
+                                      'alturaBanco',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Agarre
-                              <input
-                                className={`${claseInputTexto} min-w-36`}
-                                value={ejercicio.agarre}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'agarre',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                              <label className={claseCampoCompacto}>
+                                Agarre
+                                <input
+                                  className={claseInputTexto}
+                                  value={ejercicio.agarre}
+                                  placeholder="Sin definir"
+                                  onChange={(evento) =>
+                                    actualizarEjercicio(
+                                      sesion.id,
+                                      ejercicio.idEjercicio,
+                                      'agarre',
+                                      evento.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                            </div>
                           </div>
                         </div>
                       ))}
