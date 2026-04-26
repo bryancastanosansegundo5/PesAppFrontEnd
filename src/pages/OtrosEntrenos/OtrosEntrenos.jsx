@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import MobilePullToRefreshIndicator from '../../components/MobilePullToRefreshIndicator/MobilePullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { obtenerOtrosEntrenosDesdeServidor } from './services/otrosEntrenosApiService'
+import {
+  guardarOtrosEntrenosGuardados,
+  obtenerOtrosEntrenosGuardados,
+} from './services/otrosEntrenosLocalService'
 
 function formatearFecha(fecha) {
   if (!fecha) {
@@ -135,12 +139,13 @@ function GraficaLineal({ data }) {
 }
 
 function OtrosEntrenos() {
-  const [ejerciciosAgrupados, setEjerciciosAgrupados] = useState([])
+  const [ejerciciosAgrupados, setEjerciciosAgrupados] = useState(obtenerOtrosEntrenosGuardados)
   const [mensaje, setMensaje] = useState('')
   const [estaCargandoInicial, setEstaCargandoInicial] = useState(true)
   const [estaRecargando, setEstaRecargando] = useState(false)
   const [acordeonesAbiertos, setAcordeonesAbiertos] = useState({})
   const [busqueda, setBusqueda] = useState('')
+  const ultimoEventoConexionRef = useRef(0)
 
   const ejerciciosFiltrados = useMemo(() => {
     const termino = normalizarTexto(busqueda.trim())
@@ -162,37 +167,111 @@ function OtrosEntrenos() {
   }, [busqueda, ejerciciosAgrupados])
 
   useEffect(() => {
+    let cancelado = false
+
     const cargarInicial = async () => {
       setEstaCargandoInicial(true)
 
       try {
         const ejerciciosServidor = await obtenerOtrosEntrenosDesdeServidor()
-        setEjerciciosAgrupados(ejerciciosServidor)
+        const ejerciciosGuardados = guardarOtrosEntrenosGuardados(ejerciciosServidor)
+
+        if (cancelado) {
+          return
+        }
+
+        setEjerciciosAgrupados(ejerciciosGuardados)
         setMensaje('Historico de ejercicios cargado desde la base de datos.')
       } catch (errorCapturado) {
-        setMensaje(errorCapturado.message)
+        if (cancelado) {
+          return
+        }
+
+        const ejerciciosGuardados = obtenerOtrosEntrenosGuardados()
+        setEjerciciosAgrupados(ejerciciosGuardados)
+        setMensaje(
+          ejerciciosGuardados.length > 0
+            ? `${errorCapturado.message} Se muestra la ultima copia guardada en este dispositivo.`
+            : errorCapturado.message,
+        )
       } finally {
-        setEstaCargandoInicial(false)
+        if (!cancelado) {
+          setEstaCargandoInicial(false)
+        }
       }
     }
 
     cargarInicial()
+
+    return () => {
+      cancelado = true
+    }
   }, [])
 
-  const recargarDesdeServidor = async () => {
-    setEstaRecargando(true)
-    setMensaje('Recargando historico desde la base de datos...')
+  const recargarDesdeServidor = async ({ silencioso = false } = {}) => {
+    if (!silencioso) {
+      setEstaRecargando(true)
+      setMensaje('Recargando historico desde la base de datos...')
+    }
 
     try {
       const ejerciciosServidor = await obtenerOtrosEntrenosDesdeServidor()
-      setEjerciciosAgrupados(ejerciciosServidor)
+      const ejerciciosGuardados = guardarOtrosEntrenosGuardados(ejerciciosServidor)
+      setEjerciciosAgrupados(ejerciciosGuardados)
       setMensaje('Historico de ejercicios recargado desde la base de datos.')
     } catch (errorCapturado) {
-      setMensaje(errorCapturado.message)
+      const ejerciciosGuardados = obtenerOtrosEntrenosGuardados()
+      setEjerciciosAgrupados(ejerciciosGuardados)
+      setMensaje(
+        ejerciciosGuardados.length > 0
+          ? `${errorCapturado.message} Se mantiene la copia local disponible.`
+          : errorCapturado.message,
+      )
     } finally {
-      setEstaRecargando(false)
+      if (!silencioso) {
+        setEstaRecargando(false)
+      }
     }
   }
+
+  useEffect(() => {
+    let cancelado = false
+
+    const sincronizarAlRecuperarConexion = async () => {
+      const ahora = Date.now()
+
+      if (ahora - ultimoEventoConexionRef.current < 1200) {
+        return
+      }
+
+      ultimoEventoConexionRef.current = ahora
+
+      try {
+        const ejerciciosServidor = await obtenerOtrosEntrenosDesdeServidor()
+        const ejerciciosGuardados = guardarOtrosEntrenosGuardados(ejerciciosServidor)
+
+        if (cancelado) {
+          return
+        }
+
+        setEjerciciosAgrupados(ejerciciosGuardados)
+        setMensaje('Historico actualizado desde el backend al recuperar la conexion.')
+      } catch {
+        if (cancelado) {
+          return
+        }
+      }
+    }
+
+    window.addEventListener('online', sincronizarAlRecuperarConexion)
+    window.addEventListener('pesapp:server-reachable', sincronizarAlRecuperarConexion)
+
+    return () => {
+      cancelado = true
+      window.removeEventListener('online', sincronizarAlRecuperarConexion)
+      window.removeEventListener('pesapp:server-reachable', sincronizarAlRecuperarConexion)
+    }
+  }, [])
 
   const {
     isEnabled: _gestoRecargaDisponible,

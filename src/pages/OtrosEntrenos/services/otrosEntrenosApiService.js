@@ -58,7 +58,7 @@ function normalizarEjercicioAgrupado(ejercicio, indice = 0) {
   }
 }
 
-function normalizarListaOtrosEntrenos(payload) {
+export function normalizarListaOtrosEntrenos(payload) {
   if (!Array.isArray(payload)) {
     return []
   }

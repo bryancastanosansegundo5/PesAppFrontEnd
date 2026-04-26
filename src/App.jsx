@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Encabezado from './components/Header/Header'
 import BotonVolverArriba from './components/ScrollToTopButton/ScrollToTopButton'
 import Toast from './components/Toast/Toast'
+import WeightTimePicker from './components/WeightTimePicker/WeightTimePicker'
 import Login from './pages/Login/Login'
 import NotFound from './pages/NotFound/NotFound'
 import ConfigurarSesiones from './pages/ConfigurarSesiones/ConfigurarSesiones'
@@ -32,14 +33,14 @@ import {
 } from './services/storage/trainingStorage'
 import { obtenerCatalogoEjerciciosGuardado } from './services/storage/exerciseCatalogStorage'
 import {
-  obtenerRegistroPesoDeHoy,
   obtenerRegistrosPesoGuardados,
 } from './services/storage/weightStorage'
 import {
   cargarRegistrosPeso,
   guardarPesoConRespaldo,
 } from './services/weight/weightDataService'
-import { aFechaRegistro } from './services/data/dateUtils'
+import { aHoraRegistro } from './services/data/dateUtils'
+import { sincronizarDatosOfflineEnOrden } from './services/sync/offlineSyncService'
 
 const rutasProtegidas = new Set([
   'entreno',
@@ -115,6 +116,24 @@ function formatearPesoResumen(registro) {
   return `${Number(registro.peso || 0).toFixed(1)} kg`
 }
 
+function formatearHoraResumen(registro) {
+  return registro?.horaRegistro || '--:--'
+}
+
+function obtenerHoraActual() {
+  return aHoraRegistro(new Date(), '09:30')
+}
+
+function crearEstadoInicialPesoRapido() {
+  const ultimoRegistro = obtenerRegistrosPesoGuardados()[0] || null
+
+  return {
+    pesoRapido: ultimoRegistro ? String(ultimoRegistro.peso) : '',
+    horaPesoRapido: obtenerHoraActual(),
+    horaPesoRapidoFueEditada: false,
+  }
+}
+
 function App() {
   const [tema, setTema] = useState(obtenerTemaInicial)
   const [ruta, setRuta] = useState(obtenerRutaDesdePath)
@@ -126,11 +145,13 @@ function App() {
   const [estaDesconectadoServidor, setEstaDesconectadoServidor] = useState(false)
   const [toastConexion, setToastConexion] = useState(null)
   const [, setPesoVersion] = useState(0)
-  const [pesoRapido, setPesoRapido] = useState(() => {
-    const registroHoy = obtenerRegistroPesoDeHoy()
-    return registroHoy ? String(registroHoy.peso) : ''
-  })
+  const [pesoRapido, setPesoRapido] = useState(crearEstadoInicialPesoRapido().pesoRapido)
+  const [horaPesoRapido, setHoraPesoRapido] = useState(crearEstadoInicialPesoRapido().horaPesoRapido)
+  const [horaPesoRapidoFueEditada, setHoraPesoRapidoFueEditada] = useState(
+    crearEstadoInicialPesoRapido().horaPesoRapidoFueEditada,
+  )
   const [mensajePesoRapido, setMensajePesoRapido] = useState('')
+  const ultimaSincronizacionGlobalRef = useRef(0)
 
   const sesionesInicio = obtenerSesionesGuardadas()
   const historialInicio = obtenerHistorialEntrenamientosGuardado()
@@ -265,7 +286,7 @@ function App() {
     let cancelado = false
 
     const sincronizarPeso = async () => {
-      const resultado = await cargarRegistrosPeso()
+      await cargarRegistrosPeso()
 
       if (cancelado) {
         return
@@ -273,19 +294,55 @@ function App() {
 
       setPesoVersion((versionActual) => versionActual + 1)
 
-      const registroHoy =
-        resultado.registros.find(
-          (registro) => registro.fechaRegistro === aFechaRegistro(new Date()),
-        ) || null
-      if (registroHoy) {
-        setPesoRapido(String(registroHoy.peso))
-      }
+      reiniciarFormularioPesoRapido()
     }
 
     sincronizarPeso()
 
     return () => {
       cancelado = true
+    }
+  }, [sesion])
+
+  useEffect(() => {
+    if (!sesion) {
+      return
+    }
+
+    let cancelado = false
+
+    const sincronizarDatosOffline = async () => {
+      const ahora = Date.now()
+
+      if (ahora - ultimaSincronizacionGlobalRef.current < 1200) {
+        return
+      }
+
+      ultimaSincronizacionGlobalRef.current = ahora
+
+      try {
+        await sincronizarDatosOfflineEnOrden()
+
+        if (cancelado) {
+          return
+        }
+
+        setPesoVersion((versionActual) => versionActual + 1)
+
+        reiniciarFormularioPesoRapido()
+      } catch {
+        // La UI concreta de cada seccion ya informa de errores; aqui solo intentamos reconciliar.
+      }
+    }
+
+    sincronizarDatosOffline()
+    window.addEventListener('online', sincronizarDatosOffline)
+    window.addEventListener('pesapp:server-reachable', sincronizarDatosOffline)
+
+    return () => {
+      cancelado = true
+      window.removeEventListener('online', sincronizarDatosOffline)
+      window.removeEventListener('pesapp:server-reachable', sincronizarDatosOffline)
     }
   }, [sesion])
 
@@ -369,6 +426,13 @@ function App() {
     setTema((temaActual) => (temaActual === 'dark' ? 'light' : 'dark'))
   }
 
+  function reiniciarFormularioPesoRapido() {
+    const estadoInicial = crearEstadoInicialPesoRapido()
+    setPesoRapido(estadoInicial.pesoRapido)
+    setHoraPesoRapido(estadoInicial.horaPesoRapido)
+    setHoraPesoRapidoFueEditada(estadoInicial.horaPesoRapidoFueEditada)
+  }
+
   const navegarA = (rutaDestino) => {
     const rutaNormalizada =
       rutaDestino === '/' ? 'inicio' : rutaDestino.replace(/^\//, '')
@@ -393,15 +457,22 @@ function App() {
     }
 
     try {
-      const resultado = await guardarPesoConRespaldo(pesoNumerico)
+      const resultado = await guardarPesoConRespaldo(pesoNumerico, {
+        horaRegistro: horaPesoRapido,
+        horaManual: horaPesoRapidoFueEditada,
+      })
       setPesoVersion((versionActual) => versionActual + 1)
-      setPesoRapido(String(pesoNumerico))
+      reiniciarFormularioPesoRapido()
       setMensajePesoRapido(
         resultado.online
-          ? 'Peso guardado y sincronizado.'
+          ? 'Nueva medicion guardada y sincronizada.'
           : `${resultado.error?.message || 'No se pudo sincronizar ahora.'} El dato queda guardado en local.`,
       )
     } catch (errorCapturado) {
+      if (Array.isArray(errorCapturado?.latestRecords)) {
+        setPesoVersion((versionActual) => versionActual + 1)
+      }
+
       setMensajePesoRapido(errorCapturado.message || 'No se pudo guardar el peso.')
     }
   }
@@ -639,7 +710,7 @@ function App() {
             </div>
 
             <article className="rounded-2xl border border-neon-purple/25 bg-white/[0.03] p-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                     Peso mas reciente
@@ -657,19 +728,19 @@ function App() {
             </article>
 
             <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1">
                   <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                     Estado general
                   </p>
-                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-400">
+                  <p className="mt-1 text-sm leading-5 text-slate-700 dark:text-slate-400">
                     {estaDesconectadoServidor
                       ? 'Trabajando en modo local por desconexion con el servidor.'
                       : 'Todo listo para entrar, registrar y revisar entrenos.'}
                   </p>
                 </div>
                 <span
-                  className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${
+                  className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-black uppercase tracking-[0.16em] ${
                     estaDesconectadoServidor
                       ? 'border-red-500/45 bg-red-500/12 text-red-600 shadow-[0_0_20px_rgba(239,68,68,0.18)] dark:text-red-300'
                       : 'border-green-500/35 bg-green-400/10 text-green-700 shadow-[0_0_14px_rgba(34,197,94,0.12)] dark:border-[#39ff14]/45 dark:bg-[#39ff14]/15 dark:text-[#7dff6e] dark:shadow-[0_0_20px_rgba(57,255,20,0.18)]'
@@ -684,55 +755,91 @@ function App() {
       </section>
 
       <section className="grid gap-5 rounded-[28px] border border-neon-cyan/25 bg-white/88 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.1)] lg:grid-cols-[0.9fr_1.1fr] dark:border-white/10 dark:bg-white/[0.04]">
-        <div className="space-y-3">
+        <div className="grid grid-rows-[auto_1fr]">
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-neon-purple dark:text-neon-cyan">
             Peso rapido
           </p>
-          <h2 className="text-3xl font-black text-slate-950 dark:text-white">
+          <div className="flex flex-col justify-center space-y-3">
+            <h2 className="text-3xl font-black text-slate-950 dark:text-white">
             Registra la bascula sin navegar.
-          </h2>
-          <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-            Pensado para entrar, escribir el numero y guardarlo al instante. Luego lo ves en la
-            pantalla de peso con historico, medias semanales y grafica.
-          </p>
+            </h2>
+            <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+              Pensado para entrar, escribir el numero y guardarlo al instante. Luego lo ves en la
+              pantalla de peso con historico, medias semanales y grafica.
+            </p>
+            <p className="lg:col-span-2 text-xs text-slate-500 dark:text-slate-400">
+              {ultimoPesoRegistrado
+                ? `Hora registrada: ${formatearHoraResumen(ultimoPesoRegistrado)}`
+                : 'Si no tocas la hora, guardamos la hora actual al registrar.'}
+            </p>
+          </div>
         </div>
 
-        <div className="grid gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-white/10 dark:bg-pes-black/50 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-          <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Peso de hoy
-            <input
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-              type="number"
-              min="0"
-              step="0.1"
-              placeholder="82.4"
-              value={pesoRapido}
-              onChange={(evento) => {
-                setPesoRapido(evento.target.value)
-                if (mensajePesoRapido) {
-                  setMensajePesoRapido('')
-                }
-              }}
-            />
-          </label>
+        <div className="grid gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-white/10 dark:bg-pes-black/50">
+          <div className="grid gap-4 rounded-2xl border border-slate-200/80 bg-white/90 p-4 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
+            <label className="grid gap-2">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                Nueva medicion
+              </span>
+              <div className="rounded-[22px] border border-white/6 bg-[linear-gradient(180deg,rgba(15,23,42,0.4),rgba(2,6,23,0.18))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <input
+                  className="w-full rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.96),rgba(0,0,0,0.96))] px-6 py-4 text-center text-4xl font-black tracking-tight text-white outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-[0_0_28px_rgba(0,255,237,0.16)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(1,4,12,0.96),rgba(0,0,0,0.98))]"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="82.4"
+                  value={pesoRapido}
+                  onChange={(evento) => {
+                    setPesoRapido(evento.target.value)
+                    if (mensajePesoRapido) {
+                      setMensajePesoRapido('')
+                    }
+                  }}
+                />
+              </div>
+            </label>
 
-          <button
-            className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
-            type="button"
-            onClick={registrarPesoRapido}
-          >
-            Guardar peso
-          </button>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  Hora
+                </span>
+                <span className="rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-neon-purple dark:text-neon-cyan">
+                  {horaPesoRapidoFueEditada ? 'Manual' : 'Ahora'}
+                </span>
+              </div>
+              <WeightTimePicker
+                value={horaPesoRapido}
+                onChange={setHoraPesoRapido}
+                onTouch={() => {
+                  setHoraPesoRapidoFueEditada(true)
+                  if (mensajePesoRapido) {
+                    setMensajePesoRapido('')
+                  }
+                }}
+              />
+            </div>
+          </div>
 
-          <button
-            className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
-            type="button"
-            onClick={() => navegarA('/peso')}
-          >
-            Ver pantalla
-          </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
+              type="button"
+              onClick={registrarPesoRapido}
+            >
+              Guardar peso
+            </button>
 
-          <p className="sm:col-span-3 text-sm text-slate-500 dark:text-slate-400">
+            <button
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
+              type="button"
+              onClick={() => navegarA('/peso')}
+            >
+              Ver pantalla
+            </button>
+          </div>
+
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {mensajePesoRapido ||
               `Ultimo dato: ${formatearPesoResumen(ultimoPesoRegistrado)}${
                 ultimoPesoRegistrado ? ` · ${formatearFechaResumen(ultimoPesoRegistrado.fecha)}` : ''

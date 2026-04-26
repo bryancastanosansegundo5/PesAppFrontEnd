@@ -16,20 +16,24 @@ export async function obtenerPesoDesdeServidor() {
 }
 
 export async function guardarPesoHoyEnServidor(registro) {
+  const body = crearPayloadPesoHoy(registro)
+
   const payload = await apiRequest('/api/peso/hoy', {
     method: 'PUT',
     auth: true,
-    body: crearPayloadPesoHoy(registro),
+    body,
   })
 
   return payload ? normalizarRegistroPeso(payload) : null
 }
 
 export async function crearPesoEnServidor(registro) {
+  const body = crearPayloadPeso(registro)
+
   const payload = await apiRequest('/api/peso', {
     method: 'POST',
     auth: true,
-    body: crearPayloadPeso(registro),
+    body,
   })
 
   return payload ? normalizarRegistroPeso(payload) : null

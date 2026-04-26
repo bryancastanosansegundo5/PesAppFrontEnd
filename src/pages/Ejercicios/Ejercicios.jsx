@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import MobilePullToRefreshIndicator from '../../components/MobilePullToRefreshIndicator/MobilePullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import {
@@ -12,6 +12,10 @@ import {
   eliminarEjercicioEnServidor,
   obtenerEjerciciosDesdeServidor,
 } from './services/ejerciciosApiService'
+import {
+  recargarCatalogoEjerciciosConSincronizacion,
+  sincronizarCatalogoEjerciciosPendientes,
+} from '../../services/exercises/exerciseCatalogDataService'
 
 const claseInputNumero =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
@@ -21,6 +25,17 @@ const claseInputTexto =
 
 const claseCampoCompacto =
   'grid gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/85 p-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-pes-black/45 dark:text-slate-400'
+
+const claseBotonPendientes =
+  'rounded-md border px-4 py-3 text-sm font-bold transition-all duration-300 ease-out disabled:cursor-not-allowed disabled:opacity-60'
+
+function marcarEjercicioPendiente(ejercicio) {
+  return {
+    ...ejercicio,
+    esBorrador: !ejercicio.catalogoEjercicioId,
+    syncStatus: 'pending',
+  }
+}
 
 function normalizarTexto(valor) {
   return String(valor || '')
@@ -33,6 +48,13 @@ function crearEstadoAbierto(ejercicios) {
   return Object.fromEntries(ejercicios.map((ejercicio) => [ejercicio.idEjercicio, false]))
 }
 
+function quitarEstadoPendiente(ejercicio) {
+  return {
+    ...ejercicio,
+    syncStatus: 'synced',
+  }
+}
+
 function Ejercicios() {
   const [ejercicios, setEjercicios] = useState(obtenerCatalogoEjercicios)
   const [busqueda, setBusqueda] = useState('')
@@ -40,8 +62,17 @@ function Ejercicios() {
   const [estaRecargando, setEstaRecargando] = useState(false)
   const [guardandoPorId, setGuardandoPorId] = useState({})
   const [estadoPorEjercicio, setEstadoPorEjercicio] = useState({})
+  const [estaAbiertoModalPendientes, setEstaAbiertoModalPendientes] = useState(false)
+  const [estaSincronizandoPendientes, setEstaSincronizandoPendientes] = useState(false)
+  const [pendienteEliminandoId, setPendienteEliminandoId] = useState('')
+  const sincronizacionPendientesActivaRef = useRef(null)
+  const ultimoEventoConexionRef = useRef(0)
   const [ejerciciosAbiertos, setEjerciciosAbiertos] = useState(() =>
     crearEstadoAbierto(obtenerCatalogoEjercicios()),
+  )
+  const ejerciciosPendientes = useMemo(
+    () => ejercicios.filter((ejercicio) => ejercicio.syncStatus === 'pending'),
+    [ejercicios],
   )
 
   useEffect(() => {
@@ -51,6 +82,7 @@ function Ejercicios() {
   useEffect(() => {
     const cargarCatalogoInicial = async () => {
       try {
+        await sincronizarEjerciciosPendientes()
         const ejerciciosServidor = await obtenerEjerciciosDesdeServidor()
         setEjercicios(ejerciciosServidor)
         setEjerciciosAbiertos(crearEstadoAbierto(ejerciciosServidor))
@@ -89,13 +121,29 @@ function Ejercicios() {
   const actualizarEjercicio = (idEjercicio, campo, valor) => {
     setEjercicios((ejerciciosActuales) =>
       ejerciciosActuales.map((ejercicio) =>
-        ejercicio.idEjercicio === idEjercicio ? { ...ejercicio, [campo]: valor } : ejercicio,
+        ejercicio.idEjercicio === idEjercicio
+          ? marcarEjercicioPendiente({ ...ejercicio, [campo]: valor })
+          : ejercicio,
       ),
     )
     setEstadoPorEjercicio((estadoActual) => ({
       ...estadoActual,
       [idEjercicio]: 'Cambios pendientes',
     }))
+  }
+
+  const sincronizarEjerciciosPendientes = async () => {
+    if (sincronizacionPendientesActivaRef.current) {
+      return sincronizacionPendientesActivaRef.current
+    }
+
+    sincronizacionPendientesActivaRef.current = sincronizarCatalogoEjerciciosPendientes().finally(
+      () => {
+        sincronizacionPendientesActivaRef.current = null
+      },
+    )
+
+    return sincronizacionPendientesActivaRef.current
   }
 
   const cargarCatalogo = async (silencioso = false) => {
@@ -105,12 +153,16 @@ function Ejercicios() {
     }
 
     try {
-      const ejerciciosServidor = await obtenerEjerciciosDesdeServidor()
-      setEjercicios(ejerciciosServidor)
-      setEjerciciosAbiertos(crearEstadoAbierto(ejerciciosServidor))
+      const resultadoSincronizacion = await recargarCatalogoEjerciciosConSincronizacion()
+      setEjercicios(resultadoSincronizacion.ejercicios)
+      setEjerciciosAbiertos(crearEstadoAbierto(resultadoSincronizacion.ejercicios))
       setEstadoPorEjercicio({})
-      guardarCatalogoEjercicios(ejerciciosServidor)
-      setMensaje('Catalogo recargado desde la base de datos.')
+      guardarCatalogoEjercicios(resultadoSincronizacion.ejercicios)
+      setMensaje(
+        resultadoSincronizacion?.sincronizados > 0
+          ? `Se sincronizaron ${resultadoSincronizacion.sincronizados} ejercicios pendientes y se recargo el catalogo.`
+          : 'Catalogo recargado desde la base de datos.',
+      )
     } catch (errorCapturado) {
       setMensaje(
         `${errorCapturado.message} Se mantiene el catalogo local como respaldo mientras el backend no responde.`,
@@ -121,6 +173,45 @@ function Ejercicios() {
       }
     }
   }
+
+  useEffect(() => {
+    let cancelado = false
+
+    const sincronizarAlRecuperarConexion = async () => {
+      const ahora = Date.now()
+
+      if (ahora - ultimoEventoConexionRef.current < 1200) {
+        return
+      }
+
+      ultimoEventoConexionRef.current = ahora
+      const resultado = await sincronizarEjerciciosPendientes()
+
+      if (cancelado || !resultado) {
+        return
+      }
+
+      setEjercicios(resultado.ejercicios)
+      setEjerciciosAbiertos((estadoActual) => ({
+        ...crearEstadoAbierto(resultado.ejercicios),
+        ...estadoActual,
+      }))
+      setEstadoPorEjercicio({})
+
+      if (resultado.sincronizados > 0) {
+        setMensaje(`Se sincronizaron ${resultado.sincronizados} ejercicios pendientes.`)
+      }
+    }
+
+    window.addEventListener('online', sincronizarAlRecuperarConexion)
+    window.addEventListener('pesapp:server-reachable', sincronizarAlRecuperarConexion)
+
+    return () => {
+      cancelado = true
+      window.removeEventListener('online', sincronizarAlRecuperarConexion)
+      window.removeEventListener('pesapp:server-reachable', sincronizarAlRecuperarConexion)
+    }
+  }, [])
 
   async function recargarDesdeServidor(silencioso = false) {
     await cargarCatalogo(silencioso)
@@ -261,6 +352,66 @@ function Ejercicios() {
     }))
   }
 
+  const sincronizarPendientesAhora = async () => {
+    setEstaSincronizandoPendientes(true)
+
+    try {
+      const resultado = await sincronizarEjerciciosPendientes()
+
+      if (!resultado) {
+        return
+      }
+
+      setEjercicios(resultado.ejercicios)
+      setEjerciciosAbiertos((estadoActual) => ({
+        ...crearEstadoAbierto(resultado.ejercicios),
+        ...estadoActual,
+      }))
+      setEstadoPorEjercicio({})
+
+      if (resultado.sincronizados > 0) {
+        setMensaje(`Se sincronizaron ${resultado.sincronizados} ejercicios pendientes.`)
+      } else if (resultado.error) {
+        setMensaje(
+          `${resultado.error.message} Los ejercicios pendientes siguen guardados en local.`,
+        )
+      } else {
+        setMensaje('No habia ejercicios pendientes por sincronizar.')
+      }
+    } catch (errorCapturado) {
+      setMensaje(
+        `${errorCapturado.message} Los ejercicios pendientes siguen guardados en local.`,
+      )
+    } finally {
+      setEstaSincronizandoPendientes(false)
+    }
+  }
+
+  const eliminarPendiente = async (ejercicioPendiente) => {
+    const idPendiente = ejercicioPendiente.idEjercicio
+    setPendienteEliminandoId(idPendiente)
+
+    try {
+      setEjercicios((ejerciciosActuales) =>
+        ejerciciosActuales.map((ejercicio) =>
+          ejercicio.idEjercicio === idPendiente ? quitarEstadoPendiente(ejercicio) : ejercicio,
+        )
+      )
+      setEstadoPorEjercicio((estadoActual) => {
+        const siguienteEstado = { ...estadoActual }
+        delete siguienteEstado[idPendiente]
+        return siguienteEstado
+      })
+      setMensaje(
+        'Se ha quitado de la cola de pendientes. El ejercicio sigue en local y ya no se sincronizara automaticamente.',
+      )
+    } catch (errorCapturado) {
+      setMensaje(`${errorCapturado.message} No se pudo quitar este pendiente.`)
+    } finally {
+      setPendienteEliminandoId('')
+    }
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <section className="rounded-lg border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan transition-all duration-300 ease-out dark:bg-white/[0.04]">
@@ -292,6 +443,13 @@ function Ejercicios() {
               value={busqueda}
               onChange={(evento) => setBusqueda(evento.target.value)}
             />
+            <button
+              className={`${claseBotonPendientes} border-amber-400/50 text-neon-purple shadow-[0_0_22px_rgba(251,191,36,0.2)] hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink dark:text-amber-300`}
+              type="button"
+              onClick={() => setEstaAbiertoModalPendientes(true)}
+            >
+              Pendientes{ejerciciosPendientes.length ? ` (${ejerciciosPendientes.length})` : ''}
+            </button>
             <button
               className="hidden rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
               type="button"
@@ -593,6 +751,105 @@ function Ejercicios() {
           </div>
         ) : null}
       </section>
+
+      {estaAbiertoModalPendientes ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div
+            className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-amber-400/30 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.38)] dark:bg-[#050816]"
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-white/10">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-500">
+                  Pendientes
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
+                  Cola offline de ejercicios
+                </h2>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  Aqui ves los ejercicios guardados en local que aun no han subido al backend.
+                </p>
+              </div>
+
+              <button
+                className="rounded-full border border-slate-300 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:text-slate-300"
+                type="button"
+                onClick={() => setEstaAbiertoModalPendientes(false)}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10">
+              <button
+                className="rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:text-neon-cyan"
+                type="button"
+                disabled={estaSincronizandoPendientes}
+                onClick={sincronizarPendientesAhora}
+              >
+                {estaSincronizandoPendientes ? 'Sincronizando...' : 'Sincronizar ahora'}
+              </button>
+              <p className="self-center text-sm text-slate-500 dark:text-slate-400">
+                {ejerciciosPendientes.length === 0
+                  ? 'No hay ejercicios pendientes.'
+                  : `${ejerciciosPendientes.length} ejercicio${ejerciciosPendientes.length === 1 ? '' : 's'} pendiente${ejerciciosPendientes.length === 1 ? '' : 's'} de subida.`}
+              </p>
+            </div>
+
+            <div className="max-h-[55vh] overflow-y-auto px-5 py-4">
+              {ejerciciosPendientes.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
+                  No hay ejercicios pendientes de sincronizar.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {ejerciciosPendientes.map((ejercicio) => (
+                    <article
+                      className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-pes-black/50"
+                      key={ejercicio.idEjercicio}
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-500">
+                            {ejercicio.catalogoEjercicioId ? 'Edicion pendiente' : 'Borrador local'}
+                          </p>
+                          <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">
+                            {ejercicio.nombre || 'Ejercicio sin nombre'}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            {ejercicio.grupoMuscular || 'Sin grupo'} ·{' '}
+                            {ejercicio.patronMovimiento || 'Patron sin definir'} ·{' '}
+                            {ejercicio.seriesPlanificadas}x{ejercicio.repeticionesPlanificadas}
+                          </p>
+                        </div>
+                        <div className={claseCampoCompacto}>
+                          <span>Identificador local</span>
+                          <strong className="text-[12px] normal-case tracking-normal text-slate-700 dark:text-slate-200">
+                            {ejercicio.idEjercicio}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple disabled:cursor-not-allowed disabled:opacity-60"
+                          type="button"
+                          disabled={pendienteEliminandoId === ejercicio.idEjercicio}
+                          onClick={() => eliminarPendiente(ejercicio)}
+                        >
+                          {pendienteEliminandoId === ejercicio.idEjercicio
+                            ? 'Quitando...'
+                            : 'Quitar de la cola'}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }

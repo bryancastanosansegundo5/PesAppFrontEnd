@@ -52,19 +52,21 @@ export function fusionarRegistrosPesoGuardados(registrosRemotos) {
   return registrosFusionados
 }
 
-export function guardarPesoDelDia(peso, fecha = new Date()) {
-  const fechaRegistro = aFechaRegistro(fecha)
+export function guardarPesoDelDia(
+  peso,
+  { fecha = new Date(), horaRegistro = '', horaManual = false, registroExistente = null } = {},
+) {
   const registrosActuales = obtenerRegistrosPesoGuardados()
-  const registroExistente =
-    registrosActuales.find((registro) => registro.fechaRegistro === fechaRegistro) || null
   const registroActualizado = crearRegistroPesoLocal({
     peso,
     fecha,
+    horaRegistro,
+    horaManual,
     registroExistente,
   })
-  const restoRegistros = registrosActuales.filter(
-    (registro) => registro.fechaRegistro !== fechaRegistro,
-  )
+  const restoRegistros = registroExistente?.clientId
+    ? registrosActuales.filter((registro) => registro.clientId !== registroExistente.clientId)
+    : registrosActuales
 
   return guardarRegistrosPesoGuardados([registroActualizado, ...restoRegistros])
 }
@@ -72,9 +74,7 @@ export function guardarPesoDelDia(peso, fecha = new Date()) {
 export function reemplazarRegistroPesoGuardado(registro) {
   const registroNormalizado = normalizarRegistroPeso(registro)
   const restoRegistros = obtenerRegistrosPesoGuardados().filter(
-    (item) =>
-      item.clientId !== registroNormalizado.clientId &&
-      item.fechaRegistro !== registroNormalizado.fechaRegistro,
+    (item) => item.clientId !== registroNormalizado.clientId,
   )
 
   return guardarRegistrosPesoGuardados([registroNormalizado, ...restoRegistros])

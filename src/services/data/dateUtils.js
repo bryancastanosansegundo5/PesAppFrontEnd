@@ -1,4 +1,5 @@
 const EXPRESION_FECHA_DIA = /^(\d{4})-(\d{2})-(\d{2})$/
+const EXPRESION_HORA_MINUTOS = /^([01]\d|2[0-3]):([0-5]\d)$/
 
 function pad(valor) {
   return String(valor).padStart(2, '0')
@@ -39,6 +40,40 @@ export function aFechaRegistro(valor, valorPorDefecto = '') {
   }
 
   return `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}`
+}
+
+export function esHoraRegistroValida(valor) {
+  return typeof valor === 'string' && EXPRESION_HORA_MINUTOS.test(valor)
+}
+
+export function aHoraRegistro(valor, valorPorDefecto = '') {
+  if (esHoraRegistroValida(valor)) {
+    return valor
+  }
+
+  const fecha = parseFechaIso(valor)
+
+  if (!fecha) {
+    return valorPorDefecto
+  }
+
+  return `${pad(fecha.getHours())}:${pad(fecha.getMinutes())}`
+}
+
+export function combinarFechaYHora(fechaBase, horaRegistro) {
+  const fecha = parseFechaIso(fechaBase)
+
+  if (!fecha) {
+    return null
+  }
+
+  if (!esHoraRegistroValida(horaRegistro)) {
+    return fecha
+  }
+
+  const [horas, minutos] = horaRegistro.split(':').map(Number)
+  fecha.setHours(horas, minutos, 0, 0)
+  return fecha
 }
 
 export function inicioDiaLocal(valor = new Date()) {

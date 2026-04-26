@@ -2,9 +2,9 @@ export function crearIdLocal(prefijo) {
   return `${prefijo}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-export function normalizarVersion(valor, valorPorDefecto = 1) {
+export function normalizarVersion(valor, valorPorDefecto = 0) {
   const version = Number(valor)
-  return Number.isFinite(version) && version > 0 ? version : valorPorDefecto
+  return Number.isFinite(version) && version >= 0 ? version : valorPorDefecto
 }
 
 export function normalizarIdTexto(...valores) {

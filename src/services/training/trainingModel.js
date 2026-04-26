@@ -206,6 +206,7 @@ export function normalizarEjercicio(ejercicio, indice = 0) {
   const idEjercicioNormalizado =
     normalizarIdTexto(
       ejercicio?.clientId,
+      ejercicio?.localId,
       ejercicio?.idEjercicio,
       ejercicio?.exerciseId,
       ejercicio?.id,
@@ -216,7 +217,7 @@ export function normalizarEjercicio(ejercicio, indice = 0) {
   return {
     id: normalizarIdTexto(ejercicio?.id, ejercicio?.idEjercicio, idEjercicioNormalizado),
     idEjercicio: idEjercicioNormalizado,
-    clientId: normalizarIdTexto(ejercicio?.clientId, idEjercicioNormalizado),
+    clientId: normalizarIdTexto(ejercicio?.clientId, ejercicio?.localId, idEjercicioNormalizado),
     plantillaEjercicioId: normalizarPlantillaEjercicioId(
       plantillaEjercicioId,
       idEjercicioNormalizado,
@@ -267,7 +268,7 @@ export function normalizarSesion(sesion) {
 
   return {
     id: normalizarIdTexto(sesion?.id, idSesion),
-    clientId: normalizarIdTexto(sesion?.clientId, idSesion),
+    clientId: normalizarIdTexto(sesion?.clientId, sesion?.localId, idSesion),
     idSesion,
     nombreSesion: sesion?.nombreSesion || sesion?.sessionName || sesion?.name || 'Sesion sin nombre',
     fechaInicio: aIsoString(sesion?.fechaInicio || sesion?.startedAt, ''),

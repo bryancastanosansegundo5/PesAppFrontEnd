@@ -6,96 +6,258 @@ import {
   obtenerRegistrosPesoGuardados,
   reemplazarRegistroPesoGuardado,
 } from '../storage/weightStorage'
-import { esMismoDiaLocal } from '../data/dateUtils'
-import { esRegistroDeHoy } from './weightModel'
 import {
   crearPesoEnServidor,
-  guardarPesoHoyEnServidor,
   obtenerPesoDesdeServidor,
 } from './weightApiService'
+
+let sincronizacionPesoActiva = null
+const ERROR_CONFLICTO_VERSION = 'Conflicto de version'
+const ERROR_CONFLICTO_DATOS = 'Conflicto de datos'
 
 function esErrorRecuperable(error) {
   return error instanceof ApiError && (error.status === 0 || error.status >= 500)
 }
 
-async function sincronizarRegistroPendiente(registro) {
-  if (esRegistroDeHoy(registro)) {
-    const registroServidor = await guardarPesoHoyEnServidor(registro)
-    return registroServidor || { ...registro, syncStatus: 'synced' }
+function clasificarConflictoPeso(error) {
+  if (!(error instanceof ApiError) || error.status !== 409) {
+    return null
   }
 
-  const registroServidor = await crearPesoEnServidor(registro)
-  return registroServidor || { ...registro, syncStatus: 'synced' }
+  if (error.backendError === ERROR_CONFLICTO_VERSION) {
+    return 'version'
+  }
+
+  if (error.backendError === ERROR_CONFLICTO_DATOS) {
+    return 'data'
+  }
+
+  return 'unknown'
 }
 
-export async function sincronizarRegistrosPesoPendientes() {
-  let registrosActuales = obtenerRegistrosPesoGuardados()
-  const pendientes = registrosActuales.filter((registro) => registro.syncStatus === 'pending')
-  let sincronizados = 0
+function encontrarRegistroRelacionado(registros, registroObjetivo) {
+  if (!Array.isArray(registros) || !registroObjetivo) {
+    return null
+  }
 
-  for (const registroPendiente of pendientes) {
-    try {
-      const registroServidor = await sincronizarRegistroPendiente(registroPendiente)
-      registrosActuales = reemplazarRegistroPesoGuardado(registroServidor)
-      sincronizados += 1
-    } catch (error) {
-      return {
-        registros: registrosActuales,
-        sincronizados,
-        pendientesRestantes: registrosActuales.filter((registro) => registro.syncStatus === 'pending')
-          .length,
-        online: !esErrorRecuperable(error),
-        error,
-      }
+  if (registroObjetivo.clientId) {
+    const encontradoPorClientId =
+      registros.find((item) => item.clientId === registroObjetivo.clientId) || null
+
+    if (encontradoPorClientId) {
+      return encontradoPorClientId
     }
   }
 
-  return {
-    registros: registrosActuales,
-    sincronizados,
-    pendientesRestantes: registrosActuales.filter((registro) => registro.syncStatus === 'pending')
-      .length,
-    online: true,
-    error: null,
+  if (registroObjetivo.id) {
+    return registros.find((item) => item.id === registroObjetivo.id) || null
   }
+
+  return null
+}
+
+function enriquecerErrorPeso(error, extras = {}) {
+  if (!(error instanceof ApiError)) {
+    return error
+  }
+
+  Object.assign(error, extras)
+  return error
+}
+
+function crearRegistroSincronizado(registroLocal, registroServidor) {
+  return registroServidor || { ...registroLocal, syncStatus: 'synced' }
+}
+
+async function enviarRegistroPeso(registro) {
+  return crearPesoEnServidor(registro)
+}
+
+async function resolverConflictoDeVersion(registroLocal, registrosPrevios, errorOriginal) {
+  try {
+    const registrosServidor = await obtenerPesoDesdeServidor()
+    const registroServidor = encontrarRegistroRelacionado(registrosServidor, registroLocal)
+    const registrosActualizados = registroServidor
+      ? reemplazarRegistroPesoGuardado(registroServidor)
+      : fusionarRegistrosPesoGuardados(registrosServidor)
+
+    throw enriquecerErrorPeso(errorOriginal, {
+      conflictType: 'version',
+      latestRecord: registroServidor,
+      latestRecords: registrosActualizados,
+      message:
+        errorOriginal.backendMessage ||
+        'La version enviada no coincide con la version actual del recurso. Se ha recargado el dato mas reciente del backend.',
+    })
+  } catch (errorRefresco) {
+    if (errorRefresco instanceof ApiError && errorRefresco.conflictType === 'version') {
+      throw errorRefresco
+    }
+
+    const registrosRestaurados = guardarRegistrosPesoGuardados(registrosPrevios)
+
+    throw enriquecerErrorPeso(errorOriginal, {
+      conflictType: 'version',
+      latestRecord: encontrarRegistroRelacionado(registrosRestaurados, registroLocal),
+      latestRecords: registrosRestaurados,
+      refreshFailed: true,
+      message:
+        errorOriginal.backendMessage ||
+        'La version enviada no coincide con la version actual del recurso.',
+    })
+  }
+}
+
+function crearConflictoDeDatos(errorOriginal) {
+  return enriquecerErrorPeso(errorOriginal, {
+    conflictType: 'data',
+    message:
+      errorOriginal.backendMessage ||
+      'No se ha podido guardar el recurso porque los datos entran en conflicto con el estado actual.',
+  })
+}
+
+async function sincronizarRegistroPendiente(registro) {
+  try {
+    const registroServidor = await enviarRegistroPeso(registro)
+    return registroServidor || { ...registro, syncStatus: 'synced' }
+  } catch (error) {
+    const tipoConflicto = clasificarConflictoPeso(error)
+
+    if (tipoConflicto !== 'version') {
+      throw error
+    }
+
+    const registrosServidor = await obtenerPesoDesdeServidor()
+    const registroExistente = encontrarRegistroRelacionado(registrosServidor, registro)
+
+    if (registroExistente) {
+      return registroExistente
+    }
+
+    throw error
+  }
+}
+
+export async function sincronizarRegistrosPesoPendientes() {
+  if (sincronizacionPesoActiva) {
+    return sincronizacionPesoActiva
+  }
+
+  sincronizacionPesoActiva = (async () => {
+    let registrosActuales = obtenerRegistrosPesoGuardados()
+    const pendientes = registrosActuales.filter((registro) => registro.syncStatus === 'pending')
+    let sincronizados = 0
+
+    for (const registroPendiente of pendientes) {
+      try {
+        const registroServidor = await sincronizarRegistroPendiente(registroPendiente)
+        registrosActuales = reemplazarRegistroPesoGuardado(registroServidor)
+        sincronizados += 1
+      } catch (error) {
+        return {
+          registros: registrosActuales,
+          sincronizados,
+          pendientesRestantes: registrosActuales.filter(
+            (registro) => registro.syncStatus === 'pending',
+          ).length,
+          online: !esErrorRecuperable(error),
+          error,
+        }
+      }
+    }
+
+    return {
+      registros: registrosActuales,
+      sincronizados,
+      pendientesRestantes: registrosActuales.filter((registro) => registro.syncStatus === 'pending')
+        .length,
+      online: true,
+      error: null,
+    }
+  })().finally(() => {
+    sincronizacionPesoActiva = null
+  })
+
+  return sincronizacionPesoActiva
 }
 
 export async function cargarRegistrosPeso() {
   try {
-    await sincronizarRegistrosPesoPendientes()
+    const resultadoSincronizacion = await sincronizarRegistrosPesoPendientes()
     const registrosServidor = await obtenerPesoDesdeServidor()
     const registros = fusionarRegistrosPesoGuardados(registrosServidor)
-    return { registros, online: true, error: null }
+    return {
+      registros,
+      online: true,
+      error: null,
+      sincronizados: resultadoSincronizacion?.sincronizados || 0,
+    }
   } catch (error) {
     return {
       registros: obtenerRegistrosPesoGuardados(),
       online: false,
       error,
+      sincronizados: 0,
     }
   }
 }
 
-export async function guardarPesoConRespaldo(peso, fecha = new Date()) {
+export async function guardarPesoConRespaldo(
+  peso,
+  { fecha = new Date(), horaRegistro = '', horaManual = false, registroExistente = null } = {},
+) {
   const registrosPrevios = obtenerRegistrosPesoGuardados()
-  const registrosLocales = guardarPesoDelDia(peso, fecha)
-  const esHoy = esMismoDiaLocal(fecha, new Date())
+  const registrosLocales = guardarPesoDelDia(peso, {
+    fecha,
+    horaRegistro,
+    horaManual,
+    registroExistente,
+  })
+  const registroLocal = registroExistente?.clientId
+    ? registrosLocales.find((registro) => registro.clientId === registroExistente.clientId) || null
+    : registrosLocales.find((registro) => registro.syncStatus === 'pending') || null
 
   try {
-    if (esHoy) {
-      await guardarPesoHoyEnServidor(registrosLocales[0])
-    } else {
-      await crearPesoEnServidor(registrosLocales[0])
-    }
+    const registroSincronizado = crearRegistroSincronizado(
+      registroLocal,
+      await crearPesoEnServidor(registroLocal),
+    )
 
-    const registrosServidor = await obtenerPesoDesdeServidor()
-    const registros = fusionarRegistrosPesoGuardados(registrosServidor)
+    const registrosSincronizados = reemplazarRegistroPesoGuardado(registroSincronizado)
 
-    return {
-      registros,
-      online: true,
-      error: null,
+    try {
+      const registrosServidor = await obtenerPesoDesdeServidor()
+      const registros = fusionarRegistrosPesoGuardados(registrosServidor)
+
+      return {
+        registros,
+        online: true,
+        error: null,
+      }
+    } catch (error) {
+      if (!esErrorRecuperable(error)) {
+        throw error
+      }
+
+      return {
+        registros: registrosSincronizados,
+        online: true,
+        error: null,
+      }
     }
   } catch (error) {
+    const tipoConflicto = clasificarConflictoPeso(error)
+
+    if (tipoConflicto === 'version') {
+      await resolverConflictoDeVersion(registroLocal, registrosPrevios, error)
+    }
+
+    if (tipoConflicto === 'data') {
+      guardarRegistrosPesoGuardados(registrosPrevios)
+      throw crearConflictoDeDatos(error)
+    }
+
     if (!esErrorRecuperable(error)) {
       guardarRegistrosPesoGuardados(registrosPrevios)
       throw error

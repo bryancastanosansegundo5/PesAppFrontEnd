@@ -134,34 +134,53 @@ function normalizarAlturaBanco(valor) {
   return valor === null || valor === undefined ? '' : String(valor)
 }
 
-function obtenerIdCatalogo(ejercicio, indice = 0) {
+function esIdCatalogoTemporal(valor) {
+  const id = String(valor || '')
+
+  return (
+    !id ||
+    id.startsWith('catalogo-') ||
+    id.startsWith('exercise-') ||
+    id.startsWith('ejercicio-') ||
+    id.startsWith('manual-')
+  )
+}
+
+function obtenerIdCatalogoPersistido(ejercicio) {
   const idCatalogo =
     ejercicio?.catalogoEjercicioId ??
     ejercicio?.catalogExerciseId ??
+    ejercicio?.exerciseCatalogId ??
     ejercicio?.id ??
-    ejercicio?.idEjercicio ??
     ejercicio?.exerciseId
 
-  return idCatalogo ? String(idCatalogo) : crearIdLocal(`catalogo-${indice + 1}`)
+  if (!idCatalogo) {
+    return ''
+  }
+
+  const idNormalizado = String(idCatalogo)
+  return esIdCatalogoTemporal(idNormalizado) ? '' : idNormalizado
 }
 
 export function normalizarPlantillaEjercicio(ejercicio, indice = 0) {
-  const idCatalogo = obtenerIdCatalogo(ejercicio, indice)
-  const clientId = normalizarIdTexto(
-    ejercicio?.clientId,
-    ejercicio?.idEjercicio,
-    ejercicio?.localId,
-    idCatalogo,
-  )
-  const idEjercicio = clientId || idCatalogo
+  const idCatalogoPersistido = obtenerIdCatalogoPersistido(ejercicio)
+  const idLocal =
+    normalizarIdTexto(
+      ejercicio?.clientId,
+      ejercicio?.idEjercicio,
+      ejercicio?.localId,
+      idCatalogoPersistido,
+    ) || crearIdLocal(`catalogo-${indice + 1}`)
+  const clientId = normalizarIdTexto(ejercicio?.clientId, idLocal)
+  const esBorrador = Boolean(ejercicio?.esBorrador ?? !idCatalogoPersistido)
   const createdAt = aIsoString(ejercicio?.createdAt, '')
   const updatedAt = aIsoString(ejercicio?.updatedAt, createdAt)
 
   return {
-    id: normalizarIdTexto(ejercicio?.id, idCatalogo) || idCatalogo,
-    idEjercicio,
+    id: normalizarIdTexto(ejercicio?.id, idCatalogoPersistido, idLocal) || idLocal,
+    idEjercicio: idLocal,
     clientId,
-    catalogoEjercicioId: idCatalogo,
+    catalogoEjercicioId: idCatalogoPersistido,
     nombre: ejercicio?.nombre || ejercicio?.name || 'Ejercicio sin nombre',
     descripcion: ejercicio?.descripcion || ejercicio?.description || '',
     grupoMuscular: ejercicio?.grupoMuscular || ejercicio?.muscleGroup || '',
@@ -183,7 +202,8 @@ export function normalizarPlantillaEjercicio(ejercicio, indice = 0) {
     createdAt,
     updatedAt,
     version: normalizarVersion(ejercicio?.version, 1),
-    syncStatus: ejercicio?.syncStatus || (ejercicio?.esBorrador ? 'pending' : 'synced'),
+    esBorrador,
+    syncStatus: ejercicio?.syncStatus || (esBorrador ? 'pending' : 'synced'),
   }
 }
 

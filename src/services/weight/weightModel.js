@@ -1,9 +1,26 @@
-import { aFechaRegistro, aIsoString, esMismoDiaLocal, parseFechaIso } from '../data/dateUtils'
+import {
+  aFechaRegistro,
+  aHoraRegistro,
+  aIsoString,
+  combinarFechaYHora,
+  esMismoDiaLocal,
+  parseFechaIso,
+} from '../data/dateUtils'
 import { crearIdLocal, normalizarIdTexto, normalizarVersion } from '../data/syncModel'
 
 function normalizarPesoNumero(valor) {
   const peso = Number(valor)
   return Number.isFinite(peso) ? Number(peso.toFixed(1)) : 0
+}
+
+function obtenerMarcaTemporalClientId() {
+  const ahora = new Date()
+  const horas = String(ahora.getHours()).padStart(2, '0')
+  const minutos = String(ahora.getMinutes()).padStart(2, '0')
+  const segundos = String(ahora.getSeconds()).padStart(2, '0')
+  const milisegundos = String(ahora.getMilliseconds()).padStart(3, '0')
+
+  return `${horas}${minutos}${segundos}${milisegundos}`
 }
 
 function crearClientIdPeso(fechaRegistro, clientIdExistente) {
@@ -12,27 +29,48 @@ function crearClientIdPeso(fechaRegistro, clientIdExistente) {
   }
 
   if (fechaRegistro) {
-    return `peso-${fechaRegistro}`
+    return `peso-${fechaRegistro}-${obtenerMarcaTemporalClientId()}-${Math.random().toString(16).slice(2, 8)}`
   }
 
   return crearIdLocal('peso')
+}
+
+function obtenerMarcaTemporalRegistro(registro) {
+  const fechaConHora =
+    combinarFechaYHora(registro?.fechaRegistro, registro?.horaRegistro) ||
+    parseFechaIso(registro?.fecha) ||
+    parseFechaIso(registro?.updatedAt) ||
+    parseFechaIso(registro?.createdAt)
+
+  return fechaConHora?.getTime() || 0
 }
 
 export function normalizarRegistroPeso(registro, indice = 0) {
   const fechaRegistro = aFechaRegistro(
     registro?.fechaRegistro ?? registro?.fecha ?? registro?.date ?? new Date(),
   )
+  const horaRegistro = aHoraRegistro(
+    registro?.horaRegistro ?? registro?.hora ?? registro?.time ?? registro?.fecha ?? registro?.createdAt,
+  )
+  const horaManual = Boolean(
+    registro?.horaManual ?? registro?.timeTouched ?? registro?.horaFueEditada ?? false,
+  )
   const clientId = crearClientIdPeso(
     fechaRegistro,
     registro?.clientId ?? registro?.clienteId ?? registro?.localId,
   )
   const id = normalizarIdTexto(registro?.id, clientId || `peso-${indice + 1}`) || clientId
+  const fechaConHora =
+    combinarFechaYHora(fechaRegistro, horaRegistro) ||
+    parseFechaIso(registro?.fecha) ||
+    parseFechaIso(registro?.createdAt) ||
+    new Date()
   const createdAt = aIsoString(
-    registro?.createdAt ?? registro?.fechaCreacion ?? registro?.fecha ?? fechaRegistro,
+    registro?.createdAt ?? registro?.fechaCreacion ?? registro?.fecha ?? fechaConHora,
     new Date().toISOString(),
   )
   const updatedAt = aIsoString(
-    registro?.updatedAt ?? registro?.fechaActualizacion ?? registro?.fecha ?? createdAt,
+    registro?.updatedAt ?? registro?.fechaActualizacion ?? registro?.fecha ?? fechaConHora ?? createdAt,
     createdAt,
   )
   const syncStatus = registro?.syncStatus || (registro?.pendienteSync ? 'pending' : 'synced')
@@ -43,10 +81,12 @@ export function normalizarRegistroPeso(registro, indice = 0) {
     clientId,
     peso: normalizarPesoNumero(registro?.peso),
     fechaRegistro,
-    fecha: aIsoString(registro?.fecha ?? registro?.fechaRegistro ?? fechaRegistro, createdAt),
+    horaRegistro,
+    horaManual,
+    fecha: aIsoString(registro?.fecha ?? fechaConHora ?? registro?.fechaRegistro ?? fechaRegistro, createdAt),
     createdAt,
     updatedAt,
-    version: normalizarVersion(registro?.version, 1),
+    version: normalizarVersion(registro?.version, 0),
     syncStatus,
   }
 }
@@ -60,9 +100,7 @@ export function normalizarListaPeso(registros) {
     .map(normalizarRegistroPeso)
     .filter((registro) => registro.peso > 0)
     .sort((primero, segundo) => {
-      const fechaSegundo = parseFechaIso(segundo.fechaRegistro)?.getTime() || 0
-      const fechaPrimero = parseFechaIso(primero.fechaRegistro)?.getTime() || 0
-      return fechaSegundo - fechaPrimero
+      return obtenerMarcaTemporalRegistro(segundo) - obtenerMarcaTemporalRegistro(primero)
     })
 }
 
@@ -71,6 +109,8 @@ export function crearPayloadPesoHoy(registro) {
 
   return {
     peso: registroNormalizado.peso,
+    horaRegistro: registroNormalizado.horaRegistro,
+    horaManual: registroNormalizado.horaManual,
     clientId: registroNormalizado.clientId,
     version: registroNormalizado.version,
   }
@@ -82,6 +122,8 @@ export function crearPayloadPeso(registro) {
   return {
     peso: registroNormalizado.peso,
     fechaRegistro: registroNormalizado.fechaRegistro,
+    horaRegistro: registroNormalizado.horaRegistro,
+    horaManual: registroNormalizado.horaManual,
     clientId: registroNormalizado.clientId,
     version: registroNormalizado.version,
   }
@@ -120,11 +162,16 @@ export function combinarRegistrosPeso(locales, remotos) {
 export function crearRegistroPesoLocal({
   peso,
   fecha = new Date(),
+  horaRegistro = '',
+  horaManual = false,
   registroExistente = null,
   syncStatus = 'pending',
 }) {
+  const fechaBase = parseFechaIso(fecha) || new Date()
   const fechaRegistro = aFechaRegistro(fecha)
-  const createdAt = registroExistente?.createdAt || aIsoString(fecha, new Date().toISOString())
+  const horaFinal = aHoraRegistro(horaRegistro, aHoraRegistro(fechaBase))
+  const fechaFinal = combinarFechaYHora(fechaBase, horaFinal) || fechaBase
+  const createdAt = registroExistente?.createdAt || aIsoString(fechaFinal, new Date().toISOString())
 
   return normalizarRegistroPeso({
     ...registroExistente,
@@ -132,10 +179,12 @@ export function crearRegistroPesoLocal({
     clientId: crearClientIdPeso(fechaRegistro, registroExistente?.clientId),
     peso,
     fechaRegistro,
-    fecha: aIsoString(fecha, createdAt),
+    horaRegistro: horaFinal,
+    horaManual,
+    fecha: aIsoString(fechaFinal, createdAt),
     createdAt,
     updatedAt: new Date().toISOString(),
-    version: normalizarVersion(registroExistente?.version, 0) + 1,
+    version: normalizarVersion(registroExistente?.version, 0),
     syncStatus,
   })
 }

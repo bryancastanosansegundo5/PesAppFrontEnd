@@ -14,8 +14,16 @@ export class ApiError extends Error {
 }
 
 let refreshPromise = null
+let servidorDisponible = true
 
 function publicarServidorNoDisponible(message, detail = {}) {
+  const haCambiado = servidorDisponible !== false
+  servidorDisponible = false
+
+  if (!haCambiado) {
+    return
+  }
+
   window.dispatchEvent(
     new CustomEvent('pesapp:server-unreachable', {
       detail: {
@@ -27,6 +35,13 @@ function publicarServidorNoDisponible(message, detail = {}) {
 }
 
 function publicarServidorDisponible(detail = {}) {
+  const haCambiado = servidorDisponible !== true
+  servidorDisponible = true
+
+  if (!haCambiado) {
+    return
+  }
+
   window.dispatchEvent(
     new CustomEvent('pesapp:server-reachable', {
       detail,

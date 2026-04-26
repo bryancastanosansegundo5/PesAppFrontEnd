@@ -1,14 +1,28 @@
 import { ApiError } from '../http/apiClient'
+import { obtenerCatalogoEjerciciosGuardado } from '../storage/exerciseCatalogStorage'
 import {
-  fusionarHistorialEntrenamientosGuardado,
+  guardarEntrenamientoActualGuardado,
   guardarHistorialEntrenamientosGuardado,
+  obtenerEntrenamientoActualGuardado,
   obtenerHistorialEntrenamientosGuardado,
+  obtenerSesionesGuardadas,
 } from '../storage/trainingStorage'
+import { sincronizarCatalogoEjerciciosPendientes } from '../exercises/exerciseCatalogDataService'
+import { sincronizarSesionesPendientes } from './trainingSessionDataService'
 import { normalizarSesion } from './trainingModel'
 import { guardarEntrenamientoEnServidor } from '../../pages/Entreno/services/entrenoApiService'
 
+let sincronizacionEntrenamientosActiva = null
+
 function esErrorRecuperable(error) {
   return error instanceof ApiError && (error.status === 0 || error.status >= 500)
+}
+
+function normalizarTexto(valor) {
+  return String(valor || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 }
 
 function marcarEntrenamientoPendiente(entrenamiento) {
@@ -108,6 +122,193 @@ function reemplazarEntrenamiento(historial, entrenamiento) {
   ]
 }
 
+function actualizarEntrenamientoActualSiCoincide(entrenamientoActualizado) {
+  const entrenamientoActual = obtenerEntrenamientoActualGuardado()
+
+  if (!entrenamientoActual) {
+    return
+  }
+
+  const coincide =
+    entrenamientoActual.clientId === entrenamientoActualizado.clientId ||
+    entrenamientoActual.id === entrenamientoActualizado.id
+
+  if (!coincide) {
+    return
+  }
+
+  guardarEntrenamientoActualGuardado(entrenamientoActualizado)
+}
+
+function marcarEntrenamientoSincronizado(entrenamiento) {
+  return normalizarSesion({
+    ...entrenamiento,
+    updatedAt: new Date().toISOString(),
+    lastSyncAttemptAt: '',
+    syncStatus: 'synced',
+    syncError: '',
+    syncFieldErrors: {},
+    ejercicios: (entrenamiento?.ejercicios || []).map((ejercicio) => ({
+      ...ejercicio,
+      syncStatus: 'synced',
+      syncError: '',
+      syncFieldErrors: {},
+    })),
+  })
+}
+
+function reemplazarEntrenamientoSincronizado(
+  historial,
+  entrenamientoPendiente,
+  entrenamientoServidor,
+) {
+  const entrenamientoSincronizado = marcarEntrenamientoSincronizado(entrenamientoServidor)
+  const clientIdsAEliminar = new Set(
+    [entrenamientoPendiente?.clientId, entrenamientoSincronizado.clientId].filter(Boolean),
+  )
+  const idsAEliminar = new Set(
+    [entrenamientoPendiente?.id, entrenamientoSincronizado.id].filter(Boolean),
+  )
+
+  return [
+    entrenamientoSincronizado,
+    ...historial.filter(
+      (item) => !clientIdsAEliminar.has(item.clientId) && !idsAEliminar.has(item.id),
+    ),
+  ]
+}
+
+function obtenerSesionRelacionada(entrenamiento, sesiones) {
+  const idsPosibles = new Set(
+    [entrenamiento?.idSesion, entrenamiento?.clientId, entrenamiento?.id]
+      .filter(Boolean)
+      .map(String),
+  )
+
+  return (
+    sesiones.find((sesion) => idsPosibles.has(String(sesion.idSesion || ''))) ||
+    sesiones.find((sesion) => idsPosibles.has(String(sesion.clientId || ''))) ||
+    sesiones.find(
+      (sesion) =>
+        normalizarTexto(sesion.nombreSesion) === normalizarTexto(entrenamiento?.nombreSesion),
+    ) ||
+    null
+  )
+}
+
+function obtenerEjercicioSesionRelacionado(ejercicio, sesionRelacionada) {
+  if (!sesionRelacionada?.ejercicios?.length) {
+    return null
+  }
+
+  const idsPosibles = new Set(
+    [
+      ejercicio?.plantillaEjercicioId,
+      ejercicio?.catalogoEjercicioId,
+      ejercicio?.idEjercicio,
+      ejercicio?.clientId,
+      ejercicio?.id,
+    ]
+      .filter(Boolean)
+      .map(String),
+  )
+
+  return (
+    sesionRelacionada.ejercicios.find(
+      (ejercicioSesion) =>
+        idsPosibles.has(String(ejercicioSesion.plantillaEjercicioId || '')) ||
+        idsPosibles.has(String(ejercicioSesion.catalogoEjercicioId || '')) ||
+        idsPosibles.has(String(ejercicioSesion.idEjercicio || '')) ||
+        idsPosibles.has(String(ejercicioSesion.clientId || '')),
+    ) ||
+    sesionRelacionada.ejercicios.find(
+      (ejercicioSesion) => normalizarTexto(ejercicioSesion.nombre) === normalizarTexto(ejercicio?.nombre),
+    ) ||
+    null
+  )
+}
+
+function obtenerEjercicioCatalogoRelacionado(ejercicio, catalogoEjercicios) {
+  const idsPosibles = new Set(
+    [ejercicio?.catalogoEjercicioId, ejercicio?.idEjercicio, ejercicio?.clientId, ejercicio?.id]
+      .filter(Boolean)
+      .map(String),
+  )
+
+  return (
+    catalogoEjercicios.find((ejercicioCatalogo) =>
+      idsPosibles.has(String(ejercicioCatalogo.catalogoEjercicioId || '')),
+    ) ||
+    catalogoEjercicios.find(
+      (ejercicioCatalogo) =>
+        ejercicio?.clientId && ejercicioCatalogo.clientId === ejercicio.clientId,
+    ) ||
+    catalogoEjercicios.find(
+      (ejercicioCatalogo) =>
+        normalizarTexto(ejercicioCatalogo.nombre) === normalizarTexto(ejercicio?.nombre),
+    ) ||
+    null
+  )
+}
+
+function reconciliarEntrenamientoPendiente(entrenamiento, sesiones, catalogoEjercicios) {
+  const sesionRelacionada = obtenerSesionRelacionada(entrenamiento, sesiones)
+
+  return normalizarSesion({
+    ...entrenamiento,
+    idSesion: sesionRelacionada?.idSesion || entrenamiento.idSesion,
+    nombreSesion: sesionRelacionada?.nombreSesion || entrenamiento.nombreSesion,
+    ejercicios: (entrenamiento?.ejercicios || []).map((ejercicio) => {
+      const ejercicioSesion = obtenerEjercicioSesionRelacionado(ejercicio, sesionRelacionada)
+      const ejercicioCatalogo =
+        obtenerEjercicioCatalogoRelacionado(ejercicio, catalogoEjercicios) ||
+        obtenerEjercicioCatalogoRelacionado(ejercicioSesion, catalogoEjercicios)
+
+      return {
+        ...ejercicio,
+        plantillaEjercicioId:
+          ejercicioSesion?.plantillaEjercicioId || ejercicio.plantillaEjercicioId || null,
+        catalogoEjercicioId:
+          ejercicioCatalogo?.catalogoEjercicioId ||
+          ejercicioSesion?.catalogoEjercicioId ||
+          ejercicio.catalogoEjercicioId,
+        nombre: ejercicioCatalogo?.nombre || ejercicioSesion?.nombre || ejercicio.nombre,
+        descripcion:
+          ejercicio.descripcion ||
+          ejercicioSesion?.descripcion ||
+          ejercicioCatalogo?.descripcion ||
+          '',
+        grupoMuscular:
+          ejercicio.grupoMuscular ||
+          ejercicioSesion?.grupoMuscular ||
+          ejercicioCatalogo?.grupoMuscular ||
+          '',
+        patronMovimiento:
+          ejercicio.patronMovimiento ||
+          ejercicioSesion?.patronMovimiento ||
+          ejercicioCatalogo?.patronMovimiento ||
+          '',
+        equipamiento:
+          ejercicio.equipamiento ||
+          ejercicioSesion?.equipamiento ||
+          ejercicioCatalogo?.equipamiento ||
+          '',
+        agarre: ejercicio.agarre || ejercicioSesion?.agarre || ejercicioCatalogo?.agarre || '',
+      }
+    }),
+  })
+}
+
+async function prepararDependenciasEntrenamientos() {
+  await sincronizarCatalogoEjerciciosPendientes()
+  await sincronizarSesionesPendientes()
+
+  return {
+    sesiones: obtenerSesionesGuardadas(),
+    catalogoEjercicios: obtenerCatalogoEjerciciosGuardado(),
+  }
+}
+
 export async function guardarEntrenamientoConRespaldo(entrenamiento) {
   const historialPrevio = obtenerHistorialEntrenamientosGuardado()
   const entrenamientoPendiente = marcarEntrenamientoPendiente(entrenamiento)
@@ -115,23 +316,26 @@ export async function guardarEntrenamientoConRespaldo(entrenamiento) {
     reemplazarEntrenamiento(historialPrevio, entrenamientoPendiente),
   )
 
-  console.log('[EntrenoSync] Guardando entreno con respaldo', {
-    clientId: entrenamientoPendiente.clientId,
-    fechaFin: entrenamientoPendiente.fechaFin,
-    nombreSesion: entrenamientoPendiente.nombreSesion,
-    syncStatus: entrenamientoPendiente.syncStatus,
-  })
-
   try {
-    const entrenamientoServidor = await guardarEntrenamientoEnServidor(entrenamientoPendiente)
-    const historial = fusionarHistorialEntrenamientosGuardado([entrenamientoServidor])
-
-    console.log('[EntrenoSync] Entreno subido al servidor en guardado directo', {
-      clientId: entrenamientoServidor.clientId,
-      id: entrenamientoServidor.id,
-      fechaFin: entrenamientoServidor.fechaFin,
-      nombreSesion: entrenamientoServidor.nombreSesion,
-    })
+    const dependencias = await prepararDependenciasEntrenamientos()
+    const entrenamientoReconciliado = reconciliarEntrenamientoPendiente(
+      entrenamientoPendiente,
+      dependencias.sesiones,
+      dependencias.catalogoEjercicios,
+    )
+    const historialConReferenciasActualizadas = guardarHistorialEntrenamientosGuardado(
+      reemplazarEntrenamiento(obtenerHistorialEntrenamientosGuardado(), entrenamientoReconciliado),
+    )
+    actualizarEntrenamientoActualSiCoincide(entrenamientoReconciliado)
+    const entrenamientoServidor = await guardarEntrenamientoEnServidor(entrenamientoReconciliado)
+    const historial = guardarHistorialEntrenamientosGuardado(
+      reemplazarEntrenamientoSincronizado(
+        historialConReferenciasActualizadas,
+        entrenamientoReconciliado,
+        entrenamientoServidor,
+      ),
+    )
+    actualizarEntrenamientoActualSiCoincide(entrenamientoServidor)
 
     return {
       historial,
@@ -140,13 +344,6 @@ export async function guardarEntrenamientoConRespaldo(entrenamiento) {
       entrenamientosSincronizados: [entrenamientoServidor],
     }
   } catch (error) {
-    console.log('[EntrenoSync] Error al guardar entreno con respaldo', {
-      recoverable: esErrorRecuperable(error),
-      message: error?.message,
-      status: error?.status,
-      clientId: entrenamientoPendiente.clientId,
-    })
-
     if (!esErrorRecuperable(error)) {
       const entrenamientoConError = marcarEntrenamientoConError(entrenamientoPendiente, error)
       const historialConError = guardarHistorialEntrenamientosGuardado(
@@ -171,79 +368,74 @@ export async function guardarEntrenamientoConRespaldo(entrenamiento) {
 }
 
 export async function sincronizarEntrenamientosPendientes(clientIds = []) {
-  let historialActual = obtenerHistorialEntrenamientosGuardado()
-  const clientIdsObjetivo = Array.isArray(clientIds) ? clientIds.filter(Boolean) : []
-  const pendientes = historialActual.filter(
-    (entrenamiento) =>
-      entrenamiento.syncStatus === 'pending' &&
-      (clientIdsObjetivo.length === 0 || clientIdsObjetivo.includes(entrenamiento.clientId)),
-  )
-  let sincronizados = 0
-  const entrenamientosSincronizados = []
-  const entrenamientosFallidos = []
+  if (sincronizacionEntrenamientosActiva) {
+    return sincronizacionEntrenamientosActiva
+  }
 
-  console.log('[EntrenoSync] Inicio sincronizacion pendientes', {
-    pendientes: pendientes.length,
-    filtro: clientIdsObjetivo,
-    clientIds: pendientes.map((entrenamiento) => entrenamiento.clientId),
-  })
+  sincronizacionEntrenamientosActiva = (async () => {
+    let historialActual = obtenerHistorialEntrenamientosGuardado()
+    const clientIdsObjetivo = Array.isArray(clientIds) ? clientIds.filter(Boolean) : []
+    const dependencias = await prepararDependenciasEntrenamientos()
+    const pendientes = historialActual.filter(
+      (entrenamiento) =>
+        entrenamiento.syncStatus === 'pending' &&
+        (clientIdsObjetivo.length === 0 || clientIdsObjetivo.includes(entrenamiento.clientId)),
+    )
+    let sincronizados = 0
+    const entrenamientosSincronizados = []
+    const entrenamientosFallidos = []
 
-  for (const entrenamientoPendiente of pendientes) {
-    try {
-      console.log('[EntrenoSync] Enviando pendiente', {
-        clientId: entrenamientoPendiente.clientId,
-        fechaFin: entrenamientoPendiente.fechaFin,
-        nombreSesion: entrenamientoPendiente.nombreSesion,
-      })
-
-      const entrenamientoServidor = await guardarEntrenamientoEnServidor(entrenamientoPendiente)
-      historialActual = fusionarHistorialEntrenamientosGuardado([entrenamientoServidor])
-      sincronizados += 1
-      entrenamientosSincronizados.push(entrenamientoServidor)
-
-      console.log('[EntrenoSync] Pendiente sincronizado', {
-        clientId: entrenamientoServidor.clientId,
-        id: entrenamientoServidor.id,
-        fechaFin: entrenamientoServidor.fechaFin,
-        nombreSesion: entrenamientoServidor.nombreSesion,
-        sincronizados,
-      })
-    } catch (error) {
-      console.log('[EntrenoSync] Error sincronizando pendiente', {
-        recoverable: esErrorRecuperable(error),
-        message: error?.message,
-        status: error?.status,
-        clientId: entrenamientoPendiente.clientId,
-        sincronizados,
-      })
-      const entrenamientoConError = marcarEntrenamientoConError(entrenamientoPendiente, error)
-      historialActual = guardarHistorialEntrenamientosGuardado(
-        reemplazarEntrenamiento(historialActual, entrenamientoConError),
+    for (const entrenamientoPendiente of pendientes) {
+      const entrenamientoReconciliado = reconciliarEntrenamientoPendiente(
+        entrenamientoPendiente,
+        dependencias.sesiones,
+        dependencias.catalogoEjercicios,
       )
-      entrenamientosFallidos.push({
-        entrenamiento: entrenamientoConError,
-        error,
-      })
-    }
-  }
 
-  console.log('[EntrenoSync] Fin sincronizacion pendientes', {
-    sincronizados,
-    fallidos: entrenamientosFallidos.length,
-    pendientesRestantes: historialActual.filter(
-      (entrenamiento) => entrenamiento.syncStatus === 'pending',
-    ).length,
+      historialActual = guardarHistorialEntrenamientosGuardado(
+        reemplazarEntrenamiento(historialActual, entrenamientoReconciliado),
+      )
+      actualizarEntrenamientoActualSiCoincide(entrenamientoReconciliado)
+
+      try {
+        const entrenamientoServidor = await guardarEntrenamientoEnServidor(entrenamientoReconciliado)
+        historialActual = guardarHistorialEntrenamientosGuardado(
+          reemplazarEntrenamientoSincronizado(
+            historialActual,
+            entrenamientoReconciliado,
+            entrenamientoServidor,
+          ),
+        )
+        actualizarEntrenamientoActualSiCoincide(entrenamientoServidor)
+        sincronizados += 1
+        entrenamientosSincronizados.push(entrenamientoServidor)
+      } catch (error) {
+        const entrenamientoConError = marcarEntrenamientoConError(entrenamientoReconciliado, error)
+        historialActual = guardarHistorialEntrenamientosGuardado(
+          reemplazarEntrenamiento(historialActual, entrenamientoConError),
+        )
+        actualizarEntrenamientoActualSiCoincide(entrenamientoConError)
+        entrenamientosFallidos.push({
+          entrenamiento: entrenamientoConError,
+          error,
+        })
+      }
+    }
+
+    return {
+      historial: historialActual,
+      sincronizados,
+      entrenamientosSincronizados,
+      entrenamientosFallidos,
+      pendientesRestantes: historialActual.filter(
+        (entrenamiento) => entrenamiento.syncStatus === 'pending',
+      ).length,
+      online: entrenamientosFallidos.every(({ error }) => !esErrorRecuperable(error)),
+      error: entrenamientosFallidos[0]?.error || null,
+    }
+  })().finally(() => {
+    sincronizacionEntrenamientosActiva = null
   })
 
-  return {
-    historial: historialActual,
-    sincronizados,
-    entrenamientosSincronizados,
-    entrenamientosFallidos,
-    pendientesRestantes: historialActual.filter(
-      (entrenamiento) => entrenamiento.syncStatus === 'pending',
-    ).length,
-    online: entrenamientosFallidos.every(({ error }) => !esErrorRecuperable(error)),
-    error: entrenamientosFallidos[0]?.error || null,
-  }
+  return sincronizacionEntrenamientosActiva
 }
