@@ -137,8 +137,7 @@ function Login({ onLogin, estaCargando, error, tema, modoOfflineDisponible, esta
               ) : null}
 
               <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
-                Accede con tu username y password. El correo ya no se usa como credencial de
-                login.
+                Accede con tu username y password suministradas por el administrador del sitio.
               </p>
 
               {estaDesconectadoServidor ? (
@@ -159,9 +158,7 @@ function Login({ onLogin, estaCargando, error, tema, modoOfflineDisponible, esta
               </button>
             </form>
 
-            <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-              Tema activo: {isDarkTheme ? 'oscuro' : 'claro'}.
-            </p>
+            
           </div>
         </div>
       </section>
