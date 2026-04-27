@@ -5,8 +5,8 @@ const claseInput =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
 function Login({ onLogin, estaCargando, error, tema, modoOfflineDisponible, estaDesconectadoServidor }) {
-  const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('*_*Passw0rd*_*')
+  const [username, setUsername] = useState('Usuario')
+  const [password, setPassword] = useState('Contraseña')
   const [errorFormulario, setErrorFormulario] = useState('')
   const isDarkTheme = tema === 'dark'
 
