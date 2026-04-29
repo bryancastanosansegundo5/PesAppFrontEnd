@@ -38,3 +38,10 @@ export async function crearPesoEnServidor(registro) {
 
   return payload ? normalizarRegistroPeso(payload) : null
 }
+
+export async function eliminarPesoEnServidor(idRegistro) {
+  await apiRequest(`/api/peso/${idRegistro}`, {
+    method: 'DELETE',
+    auth: true,
+  })
+}

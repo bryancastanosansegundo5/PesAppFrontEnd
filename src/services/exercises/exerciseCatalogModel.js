@@ -215,6 +215,50 @@ export function normalizarListaEjercicios(lista) {
   return lista.map(normalizarPlantillaEjercicio)
 }
 
+function obtenerClavesEjercicioCatalogo(ejercicio) {
+  return [ejercicio?.clientId, ejercicio?.idEjercicio, ejercicio?.catalogoEjercicioId, ejercicio?.id]
+    .filter(Boolean)
+    .map(String)
+}
+
+function buscarClaveEjercicioExistente(mapa, ejercicio) {
+  return obtenerClavesEjercicioCatalogo(ejercicio).find((clave) => mapa.has(clave)) || null
+}
+
+function seleccionarEjercicioMasReciente(existente, candidato) {
+  if (!existente) {
+    return candidato
+  }
+
+  if (candidato.syncStatus === 'pending' && existente.syncStatus !== 'pending') {
+    return candidato
+  }
+
+  if (candidato.version > existente.version) {
+    return candidato
+  }
+
+  const fechaCandidato = new Date(candidato.updatedAt || candidato.createdAt || 0).getTime() || 0
+  const fechaExistente = new Date(existente.updatedAt || existente.createdAt || 0).getTime() || 0
+
+  return fechaCandidato > fechaExistente ? candidato : existente
+}
+
+export function combinarCatalogoEjercicios(locales, remotos) {
+  const mapa = new Map()
+
+  ;[...normalizarListaEjercicios(locales), ...normalizarListaEjercicios(remotos)].forEach((ejercicio) => {
+    const claveExistente = buscarClaveEjercicioExistente(mapa, ejercicio)
+    const existente = claveExistente ? mapa.get(claveExistente) : null
+    const seleccionado = seleccionarEjercicioMasReciente(existente, ejercicio)
+
+    obtenerClavesEjercicioCatalogo(existente).forEach((clave) => mapa.delete(clave))
+    obtenerClavesEjercicioCatalogo(seleccionado).forEach((clave) => mapa.set(clave, seleccionado))
+  })
+
+  return Array.from(new Set(mapa.values()))
+}
+
 export function crearPayloadEjercicioCatalogo(ejercicio) {
   const ejercicioNormalizado = normalizarPlantillaEjercicio(ejercicio)
 

@@ -1,10 +1,12 @@
 import {
+  combinarSesionesGuardadas,
   combinarHistorialEntrenamientos,
   historialPredeterminado,
   normalizarListaSesiones,
   normalizarSesion,
   sesionesPredeterminadas,
 } from '../training/trainingModel'
+import { sincronizarQueueConRecursos } from '../sync/syncQueueStorage'
 
 const CLAVE_SESIONES = 'pesapp-training-sessions'
 const CLAVE_ENTRENAMIENTO_ACTUAL = 'pesapp-current-workout'
@@ -23,6 +25,10 @@ function escribirJson(clave, valor) {
   window.localStorage.setItem(clave, JSON.stringify(valor))
 }
 
+function conservarSoloPendientes(sesiones) {
+  return (sesiones || []).filter((sesion) => sesion?.syncStatus === 'pending')
+}
+
 export function obtenerSesionesGuardadas() {
   const sesiones = normalizarListaSesiones(leerJson(CLAVE_SESIONES, null), sesionesPredeterminadas)
   escribirJson(CLAVE_SESIONES, sesiones)
@@ -30,9 +36,30 @@ export function obtenerSesionesGuardadas() {
 }
 
 export function guardarSesionesGuardadas(sesiones) {
-  const sesionesNormalizadas = sesiones.map(normalizarSesion)
+  const sesionesNormalizadas = combinarSesionesGuardadas([], sesiones).map(normalizarSesion)
   escribirJson(CLAVE_SESIONES, sesionesNormalizadas)
+  sincronizarQueueConRecursos('session', sesionesNormalizadas, (sesion) => ({
+    clientId: sesion?.clientId || sesion?.id || sesion?.idSesion,
+    entityLocalId: sesion?.id || sesion?.idSesion || sesion?.clientId,
+  }))
   return sesionesNormalizadas
+}
+
+export function fusionarSesionesGuardadas(sesionesRemotas) {
+  const sesionesFusionadas = combinarSesionesGuardadas(obtenerSesionesGuardadas(), sesionesRemotas)
+  escribirJson(CLAVE_SESIONES, sesionesFusionadas)
+  return sesionesFusionadas
+}
+
+export function reemplazarSesionesDesdeRemotoConPendientesLocales(sesionesRemotas) {
+  const sesionesLocalesPendientes = conservarSoloPendientes(obtenerSesionesGuardadas())
+  const sesionesFusionadas = combinarSesionesGuardadas(sesionesLocalesPendientes, sesionesRemotas)
+  escribirJson(CLAVE_SESIONES, sesionesFusionadas)
+  sincronizarQueueConRecursos('session', sesionesFusionadas, (sesion) => ({
+    clientId: sesion?.clientId || sesion?.id || sesion?.idSesion,
+    entityLocalId: sesion?.id || sesion?.idSesion || sesion?.clientId,
+  }))
+  return sesionesFusionadas
 }
 
 export function obtenerEntrenamientoActualGuardado() {
@@ -57,8 +84,12 @@ export function obtenerHistorialEntrenamientosGuardado() {
 }
 
 export function guardarHistorialEntrenamientosGuardado(historial) {
-  const historialNormalizado = historial.map(normalizarSesion)
+  const historialNormalizado = combinarHistorialEntrenamientos([], historial).map(normalizarSesion)
   escribirJson(CLAVE_HISTORIAL, historialNormalizado)
+  sincronizarQueueConRecursos('training', historialNormalizado, (entrenamiento) => ({
+    clientId: entrenamiento?.clientId || entrenamiento?.id,
+    entityLocalId: entrenamiento?.id || entrenamiento?.clientId,
+  }))
   return historialNormalizado
 }
 
@@ -69,5 +100,16 @@ export function fusionarHistorialEntrenamientosGuardado(historialRemoto) {
   )
 
   escribirJson(CLAVE_HISTORIAL, historialFusionado)
+  return historialFusionado
+}
+
+export function reemplazarHistorialDesdeRemotoConPendientesLocales(historialRemoto) {
+  const historialLocalPendiente = conservarSoloPendientes(obtenerHistorialEntrenamientosGuardado())
+  const historialFusionado = combinarHistorialEntrenamientos(historialLocalPendiente, historialRemoto)
+  escribirJson(CLAVE_HISTORIAL, historialFusionado)
+  sincronizarQueueConRecursos('training', historialFusionado, (entrenamiento) => ({
+    clientId: entrenamiento?.clientId || entrenamiento?.id,
+    entityLocalId: entrenamiento?.id || entrenamiento?.clientId,
+  }))
   return historialFusionado
 }

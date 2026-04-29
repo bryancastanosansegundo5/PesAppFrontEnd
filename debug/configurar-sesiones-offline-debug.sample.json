@@ -1,0 +1,78 @@
+{
+  "descripcion": "Payloads de referencia para depurar la sincronizacion offline de POST /api/sesiones-entrenamiento.",
+  "bug_detectado": {
+    "version": "No debe enviarse en altas offline nuevas ni en ejercicios hijos nuevos.",
+    "catalogoEjercicioId": "Solo debe enviarse si ya es un id numerico real del backend."
+  },
+  "payload_incorrecto_anterior": {
+    "clientId": "sesion-1745955600000-a1b2c3d4",
+    "nombreSesion": "Sesion offline prueba",
+    "fechaInicio": "",
+    "fechaFin": "",
+    "version": 1,
+    "ejercicios": [
+      {
+        "id": "ejercicio-1745955600001-e1f2a3b4",
+        "idEjercicio": "ejercicio-1745955600001-e1f2a3b4",
+        "clientId": "ejercicio-1745955600001-e1f2a3b4",
+        "catalogoEjercicioId": "bench-press",
+        "nombre": "Press banca",
+        "descripcion": "Press horizontal con control en la bajada y bloqueo estable.",
+        "grupoMuscular": "Pecho",
+        "patronMovimiento": "Empuje horizontal",
+        "equipamiento": "Barra y banco",
+        "seriesPlanificadas": 4,
+        "repeticionesPlanificadas": 10,
+        "pesoPlanificado": 60,
+        "alturaBanco": "30",
+        "agarre": "Medio",
+        "version": 1
+      }
+    ]
+  },
+  "payload_final_frontend_para_alta_offline_nueva": {
+    "clientId": "sesion-1745955600000-a1b2c3d4",
+    "nombreSesion": "Sesion offline prueba",
+    "fechaInicio": null,
+    "fechaFin": null,
+    "ejercicios": [
+      {
+        "idEjercicio": "ejercicio-1745955600001-e1f2a3b4",
+        "clientId": "ejercicio-1745955600001-e1f2a3b4",
+        "nombre": "Press banca",
+        "descripcion": "Press horizontal con control en la bajada y bloqueo estable.",
+        "grupoMuscular": "Pecho",
+        "patronMovimiento": "Empuje horizontal",
+        "equipamiento": "Barra y banco",
+        "seriesPlanificadas": 4,
+        "repeticionesPlanificadas": 10,
+        "pesoPlanificado": 60,
+        "alturaBanco": "30",
+        "agarre": "Medio"
+      }
+    ]
+  },
+  "payload_final_frontend_si_catalogo_ejercicio_esta_reconciliado": {
+    "clientId": "sesion-1745955600000-a1b2c3d4",
+    "nombreSesion": "Sesion offline prueba",
+    "fechaInicio": null,
+    "fechaFin": null,
+    "ejercicios": [
+      {
+        "idEjercicio": "ejercicio-1745955600001-e1f2a3b4",
+        "clientId": "ejercicio-1745955600001-e1f2a3b4",
+        "catalogoEjercicioId": "123",
+        "nombre": "Press banca",
+        "descripcion": "Press horizontal con control en la bajada y bloqueo estable.",
+        "grupoMuscular": "Pecho",
+        "patronMovimiento": "Empuje horizontal",
+        "equipamiento": "Barra y banco",
+        "seriesPlanificadas": 4,
+        "repeticionesPlanificadas": 10,
+        "pesoPlanificado": 60,
+        "alturaBanco": "30",
+        "agarre": "Medio"
+      }
+    ]
+  }
+}

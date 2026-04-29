@@ -5,6 +5,7 @@ import {
   obtenerEntrenamientoActualGuardado,
   obtenerHistorialEntrenamientosGuardado,
   obtenerSesionesGuardadas,
+  reemplazarSesionesDesdeRemotoConPendientesLocales,
 } from '../storage/trainingStorage'
 import { ApiError } from '../http/apiClient'
 import {
@@ -13,6 +14,14 @@ import {
 } from '../../pages/ConfigurarSesiones/services/configurarSesionesApiService'
 import { sincronizarCatalogoEjerciciosPendientes } from '../exercises/exerciseCatalogDataService'
 import { obtenerCatalogoEjerciciosGuardado } from '../storage/exerciseCatalogStorage'
+import { debugSesion, resumirSesionParaLog } from '../debug/sessionSyncDebug'
+import {
+  adquirirLockQueueItem,
+  crearLockOwner,
+  eliminarQueueItem,
+  listarQueueItemsPorTipo,
+  marcarQueueItemComoFallido,
+} from '../sync/syncQueueStorage'
 
 let sincronizacionSesionesActiva = null
 const ERROR_CONFLICTO_VERSION = 'Conflicto de version'
@@ -161,6 +170,7 @@ function marcarSesionConError(sesion, error) {
 
 export async function sincronizarSesionesPendientes() {
   if (sincronizacionSesionesActiva) {
+    debugSesion('sincronizacion ya activa, reutilizando promesa')
     return sincronizacionSesionesActiva
   }
 
@@ -168,16 +178,41 @@ export async function sincronizarSesionesPendientes() {
     await sincronizarCatalogoEjerciciosPendientes()
     let sesionesActuales = obtenerSesionesGuardadas()
     const catalogoEjercicios = obtenerCatalogoEjerciciosGuardado()
-    const pendientes = sesionesActuales.filter((sesion) => sesion.syncStatus === 'pending')
+    const pendientes = listarQueueItemsPorTipo('session')
     let sincronizados = 0
     let ultimoError = null
 
-    for (const sesionPendiente of pendientes) {
+    debugSesion('inicio sincronizarSesionesPendientes', {
+      totalSesiones: sesionesActuales.length,
+      totalCatalogo: catalogoEjercicios.length,
+      pendientes: pendientes.map((item) => item.clientId),
+    })
+
+    for (const pendiente of pendientes) {
+      const sesionPendiente =
+        sesionesActuales.find((sesion) => sesion.clientId === pendiente.clientId) || null
+
+      if (!sesionPendiente) {
+        eliminarQueueItem('session', pendiente.clientId)
+        continue
+      }
+
+      const lockOwner = crearLockOwner('session', pendiente.clientId)
+      const lock = adquirirLockQueueItem('session', pendiente.clientId, lockOwner)
+
+      if (!lock) {
+        continue
+      }
+
       try {
         const sesionReconciliada = reconciliarSesionPendienteConCatalogo(
           sesionPendiente,
           catalogoEjercicios,
         )
+        debugSesion('sincronizando sesion pendiente', {
+          original: resumirSesionParaLog(sesionPendiente),
+          reconciliada: resumirSesionParaLog(sesionReconciliada),
+        })
         const sesionGuardada = await guardarSesionEnServidor(sesionReconciliada)
         actualizarReferenciasSesionEnEntrenos(sesionPendiente, sesionGuardada)
         sesionesActuales = reemplazarSesionGuardada(
@@ -186,17 +221,44 @@ export async function sincronizarSesionesPendientes() {
           sesionGuardada,
         )
         sincronizados += 1
+        debugSesion('sesion sincronizada correctamente', {
+          original: resumirSesionParaLog(sesionPendiente),
+          guardada: resumirSesionParaLog(sesionGuardada),
+          sincronizados,
+        })
       } catch (errorCapturado) {
+        marcarQueueItemComoFallido('session', pendiente.clientId, lockOwner, errorCapturado)
         sesionesActuales = reemplazarSesionGuardada(
           sesionesActuales,
           sesionPendiente,
           marcarSesionConError(sesionPendiente, errorCapturado),
         )
         ultimoError = errorCapturado
+        debugSesion('error al sincronizar sesion pendiente', {
+          sesion: resumirSesionParaLog(sesionPendiente),
+          status: errorCapturado?.status || 0,
+          message: errorCapturado?.message || 'unknown-error',
+          backendError: errorCapturado?.backendError || '',
+          backendMessage: errorCapturado?.backendMessage || '',
+          payload: errorCapturado?.payload || null,
+        })
       }
     }
 
     guardarSesionesGuardadas(sesionesActuales)
+
+    debugSesion('fin sincronizarSesionesPendientes', {
+      sincronizados,
+      ultimoError: ultimoError
+        ? {
+            status: ultimoError?.status || 0,
+            message: ultimoError?.message || 'unknown-error',
+            backendError: ultimoError?.backendError || '',
+            backendMessage: ultimoError?.backendMessage || '',
+          }
+        : null,
+      sesionesFinales: sesionesActuales.map(resumirSesionParaLog),
+    })
 
     return {
       sesiones: sesionesActuales,
@@ -213,10 +275,10 @@ export async function sincronizarSesionesPendientes() {
 export async function recargarSesionesConSincronizacion() {
   const resultadoSincronizacion = await sincronizarSesionesPendientes()
   const sesionesServidor = await obtenerSesionesDesdeServidor()
-  guardarSesionesGuardadas(sesionesServidor)
+  const sesionesFusionadas = reemplazarSesionesDesdeRemotoConPendientesLocales(sesionesServidor)
 
   return {
-    sesiones: sesionesServidor,
+    sesiones: sesionesFusionadas,
     sincronizados: resultadoSincronizacion?.sincronizados || 0,
     error: resultadoSincronizacion?.error || null,
   }

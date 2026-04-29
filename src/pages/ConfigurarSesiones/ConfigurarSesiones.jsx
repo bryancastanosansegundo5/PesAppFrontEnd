@@ -8,6 +8,8 @@ import {
   obtenerCatalogoEjerciciosConfiguracion,
   guardarSesionesConfiguracion,
   obtenerSesionesConfiguracion,
+  reemplazarCatalogoEjerciciosConfiguracionDesdeRemoto,
+  reemplazarSesionesConfiguracionDesdeRemoto,
 } from './services/configurarSesionesLocalService'
 import {
   eliminarSesionEnServidor,
@@ -18,6 +20,7 @@ import {
   recargarSesionesConSincronizacion,
   sincronizarSesionesPendientes as sincronizarSesionesPendientesService,
 } from '../../services/training/trainingSessionDataService'
+import { debugSesion, resumirSesionParaLog } from '../../services/debug/sessionSyncDebug'
 
 const claseInputNumero =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
@@ -132,8 +135,9 @@ function ConfigurarSesiones() {
         }
 
         const catalogoServidor = await obtenerEjerciciosDesdeServidor()
-        setCatalogoEjercicios(catalogoServidor)
-        guardarCatalogoEjerciciosConfiguracion(catalogoServidor)
+        const catalogoActualizado =
+          reemplazarCatalogoEjerciciosConfiguracionDesdeRemoto(catalogoServidor)
+        setCatalogoEjercicios(catalogoActualizado)
       } catch (errorCapturado) {
         setMensajeGeneral(
           `${errorCapturado.message} Se mantiene el catalogo local mientras no se pueda leer el backend.`,
@@ -147,7 +151,12 @@ function ConfigurarSesiones() {
   const agregarSesion = () => {
     const sesion = marcarSesionPendiente(crearSesionVacia())
 
-    setSesiones((sesionesActuales) => [...sesionesActuales, sesion])
+    debugSesion('agregarSesion local', {
+      online: navigator.onLine,
+      sesion: resumirSesionParaLog(sesion),
+    })
+
+    setSesiones((sesionesActuales) => [sesion, ...sesionesActuales])
     setSesionesAbiertas((sesionesAbiertasActuales) => ({
       ...sesionesAbiertasActuales,
       [sesion.id]: true,
@@ -164,7 +173,21 @@ function ConfigurarSesiones() {
   const actualizarSesion = (idSesion, campo, valor) => {
     setSesiones((sesionesActuales) =>
       sesionesActuales.map((sesion) =>
-        sesion.id === idSesion ? marcarSesionPendiente({ ...sesion, [campo]: valor }) : sesion,
+        sesion.id === idSesion
+          ? (() => {
+              const sesionActualizada = marcarSesionPendiente({ ...sesion, [campo]: valor })
+
+              debugSesion('actualizarSesion local', {
+                online: navigator.onLine,
+                idSesion,
+                campo,
+                valor,
+                sesionActualizada: resumirSesionParaLog(sesionActualizada),
+              })
+
+              return sesionActualizada
+            })()
+          : sesion,
       ),
     )
   }
@@ -183,6 +206,10 @@ function ConfigurarSesiones() {
 
   const sincronizarPendientesAhora = async () => {
     setEstaSincronizandoPendientes(true)
+    debugSesion('accion manual sincronizarPendientesAhora', {
+      online: navigator.onLine,
+      pendientesAntes: sesionesPendientes.map(resumirSesionParaLog),
+    })
 
     try {
       const resultado = await sincronizarSesionesPendientes()
@@ -411,6 +438,11 @@ function ConfigurarSesiones() {
   }
 
   const guardarSesionEnServidor = async (sesion) => {
+    debugSesion('guardarSesionEnServidor desde UI', {
+      online: navigator.onLine,
+      sesion: resumirSesionParaLog(sesion),
+    })
+
     setEstadoGuardado((estadoActual) => ({
       ...estadoActual,
       [sesion.id]: { state: 'saving', text: 'Guardando...' },
@@ -477,14 +509,16 @@ function ConfigurarSesiones() {
         recargarSesionesConSincronizacion(),
         obtenerEjerciciosDesdeServidor(),
       ])
-      const sesionesServidor = resultadoSesiones.sesiones
+      const sesionesServidor = reemplazarSesionesConfiguracionDesdeRemoto(
+        resultadoSesiones.sesiones,
+      )
+      const catalogoFusionado =
+        reemplazarCatalogoEjerciciosConfiguracionDesdeRemoto(catalogoServidor)
       setSesiones(sesionesServidor)
-      setCatalogoEjercicios(catalogoServidor)
+      setCatalogoEjercicios(catalogoFusionado)
       setSesionesAbiertas(
         Object.fromEntries(sesionesServidor.map((sesion) => [sesion.id, false])),
       )
-      guardarSesionesConfiguracion(sesionesServidor)
-      guardarCatalogoEjerciciosConfiguracion(catalogoServidor)
       setSelectorSesionAbierto('')
       setBusquedaEjercicio('')
       setMensajeGeneral(
@@ -508,10 +542,17 @@ function ConfigurarSesiones() {
       const ahora = Date.now()
 
       if (ahora - ultimoEventoConexionRef.current < 1200) {
+        debugSesion('evento de reconexion ignorado por debounce', {
+          online: navigator.onLine,
+        })
         return
       }
 
       ultimoEventoConexionRef.current = ahora
+      debugSesion('evento de reconexion detectado', {
+        online: navigator.onLine,
+        pendientesActuales: sesiones.filter((sesion) => sesion.syncStatus === 'pending').length,
+      })
       const resultado = await sincronizarSesionesPendientes()
 
       if (cancelado || !resultado) {
@@ -632,13 +673,13 @@ function ConfigurarSesiones() {
               className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04]"
               key={sesion.id}
             >
-              <button
-                className="flex w-full flex-col gap-3 px-5 py-4 text-left transition-all duration-300 ease-out hover:text-neon-purple dark:hover:text-neon-cyan sm:flex-row sm:items-center sm:justify-between"
-                type="button"
-                aria-expanded={estaAbierta}
-                onClick={() => alternarSesion(sesion.id)}
-              >
-                <div>
+              <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  className="min-w-0 flex-1 text-left transition-all duration-300 ease-out hover:text-neon-purple dark:hover:text-neon-cyan"
+                  type="button"
+                  aria-expanded={estaAbierta}
+                  onClick={() => alternarSesion(sesion.id)}
+                >
                   <p className="text-xs font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
                     Sesion
                   </p>
@@ -648,27 +689,40 @@ function ConfigurarSesiones() {
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     {sesion.ejercicios.length} ejercicios configurados
                   </p>
-                </div>
+                </button>
 
-                <span
-                  className={`inline-flex h-10 w-10 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan ${
-                    estaAbierta ? 'border-neon-pink text-neon-pink shadow-glow-pink' : ''
-                  }`}
-                  aria-hidden="true"
-                >
-                  <svg
-                    className={`h-5 w-5 transition-transform duration-300 ease-out ${estaAbierta ? 'rotate-180' : ''}`}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    className="rounded-md border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(0,255,237,0.16)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-neon-cyan/45 disabled:hover:text-slate-950 disabled:hover:shadow-[0_0_20px_rgba(0,255,237,0.16)] dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan dark:focus:ring-offset-pes-black dark:disabled:hover:text-neon-cyan"
+                    type="button"
+                    disabled={estado?.state === 'saving'}
+                    onClick={() => guardarSesionEnServidor(sesion)}
                   >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </span>
-              </button>
+                    {estado?.state === 'saving' ? 'Guardando...' : 'Guardar'}
+                  </button>
+                  <button
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-md border border-neon-cyan/40 text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out dark:text-neon-cyan ${
+                      estaAbierta ? 'border-neon-pink text-neon-pink shadow-glow-pink' : ''
+                    }`}
+                    type="button"
+                    aria-expanded={estaAbierta}
+                    aria-label={estaAbierta ? 'Plegar sesion' : 'Desplegar sesion'}
+                    onClick={() => alternarSesion(sesion.id)}
+                  >
+                    <svg
+                      className={`h-5 w-5 transition-transform duration-300 ease-out ${estaAbierta ? 'rotate-180' : ''}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
               <div
                 className={`grid transition-[grid-template-rows] duration-500 ease-out ${
@@ -954,15 +1008,6 @@ function ConfigurarSesiones() {
                       >
                         {estado?.text || 'Los cambios quedan como borrador local hasta guardar.'}
                       </p>
-
-                      <button
-                        className="self-end rounded-md border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(0,255,237,0.16)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-neon-cyan/45 disabled:hover:text-slate-950 disabled:hover:shadow-[0_0_20px_rgba(0,255,237,0.16)] dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan dark:focus:ring-offset-pes-black dark:disabled:hover:text-neon-cyan"
-                        type="button"
-                        disabled={estado?.state === 'saving'}
-                        onClick={() => guardarSesionEnServidor(sesion)}
-                      >
-                        {estado?.state === 'saving' ? 'Guardando...' : 'Guardar'}
-                      </button>
                     </div>
                   </div>
                 </div>

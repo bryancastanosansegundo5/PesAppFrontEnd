@@ -11,6 +11,13 @@ import { sincronizarCatalogoEjerciciosPendientes } from '../exercises/exerciseCa
 import { sincronizarSesionesPendientes } from './trainingSessionDataService'
 import { normalizarSesion } from './trainingModel'
 import { guardarEntrenamientoEnServidor } from '../../pages/Entreno/services/entrenoApiService'
+import {
+  adquirirLockQueueItem,
+  crearLockOwner,
+  eliminarQueueItem,
+  listarQueueItemsPorTipo,
+  marcarQueueItemComoFallido,
+} from '../sync/syncQueueStorage'
 
 let sincronizacionEntrenamientosActiva = null
 
@@ -376,16 +383,27 @@ export async function sincronizarEntrenamientosPendientes(clientIds = []) {
     let historialActual = obtenerHistorialEntrenamientosGuardado()
     const clientIdsObjetivo = Array.isArray(clientIds) ? clientIds.filter(Boolean) : []
     const dependencias = await prepararDependenciasEntrenamientos()
-    const pendientes = historialActual.filter(
-      (entrenamiento) =>
-        entrenamiento.syncStatus === 'pending' &&
-        (clientIdsObjetivo.length === 0 || clientIdsObjetivo.includes(entrenamiento.clientId)),
-    )
+    const pendientes = listarQueueItemsPorTipo('training', { clientIds: clientIdsObjetivo })
     let sincronizados = 0
     const entrenamientosSincronizados = []
     const entrenamientosFallidos = []
 
-    for (const entrenamientoPendiente of pendientes) {
+    for (const pendiente of pendientes) {
+      const entrenamientoPendiente =
+        historialActual.find((entrenamiento) => entrenamiento.clientId === pendiente.clientId) || null
+
+      if (!entrenamientoPendiente) {
+        eliminarQueueItem('training', pendiente.clientId)
+        continue
+      }
+
+      const lockOwner = crearLockOwner('training', pendiente.clientId)
+      const lock = adquirirLockQueueItem('training', pendiente.clientId, lockOwner)
+
+      if (!lock) {
+        continue
+      }
+
       const entrenamientoReconciliado = reconciliarEntrenamientoPendiente(
         entrenamientoPendiente,
         dependencias.sesiones,
@@ -410,6 +428,7 @@ export async function sincronizarEntrenamientosPendientes(clientIds = []) {
         sincronizados += 1
         entrenamientosSincronizados.push(entrenamientoServidor)
       } catch (error) {
+        marcarQueueItemComoFallido('training', pendiente.clientId, lockOwner, error)
         const entrenamientoConError = marcarEntrenamientoConError(entrenamientoReconciliado, error)
         historialActual = guardarHistorialEntrenamientosGuardado(
           reemplazarEntrenamiento(historialActual, entrenamientoConError),

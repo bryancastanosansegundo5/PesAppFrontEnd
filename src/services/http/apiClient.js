@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../../config/env'
+import { asegurarGlobalSyncAntesDeRequest } from '../sync/globalSyncGate'
 
 export class ApiError extends Error {
   constructor(message, status, payload) {
@@ -162,11 +163,17 @@ async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
     headers = {},
     credentials_mode,
     skip_refresh = false,
+    skip_global_sync = false,
     ...restOptions
   } = options
   const requestHeaders = new Headers(headers)
   const isFormData = body instanceof FormData
   const credentials = credentials_mode || (auth ? 'include' : 'same-origin')
+
+  await asegurarGlobalSyncAntesDeRequest(path, {
+    auth,
+    skip_global_sync,
+  })
 
   if (body !== undefined && !isFormData && !requestHeaders.has('Content-Type')) {
     requestHeaders.set('Content-Type', 'application/json')

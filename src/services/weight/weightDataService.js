@@ -1,5 +1,6 @@
 import { ApiError } from '../http/apiClient'
 import {
+  eliminarRegistroPesoGuardado,
   fusionarRegistrosPesoGuardados,
   guardarPesoDelDia,
   guardarRegistrosPesoGuardados,
@@ -8,6 +9,7 @@ import {
 } from '../storage/weightStorage'
 import {
   crearPesoEnServidor,
+  eliminarPesoEnServidor,
   obtenerPesoDesdeServidor,
 } from './weightApiService'
 
@@ -205,13 +207,20 @@ export async function cargarRegistrosPeso() {
 
 export async function guardarPesoConRespaldo(
   peso,
-  { fecha = new Date(), horaRegistro = '', horaManual = false, registroExistente = null } = {},
+  {
+    fecha = new Date(),
+    horaRegistro = '',
+    horaManual = false,
+    comentario = '',
+    registroExistente = null,
+  } = {},
 ) {
   const registrosPrevios = obtenerRegistrosPesoGuardados()
   const registrosLocales = guardarPesoDelDia(peso, {
     fecha,
     horaRegistro,
     horaManual,
+    comentario,
     registroExistente,
   })
   const registroLocal = registroExistente?.clientId
@@ -268,5 +277,38 @@ export async function guardarPesoConRespaldo(
       online: false,
       error,
     }
+  }
+}
+
+function esIdPersistido(idRegistro) {
+  return /^\d+$/.test(String(idRegistro || ''))
+}
+
+export async function eliminarPesoConRespaldo(registro) {
+  if (!registro?.clientId) {
+    return {
+      registros: obtenerRegistrosPesoGuardados(),
+      online: true,
+      error: null,
+    }
+  }
+
+  const registrosPrevios = obtenerRegistrosPesoGuardados()
+
+  try {
+    if (esIdPersistido(registro.id)) {
+      await eliminarPesoEnServidor(registro.id)
+    }
+
+    const registrosActualizados = eliminarRegistroPesoGuardado(registro.clientId)
+
+    return {
+      registros: registrosActualizados,
+      online: true,
+      error: null,
+    }
+  } catch (error) {
+    guardarRegistrosPesoGuardados(registrosPrevios)
+    throw error
   }
 }

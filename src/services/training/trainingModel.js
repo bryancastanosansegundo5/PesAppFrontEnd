@@ -181,6 +181,32 @@ function normalizarIdLocalPayload(id) {
   return String(id)
 }
 
+function esIdNumericoPersistido(valor) {
+  return /^\d+$/.test(String(valor || ''))
+}
+
+function normalizarFechaPayload(valor) {
+  return valor ? valor : null
+}
+
+function normalizarCatalogoEjercicioIdPayload(valor) {
+  const idNormalizado = normalizarReferenciaPayload(valor)
+
+  if (!idNormalizado || !esIdNumericoPersistido(idNormalizado)) {
+    return null
+  }
+
+  return idNormalizado
+}
+
+function esSesionSincronizadaConServidor(sesion) {
+  return esIdNumericoPersistido(sesion?.id)
+}
+
+function esEjercicioSincronizadoConServidor(ejercicio) {
+  return esIdNumericoPersistido(ejercicio?.id)
+}
+
 export function normalizarSerieRealizada(serie, indice = 0) {
   return {
     id: serie?.id || crearId(`serie-${indice + 1}`),
@@ -285,7 +311,7 @@ export function normalizarSesion(sesion) {
 }
 
 export function normalizarListaSesiones(lista, valorPorDefecto) {
-  if (!Array.isArray(lista) || lista.length === 0) {
+  if (!Array.isArray(lista)) {
     return valorPorDefecto
   }
 
@@ -300,39 +326,70 @@ function obtenerMarcaTiempoSesion(sesion) {
   )
 }
 
+function obtenerClavesSesion(sesion) {
+  return [sesion?.clientId, sesion?.id, sesion?.idSesion].filter(Boolean).map(String)
+}
+
+function buscarClaveSesionExistente(mapa, sesion) {
+  return obtenerClavesSesion(sesion).find((clave) => mapa.has(clave)) || null
+}
+
+function seleccionarSesionMasReciente(existente, candidata) {
+  if (!existente) {
+    return candidata
+  }
+
+  if (candidata.syncStatus === 'pending' && existente.syncStatus !== 'pending') {
+    return candidata
+  }
+
+  if (candidata.version > existente.version) {
+    return candidata
+  }
+
+  if (
+    candidata.version === existente.version &&
+    obtenerMarcaTiempoSesion(candidata) > obtenerMarcaTiempoSesion(existente)
+  ) {
+    return candidata
+  }
+
+  return existente
+}
+
+function registrarSesionEnMapa(mapa, sesion) {
+  const claveExistente = buscarClaveSesionExistente(mapa, sesion)
+  const existente = claveExistente ? mapa.get(claveExistente) : null
+  const seleccionada = seleccionarSesionMasReciente(existente, sesion)
+
+  obtenerClavesSesion(existente).forEach((clave) => mapa.delete(clave))
+  obtenerClavesSesion(seleccionada).forEach((clave) => mapa.set(clave, seleccionada))
+}
+
 export function combinarHistorialEntrenamientos(locales, remotos) {
   const mapa = new Map()
 
   ;[...normalizarListaSesiones(locales, []), ...normalizarListaSesiones(remotos, [])].forEach(
     (sesion) => {
-      const clave = sesion.clientId || sesion.id || sesion.idSesion
-      const existente = mapa.get(clave)
-
-      if (!existente) {
-        mapa.set(clave, sesion)
-        return
-      }
-
-      if (sesion.syncStatus === 'pending' && existente.syncStatus !== 'pending') {
-        mapa.set(clave, sesion)
-        return
-      }
-
-      if (sesion.version > existente.version) {
-        mapa.set(clave, sesion)
-        return
-      }
-
-      if (
-        sesion.version === existente.version &&
-        obtenerMarcaTiempoSesion(sesion) > obtenerMarcaTiempoSesion(existente)
-      ) {
-        mapa.set(clave, sesion)
-      }
+      registrarSesionEnMapa(mapa, sesion)
     },
   )
 
-  return Array.from(mapa.values()).sort(
+  return Array.from(new Set(mapa.values())).sort(
+    (primero, segundo) => obtenerMarcaTiempoSesion(segundo) - obtenerMarcaTiempoSesion(primero),
+  )
+}
+
+export function combinarSesionesGuardadas(locales, remotos) {
+  const mapa = new Map()
+
+  ;[...normalizarListaSesiones(locales, []), ...normalizarListaSesiones(remotos, [])].forEach(
+    (sesion) => {
+      registrarSesionEnMapa(mapa, sesion)
+    },
+  )
+
+  return Array.from(new Set(mapa.values())).sort(
     (primero, segundo) => obtenerMarcaTiempoSesion(segundo) - obtenerMarcaTiempoSesion(primero),
   )
 }
@@ -475,24 +532,29 @@ export function obtenerUltimoRegistroEjercicio(idEjercicio, historial) {
 export function crearPayloadSesion(sesion) {
   const sesionNormalizada = normalizarSesion(sesion)
   const idSesion = normalizarReferenciaPayload(sesionNormalizada.idSesion)
+  const incluirVersionSesion = esSesionSincronizadaConServidor(sesionNormalizada)
 
   return {
     id: normalizarIdLocalPayload(sesionNormalizada.id),
     clientId: sesionNormalizada.clientId,
     ...(idSesion ? { idSesion } : {}),
     nombreSesion: sesionNormalizada.nombreSesion,
-    fechaInicio: sesionNormalizada.fechaInicio,
-    fechaFin: sesionNormalizada.fechaFin,
-    version: sesionNormalizada.version,
+    fechaInicio: normalizarFechaPayload(sesionNormalizada.fechaInicio),
+    fechaFin: normalizarFechaPayload(sesionNormalizada.fechaFin),
+    ...(incluirVersionSesion ? { version: sesionNormalizada.version } : {}),
     ejercicios: sesionNormalizada.ejercicios.map((ejercicio) => {
       const plantillaEjercicioId = normalizarPlantillaEjercicioId(
         ejercicio.plantillaEjercicioId,
         ejercicio.idEjercicio,
       )
-      const catalogoEjercicioId = normalizarReferenciaPayload(ejercicio.catalogoEjercicioId)
+      const catalogoEjercicioId = normalizarCatalogoEjercicioIdPayload(
+        ejercicio.catalogoEjercicioId,
+      )
+      const incluirVersionEjercicio = esEjercicioSincronizadoConServidor(ejercicio)
+      const idEjercicioPersistido = normalizarReferenciaPayload(ejercicio.id)
 
       return {
-        id: normalizarIdLocalPayload(ejercicio.id),
+        ...(idEjercicioPersistido ? { id: idEjercicioPersistido } : {}),
         idEjercicio: normalizarIdLocalPayload(ejercicio.idEjercicio),
         clientId: ejercicio.clientId,
         ...(plantillaEjercicioId ? { plantillaEjercicioId } : {}),
@@ -507,7 +569,7 @@ export function crearPayloadSesion(sesion) {
         pesoPlanificado: Number(ejercicio.pesoPlanificado) || 0,
         alturaBanco: ejercicio.alturaBanco === '' ? null : String(ejercicio.alturaBanco),
         agarre: ejercicio.agarre || '',
-        version: ejercicio.version,
+        ...(incluirVersionEjercicio ? { version: ejercicio.version } : {}),
       }
     }),
   }

@@ -54,7 +54,13 @@ export function fusionarRegistrosPesoGuardados(registrosRemotos) {
 
 export function guardarPesoDelDia(
   peso,
-  { fecha = new Date(), horaRegistro = '', horaManual = false, registroExistente = null } = {},
+  {
+    fecha = new Date(),
+    horaRegistro = '',
+    horaManual = false,
+    comentario = '',
+    registroExistente = null,
+  } = {},
 ) {
   const registrosActuales = obtenerRegistrosPesoGuardados()
   const registroActualizado = crearRegistroPesoLocal({
@@ -62,6 +68,7 @@ export function guardarPesoDelDia(
     fecha,
     horaRegistro,
     horaManual,
+    comentario,
     registroExistente,
   })
   const restoRegistros = registroExistente?.clientId
@@ -97,4 +104,12 @@ export function obtenerRegistroPesoPorFecha(fecha) {
     obtenerRegistrosPesoGuardados().find((registro) => registro.fechaRegistro === fechaRegistro) ||
     null
   )
+}
+
+export function eliminarRegistroPesoGuardado(clientId) {
+  const registrosRestantes = obtenerRegistrosPesoGuardados().filter(
+    (registro) => registro.clientId !== clientId,
+  )
+
+  return guardarRegistrosPesoGuardados(registrosRestantes)
 }

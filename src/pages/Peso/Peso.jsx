@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Toast from '../../components/Toast/Toast'
 import WeightTimePicker from '../../components/WeightTimePicker/WeightTimePicker'
 import { aHoraRegistro } from '../../services/data/dateUtils'
 import { obtenerRegistrosPesoGuardados } from '../../services/storage/weightStorage'
 import {
   cargarRegistrosPeso,
+  eliminarPesoConRespaldo,
   guardarPesoConRespaldo,
 } from '../../services/weight/weightDataService'
 
@@ -21,6 +23,7 @@ function crearFormularioVacio() {
     pesoActual: ultimoRegistro ? String(ultimoRegistro.peso) : '',
     horaActual: obtenerHoraActual(),
     horaFueEditada: false,
+    comentarioActual: '',
   }
 }
 
@@ -175,6 +178,11 @@ function InfoPuntoGrafica({ registro }) {
       <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
         {formatearFecha(registro.fecha)}
       </p>
+      {registro.comentario ? (
+        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
+          {registro.comentario}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -184,10 +192,13 @@ function Peso() {
   const [pesoActual, setPesoActual] = useState(crearFormularioVacio().pesoActual)
   const [horaActual, setHoraActual] = useState(crearFormularioVacio().horaActual)
   const [horaFueEditada, setHoraFueEditada] = useState(crearFormularioVacio().horaFueEditada)
+  const [comentarioActual, setComentarioActual] = useState(crearFormularioVacio().comentarioActual)
   const [registroEnEdicion, setRegistroEnEdicion] = useState(null)
   const [mensaje, setMensaje] = useState('')
   const [estaGuardando, setEstaGuardando] = useState(false)
+  const [estaEliminando, setEstaEliminando] = useState(false)
   const [estaRecargando, setEstaRecargando] = useState(false)
+  const [toast, setToast] = useState(null)
   const [registroGraficaHoverId, setRegistroGraficaHoverId] = useState('')
   const [registroGraficaFijadoId, setRegistroGraficaFijadoId] = useState('')
   const ultimoEventoConexionRef = useRef(0)
@@ -198,6 +209,7 @@ function Peso() {
     setPesoActual(formularioVacio.pesoActual)
     setHoraActual(formularioVacio.horaActual)
     setHoraFueEditada(formularioVacio.horaFueEditada)
+    setComentarioActual(formularioVacio.comentarioActual)
   }
 
   const cargarRegistroEnFormulario = (registro) => {
@@ -210,6 +222,7 @@ function Peso() {
     setPesoActual(String(registro.peso))
     setHoraActual(registro.horaRegistro || obtenerHoraActual())
     setHoraFueEditada(Boolean(registro.horaManual))
+    setComentarioActual(registro.comentario || '')
   }
 
   useEffect(() => {
@@ -333,7 +346,15 @@ function Peso() {
     setRegistroGraficaFijadoId((actual) => (actual === registro.id ? '' : registro.id))
   }
 
+  const subirAlInicio = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const guardarPeso = async () => {
+    if (estaGuardando || estaRecargando || estaEliminando) {
+      return
+    }
+
     const pesoNumerico = Number(pesoActual)
 
     if (!pesoNumerico || pesoNumerico <= 0) {
@@ -347,17 +368,29 @@ function Peso() {
       const resultado = await guardarPesoConRespaldo(pesoNumerico, {
         horaRegistro: horaActual,
         horaManual: horaFueEditada,
+        comentario: comentarioActual,
         registroExistente: registroEnEdicion,
       })
       setRegistros(resultado.registros)
+      const eraEdicion = Boolean(registroEnEdicion)
       reiniciarFormulario()
       setMensaje(
         resultado.online
-          ? registroEnEdicion
+          ? eraEdicion
             ? 'Medicion actualizada y sincronizada con el backend.'
             : 'Nueva medicion guardada y sincronizada con el backend.'
           : `${resultado.error?.message || 'No se pudo sincronizar ahora mismo.'} El registro queda guardado en local.`,
       )
+      setToast({
+        id: Date.now(),
+        mensaje: resultado.online
+          ? eraEdicion
+            ? 'Peso actualizado correctamente.'
+            : 'Peso registrado correctamente.'
+          : 'Peso guardado en local. Se sincronizara cuando vuelva la conexion.',
+        tipo: 'info',
+      })
+      subirAlInicio()
     } catch (errorCapturado) {
       if (Array.isArray(errorCapturado?.latestRecords)) {
         setRegistros(errorCapturado.latestRecords)
@@ -365,14 +398,54 @@ function Peso() {
       }
 
       setMensaje(errorCapturado.message || 'No se pudo guardar el peso.')
+      setToast({
+        id: Date.now(),
+        mensaje: errorCapturado.message || 'No se pudo guardar el peso.',
+        tipo: 'error',
+      })
     } finally {
       setEstaGuardando(false)
     }
   }
 
+  const eliminarPeso = async (registro) => {
+    if (estaGuardando || estaRecargando || estaEliminando) {
+      return
+    }
+
+    setEstaEliminando(true)
+
+    try {
+      const resultado = await eliminarPesoConRespaldo(registro)
+      setRegistros(resultado.registros)
+
+      if (registroEnEdicion?.clientId === registro.clientId) {
+        reiniciarFormulario()
+      }
+
+      setMensaje('Registro eliminado definitivamente.')
+      setToast({
+        id: Date.now(),
+        mensaje: 'Registro eliminado definitivamente.',
+        tipo: 'info',
+      })
+      subirAlInicio()
+    } catch (errorCapturado) {
+      setMensaje(errorCapturado.message || 'No se pudo eliminar el peso.')
+      setToast({
+        id: Date.now(),
+        mensaje: errorCapturado.message || 'No se pudo eliminar el peso.',
+        tipo: 'error',
+      })
+    } finally {
+      setEstaEliminando(false)
+    }
+  }
+
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <section className="grid gap-5 rounded-[28px] border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan lg:grid-cols-[0.92fr_1.08fr] dark:bg-white/[0.04]">
+    <>
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+        <section className="grid gap-5 rounded-[28px] border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan lg:grid-cols-[0.92fr_1.08fr] dark:bg-white/[0.04]">
         <div className="space-y-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
@@ -407,21 +480,33 @@ function Peso() {
                 </label>
 
                 <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                      Hora
+                    </span>
+                    <span className="rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-neon-purple dark:text-neon-cyan">
+                      {horaFueEditada ? 'Manual' : 'Ahora'}
+                    </span>
+                  </div>
+                  <WeightTimePicker
+                    value={horaActual}
+                    onChange={setHoraActual}
+                    onTouch={() => setHoraFueEditada(true)}
+                    className="min-w-0"
+                  />
+                </div>
+
+                <label className="grid gap-2">
                   <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                    Hora
+                    Comentario
                   </span>
-                  <span className="rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-neon-purple dark:text-neon-cyan">
-                    {horaFueEditada ? 'Manual' : 'Ahora'}
-                  </span>
-                </div>
-                <WeightTimePicker
-                  value={horaActual}
-                  onChange={setHoraActual}
-                  onTouch={() => setHoraFueEditada(true)}
-                  className="min-w-0"
-                />
-                </div>
+                  <textarea
+                    className="min-h-24 w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-[0_0_22px_rgba(0,255,237,0.12)] dark:border-white/10 dark:bg-pes-black dark:text-white"
+                    placeholder="Ej: peso en ayunas, despues de entrenar, viaje o sensaciones del dia"
+                    value={comentarioActual}
+                    onChange={(evento) => setComentarioActual(evento.target.value)}
+                  />
+                </label>
               </div>
             </div>
 
@@ -452,7 +537,7 @@ function Peso() {
                 <button
                   className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
                   type="button"
-                  disabled={estaGuardando || estaRecargando}
+                  disabled={estaGuardando || estaRecargando || estaEliminando}
                   onClick={guardarPeso}
                 >
                   {estaGuardando
@@ -467,7 +552,7 @@ function Peso() {
                   <button
                     className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
                     type="button"
-                    disabled={estaGuardando || estaRecargando}
+                    disabled={estaGuardando || estaRecargando || estaEliminando}
                     onClick={reiniciarFormulario}
                   >
                     Cancelar edicion
@@ -708,6 +793,11 @@ function Peso() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         Registro diario de bascula · {formatearHora(registro.horaRegistro)}
                       </p>
+                      {registro.comentario ? (
+                        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                          {registro.comentario}
+                        </p>
+                      ) : null}
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         {registro.syncStatus === 'pending'
                           ? 'Pendiente de sincronizar'
@@ -717,11 +807,20 @@ function Peso() {
                     <div className="flex items-center gap-3">
                       <p className="text-xl font-black text-neon-cyan">{formatearPeso(registro.peso)}</p>
                       <button
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:text-neon-cyan"
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:text-neon-cyan"
                         type="button"
+                        disabled={estaGuardando || estaEliminando}
                         onClick={() => cargarRegistroEnFormulario(registro)}
                       >
                         Editar
+                      </button>
+                      <button
+                        className="rounded-lg border border-neon-pink/40 bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-neon-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:border-neon-pink/30 dark:bg-white/[0.04]"
+                        type="button"
+                        disabled={estaGuardando || estaEliminando}
+                        onClick={() => eliminarPeso(registro)}
+                      >
+                        {estaEliminando ? 'Eliminando...' : 'Eliminar'}
                       </button>
                     </div>
                   </div>
@@ -734,8 +833,17 @@ function Peso() {
             </div>
           </article>
         </div>
-      </section>
-    </main>
+        </section>
+      </main>
+      {toast ? (
+        <Toast
+          key={toast.id}
+          mensaje={toast.mensaje}
+          tipo={toast.tipo}
+          onClose={() => setToast(null)}
+        />
+      ) : null}
+    </>
   )
 }
 

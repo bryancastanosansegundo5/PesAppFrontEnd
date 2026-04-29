@@ -1,7 +1,9 @@
 import { crearPlantillaEjercicioVacia } from '../../../services/exercises/exerciseCatalogModel'
 import {
+  fusionarCatalogoEjerciciosGuardado,
   guardarCatalogoEjerciciosGuardado,
   obtenerCatalogoEjerciciosGuardado,
+  reemplazarCatalogoDesdeRemotoConPendientesLocales,
 } from '../../../services/storage/exerciseCatalogStorage'
 
 export function obtenerCatalogoEjercicios() {
@@ -10,6 +12,14 @@ export function obtenerCatalogoEjercicios() {
 
 export function guardarCatalogoEjercicios(ejercicios) {
   guardarCatalogoEjerciciosGuardado(ejercicios)
+}
+
+export function fusionarCatalogoEjercicios(ejercicios) {
+  return fusionarCatalogoEjerciciosGuardado(ejercicios)
+}
+
+export function reemplazarCatalogoEjerciciosDesdeRemoto(ejercicios) {
+  return reemplazarCatalogoDesdeRemotoConPendientesLocales(ejercicios)
 }
 
 export { crearPlantillaEjercicioVacia }

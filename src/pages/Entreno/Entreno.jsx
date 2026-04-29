@@ -5,9 +5,7 @@ import Toast from '../../components/Toast/Toast'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import {
   crearEntrenamientoDesdeSesion,
-  guardarCatalogoEjerciciosEntreno,
   guardarEntrenamientoBorrador,
-  guardarSesionesEntreno,
   obtenerCatalogoEjerciciosEntreno,
   guardarHistorialEntrenos,
   limpiarEntrenamientoBorrador,
@@ -15,6 +13,9 @@ import {
   obtenerHistorialEntrenos,
   obtenerSesionesEntreno,
   obtenerUltimoRegistroEjercicio,
+  reemplazarCatalogoEjerciciosEntrenoDesdeRemoto,
+  reemplazarHistorialEntrenosDesdeRemoto,
+  reemplazarSesionesEntrenoDesdeRemoto,
 } from './services/entrenoLocalService'
 import {
   obtenerEntrenamientosDesdeServidor,
@@ -28,7 +29,7 @@ import {
   guardarEntrenamientoConRespaldo,
   sincronizarEntrenamientosPendientes,
 } from '../../services/training/trainingDataService'
-import { fusionarHistorialEntrenamientosGuardado } from '../../services/storage/trainingStorage'
+import { sincronizarDatosOfflineEnOrden } from '../../services/sync/offlineSyncService'
 import {
   clonarPendientes,
   crearMensajeResumenSincronizacion,
@@ -377,8 +378,9 @@ function Entreno() {
     const sincronizarCatalogo = async () => {
       try {
         const catalogoServidor = await obtenerEjerciciosDesdeServidor()
-        setCatalogoEjercicios(catalogoServidor)
-        guardarCatalogoEjerciciosEntreno(catalogoServidor)
+        const catalogoActualizado =
+          reemplazarCatalogoEjerciciosEntrenoDesdeRemoto(catalogoServidor)
+        setCatalogoEjercicios(catalogoActualizado)
       } catch (errorCapturado) {
         setMensaje(
           `${errorCapturado.message} Se mantiene el catalogo local mientras no se pueda leer el backend.`,
@@ -472,13 +474,12 @@ function Entreno() {
       }
 
       ultimoEventoConexionRef.current = ahora
-      const resultado = await sincronizarPendientesEntreno()
 
-      if (cancelado || !resultado) {
+      await recargarDesdeServidor({ silencioso: true, forzarSincronizacionOffline: true })
+
+      if (cancelado) {
         return
       }
-
-      aplicarResultadoSincronizacionPendientes(resultado)
     }
 
     window.addEventListener('online', manejarConexionRecuperada)
@@ -942,25 +943,33 @@ function Entreno() {
     }
   }
 
-  const recargarDesdeServidor = async ({ silencioso = false } = {}) => {
+  const recargarDesdeServidor = async ({
+    silencioso = false,
+    forzarSincronizacionOffline = true,
+  } = {}) => {
     setEstaRecargando(true)
     if (silencioso) {
       setMensaje('')
     }
 
     try {
+      if (forzarSincronizacionOffline) {
+        await sincronizarDatosOfflineEnOrden()
+      }
+
       const [sesionesServidor, historialServidor, catalogoServidor] = await Promise.all([
         obtenerSesionesEntrenoDesdeServidor(),
         obtenerEntrenamientosDesdeServidor(),
         obtenerEjerciciosDesdeServidor(),
       ])
 
-      setSesiones(sesionesServidor)
-      const historialFusionado = fusionarHistorialEntrenamientosGuardado(historialServidor)
+      const sesionesActualizadas = reemplazarSesionesEntrenoDesdeRemoto(sesionesServidor)
+      setSesiones(sesionesActualizadas)
+      const historialFusionado = reemplazarHistorialEntrenosDesdeRemoto(historialServidor)
       setHistorial(historialFusionado)
-      setCatalogoEjercicios(catalogoServidor)
-      guardarSesionesEntreno(sesionesServidor)
-      guardarCatalogoEjerciciosEntreno(catalogoServidor)
+      const catalogoFusionado =
+        reemplazarCatalogoEjerciciosEntrenoDesdeRemoto(catalogoServidor)
+      setCatalogoEjercicios(catalogoFusionado)
 
       const resultadoSincronizacion = await sincronizarPendientesEntreno()
 
@@ -969,7 +978,7 @@ function Entreno() {
       }
 
       const sesionSeleccionada = idSesionSeleccionada
-        ? sesionesServidor.find((sesion) => sesion.id === idSesionSeleccionada) || null
+        ? sesionesActualizadas.find((sesion) => sesion.id === idSesionSeleccionada) || null
         : null
 
       if (sesionSeleccionada) {

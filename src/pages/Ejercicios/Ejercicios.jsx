@@ -5,6 +5,7 @@ import {
   crearPlantillaEjercicioVacia,
   guardarCatalogoEjercicios,
   obtenerCatalogoEjercicios,
+  reemplazarCatalogoEjerciciosDesdeRemoto,
 } from './services/ejerciciosLocalService'
 import {
   actualizarEjercicioEnServidor,
@@ -84,10 +85,10 @@ function Ejercicios() {
       try {
         await sincronizarEjerciciosPendientes()
         const ejerciciosServidor = await obtenerEjerciciosDesdeServidor()
-        setEjercicios(ejerciciosServidor)
-        setEjerciciosAbiertos(crearEstadoAbierto(ejerciciosServidor))
+        const ejerciciosActualizados = reemplazarCatalogoEjerciciosDesdeRemoto(ejerciciosServidor)
+        setEjercicios(ejerciciosActualizados)
+        setEjerciciosAbiertos(crearEstadoAbierto(ejerciciosActualizados))
         setEstadoPorEjercicio({})
-        guardarCatalogoEjercicios(ejerciciosServidor)
         setMensaje('Catalogo recargado desde la base de datos.')
       } catch (errorCapturado) {
         setMensaje(
@@ -439,7 +440,7 @@ function Ejercicios() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               className={`${claseInputTexto} min-w-72`}
-              placeholder="Buscar por nombre, grupo, patron o equipamiento..."
+              placeholder="Buscar por nombre, grupo o descripcion..."
               value={busqueda}
               onChange={(evento) => setBusqueda(evento.target.value)}
             />
@@ -501,8 +502,7 @@ function Ejercicios() {
                     {ejercicio.nombre || 'Ejercicio sin nombre'}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    {ejercicio.patronMovimiento || 'Patron sin definir'} ·{' '}
-                    {ejercicio.equipamiento || 'Sin equipamiento'} ·{' '}
+                    {ejercicio.grupoMuscular || 'Grupo sin definir'}  ·{' '}
                     {ejercicio.seriesPlanificadas}x{ejercicio.repeticionesPlanificadas}
                   </p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -595,21 +595,6 @@ function Ejercicios() {
                         />
                       </label>
                       <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Patron
-                        <input
-                          className={claseInputTexto}
-                          value={ejercicio.patronMovimiento}
-                          placeholder="Ej: Empuje horizontal"
-                          onChange={(evento) =>
-                            actualizarEjercicio(
-                              ejercicio.idEjercicio,
-                              'patronMovimiento',
-                              evento.target.value,
-                            )
-                          }
-                        />
-                      </label>
-                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                         Descripcion
                         <input
                           className={claseInputTexto}
@@ -619,21 +604,6 @@ function Ejercicios() {
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
                               'descripcion',
-                              evento.target.value,
-                            )
-                          }
-                        />
-                      </label>
-                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Equipamiento
-                        <input
-                          className={claseInputTexto}
-                          value={ejercicio.equipamiento}
-                          placeholder="Ej: Barra"
-                          onChange={(evento) =>
-                            actualizarEjercicio(
-                              ejercicio.idEjercicio,
-                              'equipamiento',
                               evento.target.value,
                             )
                           }
@@ -818,8 +788,7 @@ function Ejercicios() {
                             {ejercicio.nombre || 'Ejercicio sin nombre'}
                           </h3>
                           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {ejercicio.grupoMuscular || 'Sin grupo'} ·{' '}
-                            {ejercicio.patronMovimiento || 'Patron sin definir'} ·{' '}
+                            {ejercicio.grupoMuscular || 'Sin grupo'} �{' '}
                             {ejercicio.seriesPlanificadas}x{ejercicio.repeticionesPlanificadas}
                           </p>
                         </div>
@@ -855,3 +824,5 @@ function Ejercicios() {
 }
 
 export default Ejercicios
+
+

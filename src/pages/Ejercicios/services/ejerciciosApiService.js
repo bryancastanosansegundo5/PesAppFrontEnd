@@ -6,6 +6,22 @@ import {
 import { normalizarUltimoRegistroEjercicioApi } from '../../../services/training/trainingModel'
 import { apiRequest } from '../../../services/http/apiClient'
 
+const peticionesEjercicioEnVuelo = new Map()
+
+function obtenerClaveEjercicio(ejercicio, idEjercicio = '') {
+  return String(ejercicio?.clientId || ejercicio?.idEjercicio || ejercicio?.catalogoEjercicioId || idEjercicio || '')
+}
+
+function reconciliarEjercicioConOriginal(ejercicioOriginal, payload) {
+  const ejercicioNormalizado = normalizarPlantillaEjercicio(payload || ejercicioOriginal)
+
+  return normalizarPlantillaEjercicio({
+    ...ejercicioNormalizado,
+    clientId: ejercicioOriginal?.clientId || ejercicioNormalizado.clientId,
+    idEjercicio: ejercicioOriginal?.idEjercicio || ejercicioNormalizado.idEjercicio,
+  })
+}
+
 export async function obtenerEjerciciosDesdeServidor() {
   const payload = await apiRequest('/api/ejercicios', {
     method: 'GET',
@@ -25,23 +41,65 @@ export async function obtenerEjercicioDesdeServidor(idEjercicio) {
 }
 
 export async function crearEjercicioEnServidor(ejercicio) {
-  const payload = await apiRequest('/api/ejercicios', {
-    method: 'POST',
-    auth: true,
-    body: crearPayloadEjercicioCatalogo(ejercicio),
-  })
+  const claveEjercicio = obtenerClaveEjercicio(ejercicio)
 
-  return normalizarPlantillaEjercicio(payload)
+  if (claveEjercicio && peticionesEjercicioEnVuelo.has(claveEjercicio)) {
+    return peticionesEjercicioEnVuelo.get(claveEjercicio)
+  }
+
+  const peticion = (async () => {
+    try {
+      const payload = await apiRequest('/api/ejercicios', {
+        method: 'POST',
+        auth: true,
+        body: crearPayloadEjercicioCatalogo(ejercicio),
+        skip_global_sync: true,
+      })
+
+      return reconciliarEjercicioConOriginal(ejercicio, payload)
+    } finally {
+      if (claveEjercicio) {
+        peticionesEjercicioEnVuelo.delete(claveEjercicio)
+      }
+    }
+  })()
+
+  if (claveEjercicio) {
+    peticionesEjercicioEnVuelo.set(claveEjercicio, peticion)
+  }
+
+  return peticion
 }
 
 export async function actualizarEjercicioEnServidor(idEjercicio, ejercicio) {
-  const payload = await apiRequest(`/api/ejercicios/${idEjercicio}`, {
-    method: 'PUT',
-    auth: true,
-    body: crearPayloadEjercicioCatalogo(ejercicio),
-  })
+  const claveEjercicio = obtenerClaveEjercicio(ejercicio, idEjercicio)
 
-  return normalizarPlantillaEjercicio(payload)
+  if (claveEjercicio && peticionesEjercicioEnVuelo.has(claveEjercicio)) {
+    return peticionesEjercicioEnVuelo.get(claveEjercicio)
+  }
+
+  const peticion = (async () => {
+    try {
+      const payload = await apiRequest(`/api/ejercicios/${idEjercicio}`, {
+        method: 'PUT',
+        auth: true,
+        body: crearPayloadEjercicioCatalogo(ejercicio),
+        skip_global_sync: true,
+      })
+
+      return reconciliarEjercicioConOriginal(ejercicio, payload)
+    } finally {
+      if (claveEjercicio) {
+        peticionesEjercicioEnVuelo.delete(claveEjercicio)
+      }
+    }
+  })()
+
+  if (claveEjercicio) {
+    peticionesEjercicioEnVuelo.set(claveEjercicio, peticion)
+  }
+
+  return peticion
 }
 
 export function eliminarEjercicioEnServidor(idEjercicio) {

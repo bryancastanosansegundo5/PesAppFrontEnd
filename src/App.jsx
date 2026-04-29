@@ -41,6 +41,7 @@ import {
 } from './services/weight/weightDataService'
 import { aHoraRegistro } from './services/data/dateUtils'
 import { sincronizarDatosOfflineEnOrden } from './services/sync/offlineSyncService'
+import { configurarGlobalSyncGate } from './services/sync/globalSyncGate'
 
 const rutasProtegidas = new Set([
   'entreno',
@@ -143,7 +144,7 @@ function App() {
   const [errorLogin, setErrorLogin] = useState('')
   const [rutaProtegidaPendiente, setRutaProtegidaPendiente] = useState('')
   const [estaDesconectadoServidor, setEstaDesconectadoServidor] = useState(false)
-  const [toastConexion, setToastConexion] = useState(null)
+  const [toastNotificacion, setToastNotificacion] = useState(null)
   const [, setPesoVersion] = useState(0)
   const [pesoRapido, setPesoRapido] = useState(crearEstadoInicialPesoRapido().pesoRapido)
   const [horaPesoRapido, setHoraPesoRapido] = useState(crearEstadoInicialPesoRapido().horaPesoRapido)
@@ -151,6 +152,7 @@ function App() {
     crearEstadoInicialPesoRapido().horaPesoRapidoFueEditada,
   )
   const [mensajePesoRapido, setMensajePesoRapido] = useState('')
+  const [estaGuardandoPesoRapido, setEstaGuardandoPesoRapido] = useState(false)
   const ultimaSincronizacionGlobalRef = useRef(0)
 
   const sesionesInicio = obtenerSesionesGuardadas()
@@ -279,6 +281,14 @@ function App() {
   }, [])
 
   useEffect(() => {
+    configurarGlobalSyncGate({ enabled: Boolean(sesion) })
+
+    return () => {
+      configurarGlobalSyncGate({ enabled: false })
+    }
+  }, [sesion])
+
+  useEffect(() => {
     if (!sesion) {
       return
     }
@@ -363,11 +373,13 @@ function App() {
   useEffect(() => {
     const manejarServidorNoDisponible = (evento) => {
       setEstaDesconectadoServidor(true)
-      setToastConexion({
+      setToastNotificacion({
         id: Date.now(),
         mensaje:
           evento.detail?.message ||
           'Sin conexion con el servidor. La app sigue funcionando con los datos locales disponibles.',
+        tipo: 'error',
+        persistente: true,
       })
     }
 
@@ -449,12 +461,18 @@ function App() {
   }
 
   const registrarPesoRapido = async () => {
+    if (estaGuardandoPesoRapido) {
+      return
+    }
+
     const pesoNumerico = Number(pesoRapido)
 
     if (!pesoNumerico || pesoNumerico <= 0) {
       setMensajePesoRapido('Introduce un peso valido para guardar el registro.')
       return
     }
+
+    setEstaGuardandoPesoRapido(true)
 
     try {
       const resultado = await guardarPesoConRespaldo(pesoNumerico, {
@@ -468,12 +486,29 @@ function App() {
           ? 'Nueva medicion guardada y sincronizada.'
           : `${resultado.error?.message || 'No se pudo sincronizar ahora.'} El dato queda guardado en local.`,
       )
+      setToastNotificacion({
+        id: Date.now(),
+        mensaje: resultado.online
+          ? 'Peso registrado correctamente.'
+          : 'Peso guardado en local. Se sincronizara cuando vuelva la conexion.',
+        tipo: 'info',
+        persistente: false,
+      })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (errorCapturado) {
       if (Array.isArray(errorCapturado?.latestRecords)) {
         setPesoVersion((versionActual) => versionActual + 1)
       }
 
       setMensajePesoRapido(errorCapturado.message || 'No se pudo guardar el peso.')
+      setToastNotificacion({
+        id: Date.now(),
+        mensaje: errorCapturado.message || 'No se pudo guardar el peso.',
+        tipo: 'error',
+        persistente: false,
+      })
+    } finally {
+      setEstaGuardandoPesoRapido(false)
     }
   }
 
@@ -825,9 +860,10 @@ function App() {
             <button
               className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
               type="button"
+              disabled={estaGuardandoPesoRapido}
               onClick={registrarPesoRapido}
             >
-              Guardar peso
+              {estaGuardandoPesoRapido ? 'Guardando...' : 'Guardar peso'}
             </button>
 
             <button
@@ -984,13 +1020,13 @@ function App() {
         {ruta !== 'login' ? <BotonVolverArriba /> : null}
       </div>
 
-      {toastConexion ? (
+      {toastNotificacion ? (
         <Toast
-          key={toastConexion.id}
-          mensaje={toastConexion.mensaje}
-          tipo="error"
-          persistente
-          onClose={() => setToastConexion(null)}
+          key={toastNotificacion.id}
+          mensaje={toastNotificacion.mensaje}
+          tipo={toastNotificacion.tipo || 'info'}
+          persistente={Boolean(toastNotificacion.persistente)}
+          onClose={() => setToastNotificacion(null)}
         />
       ) : null}
     </div>

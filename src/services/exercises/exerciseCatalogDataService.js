@@ -1,6 +1,7 @@
 import {
   guardarCatalogoEjerciciosGuardado,
   obtenerCatalogoEjerciciosGuardado,
+  reemplazarCatalogoDesdeRemotoConPendientesLocales,
 } from '../storage/exerciseCatalogStorage'
 import {
   guardarEntrenamientoActualGuardado,
@@ -15,6 +16,13 @@ import {
   crearEjercicioEnServidor,
   obtenerEjerciciosDesdeServidor,
 } from '../../pages/Ejercicios/services/ejerciciosApiService'
+import {
+  adquirirLockQueueItem,
+  crearLockOwner,
+  eliminarQueueItem,
+  listarQueueItemsPorTipo,
+  marcarQueueItemComoFallido,
+} from '../sync/syncQueueStorage'
 
 let sincronizacionCatalogoActiva = null
 
@@ -93,11 +101,26 @@ export async function sincronizarCatalogoEjerciciosPendientes() {
 
   sincronizacionCatalogoActiva = (async () => {
     let ejerciciosActuales = obtenerCatalogoEjerciciosGuardado()
-    const pendientes = ejerciciosActuales.filter((ejercicio) => ejercicio.syncStatus === 'pending')
+    const pendientes = listarQueueItemsPorTipo('exerciseCatalog')
     let sincronizados = 0
     let ultimoError = null
 
-    for (const ejercicioPendiente of pendientes) {
+    for (const pendiente of pendientes) {
+      const ejercicioPendiente =
+        ejerciciosActuales.find((ejercicio) => ejercicio.clientId === pendiente.clientId) || null
+
+      if (!ejercicioPendiente) {
+        eliminarQueueItem('exerciseCatalog', pendiente.clientId)
+        continue
+      }
+
+      const lockOwner = crearLockOwner('exerciseCatalog', pendiente.clientId)
+      const lock = adquirirLockQueueItem('exerciseCatalog', pendiente.clientId, lockOwner)
+
+      if (!lock) {
+        continue
+      }
+
       try {
         const ejercicioGuardado = ejercicioPendiente.catalogoEjercicioId
           ? await actualizarEjercicioEnServidor(
@@ -114,6 +137,12 @@ export async function sincronizarCatalogoEjerciciosPendientes() {
         )
         sincronizados += 1
       } catch (errorCapturado) {
+        marcarQueueItemComoFallido(
+          'exerciseCatalog',
+          pendiente.clientId,
+          lockOwner,
+          errorCapturado,
+        )
         ultimoError = errorCapturado
       }
     }
@@ -135,10 +164,10 @@ export async function sincronizarCatalogoEjerciciosPendientes() {
 export async function recargarCatalogoEjerciciosConSincronizacion() {
   const resultadoSincronizacion = await sincronizarCatalogoEjerciciosPendientes()
   const ejerciciosServidor = await obtenerEjerciciosDesdeServidor()
-  guardarCatalogoEjerciciosGuardado(ejerciciosServidor)
+  const ejerciciosFusionados = reemplazarCatalogoDesdeRemotoConPendientesLocales(ejerciciosServidor)
 
   return {
-    ejercicios: ejerciciosServidor,
+    ejercicios: ejerciciosFusionados,
     sincronizados: resultadoSincronizacion?.sincronizados || 0,
     error: resultadoSincronizacion?.error || null,
   }
