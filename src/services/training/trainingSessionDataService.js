@@ -15,6 +15,7 @@ import {
 import { sincronizarCatalogoEjerciciosPendientes } from '../exercises/exerciseCatalogDataService'
 import { obtenerCatalogoEjerciciosGuardado } from '../storage/exerciseCatalogStorage'
 import { debugSesion, resumirSesionParaLog } from '../debug/sessionSyncDebug'
+import { obtenerErrorValidacionSesion } from './trainingModel'
 import {
   adquirirLockQueueItem,
   crearLockOwner,
@@ -50,7 +51,7 @@ function remapearEntrenamientoSesion(entrenamiento, idsAntiguos, sesionGuardada)
 
   return {
     ...entrenamiento,
-    idSesion: sesionGuardada.id,
+    idSesion: sesionGuardada.persistedId || sesionGuardada.idSesion || sesionGuardada.id,
     nombreSesion: sesionGuardada.nombreSesion || entrenamiento.nombreSesion,
   }
 }
@@ -144,8 +145,21 @@ function esConflictoDeVersion(error) {
   )
 }
 
+function crearErrorValidacionSesion(message) {
+  const error = new Error(message)
+  error.status = 400
+  error.backendError = 'Validacion no valida'
+  error.backendMessage = message
+  return error
+}
+
 function marcarSesionConError(sesion, error) {
   const esConflictoVersion = esConflictoDeVersion(error)
+  const mensajeError =
+    error?.backendMessage || error?.message || 'No se pudo sincronizar la sesion.'
+  const esValidacionEjercicios = mensajeError
+    .toLowerCase()
+    .includes('la sesion debe tener al menos un ejercicio')
 
   return {
     ...sesion,
@@ -153,16 +167,20 @@ function marcarSesionConError(sesion, error) {
     syncError: esConflictoVersion
       ? error.backendMessage ||
         'La version enviada no coincide con la version actual del backend.'
-      : error?.message || 'No se pudo sincronizar la sesion.',
+      : mensajeError,
     lastSyncAttemptAt: new Date().toISOString(),
-    syncFieldErrors: esConflictoVersion ? { version: true } : {},
+    syncFieldErrors: esConflictoVersion
+      ? { version: true }
+      : esValidacionEjercicios
+        ? { ejercicios: mensajeError }
+        : {},
     ejercicios: (sesion?.ejercicios || []).map((ejercicio) => ({
       ...ejercicio,
       syncStatus: 'pending',
       syncError: esConflictoVersion
         ? error.backendMessage ||
           'La version enviada no coincide con la version actual del backend.'
-        : error?.message || 'No se pudo sincronizar la sesion.',
+        : mensajeError,
       syncFieldErrors: esConflictoVersion ? { version: true } : {},
     })),
   }
@@ -209,6 +227,12 @@ export async function sincronizarSesionesPendientes() {
           sesionPendiente,
           catalogoEjercicios,
         )
+        const errorValidacion = obtenerErrorValidacionSesion(sesionReconciliada)
+
+        if (errorValidacion) {
+          throw crearErrorValidacionSesion(errorValidacion)
+        }
+
         debugSesion('sincronizando sesion pendiente', {
           original: resumirSesionParaLog(sesionPendiente),
           reconciliada: resumirSesionParaLog(sesionReconciliada),

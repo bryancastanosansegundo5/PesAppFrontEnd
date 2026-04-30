@@ -185,6 +185,11 @@ function esIdNumericoPersistido(valor) {
   return /^\d+$/.test(String(valor || ''))
 }
 
+function normalizarIdPersistido(...valores) {
+  const candidato = valores.find((valor) => esIdNumericoPersistido(valor))
+  return candidato ? String(candidato) : ''
+}
+
 function normalizarFechaPayload(valor) {
   return valor ? valor : null
 }
@@ -200,11 +205,11 @@ function normalizarCatalogoEjercicioIdPayload(valor) {
 }
 
 function esSesionSincronizadaConServidor(sesion) {
-  return esIdNumericoPersistido(sesion?.id)
+  return esIdNumericoPersistido(sesion?.persistedId ?? sesion?.id)
 }
 
 function esEjercicioSincronizadoConServidor(ejercicio) {
-  return esIdNumericoPersistido(ejercicio?.id)
+  return esIdNumericoPersistido(ejercicio?.persistedId ?? ejercicio?.id)
 }
 
 export function normalizarSerieRealizada(serie, indice = 0) {
@@ -237,11 +242,19 @@ export function normalizarEjercicio(ejercicio, indice = 0) {
       ejercicio?.exerciseId,
       ejercicio?.id,
     ) || crearId(`ejercicio-${indice + 1}`)
+  const persistedId = normalizarIdPersistido(
+    ejercicio?.persistedId,
+    ejercicio?.serverId,
+    ejercicio?.idPersistido,
+    ejercicio?.idServidor,
+    ejercicio?.id,
+  )
   const createdAt = aIsoString(ejercicio?.createdAt, '')
   const updatedAt = aIsoString(ejercicio?.updatedAt, createdAt)
 
   return {
     id: normalizarIdTexto(ejercicio?.id, ejercicio?.idEjercicio, idEjercicioNormalizado),
+    persistedId,
     idEjercicio: idEjercicioNormalizado,
     clientId: normalizarIdTexto(ejercicio?.clientId, ejercicio?.localId, idEjercicioNormalizado),
     plantillaEjercicioId: normalizarPlantillaEjercicioId(
@@ -286,14 +299,31 @@ export function normalizarEjercicio(ejercicio, indice = 0) {
 }
 
 export function normalizarSesion(sesion) {
+  const persistedId = normalizarIdPersistido(
+    sesion?.persistedId,
+    sesion?.serverId,
+    sesion?.idPersistido,
+    sesion?.idServidor,
+    sesion?.idEntrenamiento,
+    sesion?.entrenamientoId,
+    sesion?.trainingId,
+    sesion?.workoutId,
+    sesion?.id,
+  )
   const idSesion =
-    normalizarIdTexto(sesion?.idSesion, sesion?.sessionId, sesion?.id) || crearId('sesion')
+    normalizarIdTexto(
+      sesion?.idSesion,
+      sesion?.sessionId,
+      persistedId,
+      sesion?.id,
+    ) || crearId('sesion')
   const ejerciciosOrigen = sesion?.ejercicios ?? sesion?.exercises
   const createdAt = aIsoString(sesion?.createdAt, '')
   const updatedAt = aIsoString(sesion?.updatedAt, createdAt)
 
   return {
     id: normalizarIdTexto(sesion?.id, idSesion),
+    persistedId,
     clientId: normalizarIdTexto(sesion?.clientId, sesion?.localId, idSesion),
     idSesion,
     nombreSesion: sesion?.nombreSesion || sesion?.sessionName || sesion?.name || 'Sesion sin nombre',
@@ -307,6 +337,8 @@ export function normalizarSesion(sesion) {
     syncError: sesion?.syncError || '',
     syncFieldErrors: sesion?.syncFieldErrors || {},
     lastSyncAttemptAt: aIsoString(sesion?.lastSyncAttemptAt, ''),
+    pendingAction: sesion?.pendingAction === 'delete' ? 'delete' : 'upsert',
+    deletedAt: aIsoString(sesion?.deletedAt, ''),
   }
 }
 
@@ -501,11 +533,31 @@ export function crearEntrenamientoDesdeSesion(sesion) {
     })),
     version: 1,
     syncStatus: 'pending',
+    pendingAction: 'upsert',
+    deletedAt: '',
   }
 }
 
+export function obtenerErrorValidacionSesion(sesion) {
+  if (!Array.isArray(sesion?.ejercicios) || sesion.ejercicios.length === 0) {
+    return 'La sesion debe tener al menos un ejercicio.'
+  }
+
+  return ''
+}
+
+export function esEntrenamientoEliminado(entrenamiento) {
+  return Boolean(normalizarSesion(entrenamiento).deletedAt)
+}
+
+export function filtrarHistorialVisible(historial) {
+  return normalizarListaSesiones(historial, []).filter(
+    (entrenamiento) => !esEntrenamientoEliminado(entrenamiento),
+  )
+}
+
 export function obtenerUltimoRegistroEjercicio(idEjercicio, historial) {
-  const historialOrdenado = [...historial].sort(
+  const historialOrdenado = [...filtrarHistorialVisible(historial)].sort(
     (primero, segundo) => new Date(segundo.fechaFin || 0) - new Date(primero.fechaFin || 0),
   )
 
@@ -534,9 +586,12 @@ export function crearPayloadSesion(sesion) {
   const sesionNormalizada = normalizarSesion(sesion)
   const idSesion = normalizarReferenciaPayload(sesionNormalizada.idSesion)
   const incluirVersionSesion = esSesionSincronizadaConServidor(sesionNormalizada)
+  const idPersistidoSesion = normalizarReferenciaPayload(
+    sesionNormalizada.persistedId || sesionNormalizada.id,
+  )
 
   return {
-    id: normalizarIdLocalPayload(sesionNormalizada.id),
+    id: idPersistidoSesion || normalizarIdLocalPayload(sesionNormalizada.id),
     clientId: sesionNormalizada.clientId,
     ...(idSesion ? { idSesion } : {}),
     nombreSesion: sesionNormalizada.nombreSesion,
@@ -552,7 +607,9 @@ export function crearPayloadSesion(sesion) {
         ejercicio.catalogoEjercicioId,
       )
       const incluirVersionEjercicio = esEjercicioSincronizadoConServidor(ejercicio)
-      const idEjercicioPersistido = normalizarReferenciaPayload(ejercicio.id)
+      const idEjercicioPersistido = normalizarReferenciaPayload(
+        ejercicio.persistedId || ejercicio.id,
+      )
 
       return {
         ...(idEjercicioPersistido ? { id: idEjercicioPersistido } : {}),
@@ -579,9 +636,12 @@ export function crearPayloadSesion(sesion) {
 export function crearPayloadEntrenamiento(entrenamiento) {
   const entrenamientoNormalizado = normalizarSesion(entrenamiento)
   const idSesion = normalizarReferenciaPayload(entrenamientoNormalizado.idSesion)
+  const idPersistidoEntrenamiento = normalizarReferenciaPayload(
+    entrenamientoNormalizado.persistedId || entrenamientoNormalizado.id,
+  )
 
   return {
-    id: normalizarIdLocalPayload(entrenamientoNormalizado.id),
+    id: idPersistidoEntrenamiento || normalizarIdLocalPayload(entrenamientoNormalizado.id),
     clientId: entrenamientoNormalizado.clientId,
     ...(idSesion ? { idSesion } : {}),
     nombreSesion: entrenamientoNormalizado.nombreSesion,
@@ -596,7 +656,9 @@ export function crearPayloadEntrenamiento(entrenamiento) {
       )
 
       return {
-        id: normalizarIdLocalPayload(ejercicio.id),
+        id:
+          normalizarReferenciaPayload(ejercicio.persistedId || ejercicio.id) ||
+          normalizarIdLocalPayload(ejercicio.id),
         idEjercicio: normalizarIdLocalPayload(ejercicio.idEjercicio),
         clientId: ejercicio.clientId,
         ...(catalogoEjercicioId ? { catalogoEjercicioId } : {}),

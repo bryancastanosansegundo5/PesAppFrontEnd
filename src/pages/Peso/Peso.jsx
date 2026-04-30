@@ -202,6 +202,7 @@ function Peso() {
   const [registroGraficaHoverId, setRegistroGraficaHoverId] = useState('')
   const [registroGraficaFijadoId, setRegistroGraficaFijadoId] = useState('')
   const ultimoEventoConexionRef = useRef(0)
+  const formularioRef = useRef(null)
 
   const reiniciarFormulario = () => {
     const formularioVacio = crearFormularioVacio()
@@ -223,6 +224,9 @@ function Peso() {
     setHoraActual(registro.horaRegistro || obtenerHoraActual())
     setHoraFueEditada(Boolean(registro.horaManual))
     setComentarioActual(registro.comentario || '')
+    window.requestAnimationFrame(() => {
+      formularioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   useEffect(() => {
@@ -240,9 +244,9 @@ function Peso() {
       setRegistros(resultado.registros)
       setMensaje(
         resultado.online
-          ? 'Peso actualizado desde el backend.'
+          ? 'Datos de peso actualizados.'
           : resultado.error?.message ||
-              'No se pudo refrescar el backend. Se muestran los datos locales disponibles.',
+              'No se pudieron actualizar los datos. Se muestran los registros disponibles.',
       )
       setEstaRecargando(false)
     }
@@ -278,9 +282,9 @@ function Peso() {
         resultado.online
           ? resultado.sincronizados > 0
             ? `Se sincronizaron ${resultado.sincronizados} registros de peso pendientes.`
-            : 'Peso actualizado desde el backend.'
+            : 'Datos de peso actualizados.'
           : resultado.error?.message ||
-              'No se pudo refrescar el backend. Se muestran los datos locales disponibles.',
+              'No se pudieron actualizar los datos. Se muestran los registros disponibles.',
       )
       setEstaRecargando(false)
     }
@@ -346,6 +350,19 @@ function Peso() {
     setRegistroGraficaFijadoId((actual) => (actual === registro.id ? '' : registro.id))
   }
 
+  const obtenerRegistroActualizadoParaGuardar = () => {
+    if (!registroEnEdicion) {
+      return null
+    }
+
+    return (
+      registros.find(
+        (registro) =>
+          registro.clientId === registroEnEdicion.clientId || registro.id === registroEnEdicion.id,
+      ) || registroEnEdicion
+    )
+  }
+
   const subirAlInicio = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -365,11 +382,12 @@ function Peso() {
     setEstaGuardando(true)
 
     try {
+      const registroExistenteActualizado = obtenerRegistroActualizadoParaGuardar()
       const resultado = await guardarPesoConRespaldo(pesoNumerico, {
         horaRegistro: horaActual,
         horaManual: horaFueEditada,
         comentario: comentarioActual,
-        registroExistente: registroEnEdicion,
+        registroExistente: registroExistenteActualizado,
       })
       setRegistros(resultado.registros)
       const eraEdicion = Boolean(registroEnEdicion)
@@ -377,9 +395,9 @@ function Peso() {
       setMensaje(
         resultado.online
           ? eraEdicion
-            ? 'Medicion actualizada y sincronizada con el backend.'
-            : 'Nueva medicion guardada y sincronizada con el backend.'
-          : `${resultado.error?.message || 'No se pudo sincronizar ahora mismo.'} El registro queda guardado en local.`,
+            ? 'Medicion actualizada correctamente.'
+            : 'Nueva medicion guardada correctamente.'
+          : `${resultado.error?.message || 'No se pudo sincronizar ahora mismo.'} El registro queda guardado en la app.`,
       )
       setToast({
         id: Date.now(),
@@ -395,6 +413,13 @@ function Peso() {
       if (Array.isArray(errorCapturado?.latestRecords)) {
         setRegistros(errorCapturado.latestRecords)
         cargarRegistroEnFormulario(errorCapturado.latestRecord || registroEnEdicion)
+        setMensaje('Datos guardados correctamente.')
+        setToast({
+          id: Date.now(),
+          mensaje: 'Datos guardados correctamente.',
+          tipo: 'info',
+        })
+        return
       }
 
       setMensaje(errorCapturado.message || 'No se pudo guardar el peso.')
@@ -445,7 +470,10 @@ function Peso() {
   return (
     <>
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="grid gap-5 rounded-[28px] border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan lg:grid-cols-[0.92fr_1.08fr] dark:bg-white/[0.04]">
+        <section
+          ref={formularioRef}
+          className="grid gap-5 rounded-[28px] border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan lg:grid-cols-[0.92fr_1.08fr] dark:bg-white/[0.04]"
+        >
         <div className="space-y-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
@@ -518,17 +546,12 @@ function Peso() {
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   {horaFueEditada ? `Hora elegida: ${horaActual}` : `Hora automatica: ${horaActual}`}
                 </span>
-                {registroEnEdicion ? (
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Version actual: {registroEnEdicion.version}
-                  </span>
-                ) : null}
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
                 {mensaje ||
                   (registroEnEdicion
-                    ? 'Estas editando una medicion existente. Mantendremos su clientId y enviaremos su version.'
-                    : 'Si no tocas la hora, guardamos la hora actual. Cada guardado crea una medicion nueva.')}
+                    ? 'Estas editando una medicion guardada. Cuando termines, pulsa Guardar cambios.'
+                    : 'Si no tocas la hora, usaremos la actual. Cada guardado crea una medicion nueva.')}
               </p>
             </div>
 

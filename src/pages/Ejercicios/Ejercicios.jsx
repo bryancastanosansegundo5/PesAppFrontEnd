@@ -30,6 +30,12 @@ const claseCampoCompacto =
 const claseBotonPendientes =
   'rounded-md border px-4 py-3 text-sm font-bold transition-all duration-300 ease-out disabled:cursor-not-allowed disabled:opacity-60'
 
+const claseControlDestacado =
+  'rounded-xl border px-4 py-3 text-sm font-black transition-all duration-300 ease-out hover:-translate-y-0.5'
+
+const claseInputCabecera =
+  'w-full rounded-xl border border-neon-cyan/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,246,255,0.94))] px-4 py-3 text-sm text-slate-950 shadow-[0_12px_28px_rgba(15,23,42,0.08)] outline-none placeholder:text-slate-400 focus:border-neon-cyan focus:shadow-[0_0_28px_rgba(124,58,237,0.18)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(1,4,12,0.96),rgba(0,0,0,0.98))] dark:text-white dark:placeholder:text-slate-500 dark:focus:shadow-glow-cyan'
+
 function marcarEjercicioPendiente(ejercicio) {
   return {
     ...ejercicio,
@@ -43,6 +49,54 @@ function normalizarTexto(valor) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+}
+
+function compararTextoAscendente(valorA, valorB) {
+  return normalizarTexto(valorA).localeCompare(normalizarTexto(valorB), 'es')
+}
+
+function obtenerMarcaTiempoOrden(ejercicio) {
+  const marcaTiempo = new Date(ejercicio.updatedAt || ejercicio.createdAt || '').getTime()
+  return Number.isFinite(marcaTiempo) ? marcaTiempo : null
+}
+
+function compararFechaAscendente(ejercicioA, ejercicioB) {
+  const fechaA = obtenerMarcaTiempoOrden(ejercicioA)
+  const fechaB = obtenerMarcaTiempoOrden(ejercicioB)
+
+  if (fechaA === null && fechaB === null) {
+    return 0
+  }
+
+  if (fechaA === null) {
+    return 1
+  }
+
+  if (fechaB === null) {
+    return -1
+  }
+
+  return fechaA - fechaB
+}
+
+function ordenarEjercicios(ejercicios, criterio) {
+  const ejerciciosOrdenados = [...ejercicios]
+
+  ejerciciosOrdenados.sort((ejercicioA, ejercicioB) => {
+    switch (criterio) {
+      case 'fecha-desc':
+        return compararFechaAscendente(ejercicioB, ejercicioA)
+      case 'nombre-asc':
+        return compararTextoAscendente(ejercicioA.nombre, ejercicioB.nombre)
+      case 'nombre-desc':
+        return compararTextoAscendente(ejercicioB.nombre, ejercicioA.nombre)
+      case 'fecha-asc':
+      default:
+        return compararFechaAscendente(ejercicioA, ejercicioB)
+    }
+  })
+
+  return ejerciciosOrdenados
 }
 
 function crearEstadoAbierto(ejercicios) {
@@ -59,6 +113,9 @@ function quitarEstadoPendiente(ejercicio) {
 function Ejercicios() {
   const [ejercicios, setEjercicios] = useState(obtenerCatalogoEjercicios)
   const [busqueda, setBusqueda] = useState('')
+  const [criterioOrden, setCriterioOrden] = useState('fecha')
+  const [direccionOrden, setDireccionOrden] = useState('desc')
+  const [estaAbiertoDropdownOrden, setEstaAbiertoDropdownOrden] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [estaRecargando, setEstaRecargando] = useState(false)
   const [guardandoPorId, setGuardandoPorId] = useState({})
@@ -68,6 +125,7 @@ function Ejercicios() {
   const [pendienteEliminandoId, setPendienteEliminandoId] = useState('')
   const sincronizacionPendientesActivaRef = useRef(null)
   const ultimoEventoConexionRef = useRef(0)
+  const dropdownOrdenRef = useRef(null)
   const [ejerciciosAbiertos, setEjerciciosAbiertos] = useState(() =>
     crearEstadoAbierto(obtenerCatalogoEjercicios()),
   )
@@ -79,6 +137,20 @@ function Ejercicios() {
   useEffect(() => {
     guardarCatalogoEjercicios(ejercicios)
   }, [ejercicios])
+
+  useEffect(() => {
+    const manejarClickFuera = (evento) => {
+      if (!dropdownOrdenRef.current?.contains(evento.target)) {
+        setEstaAbiertoDropdownOrden(false)
+      }
+    }
+
+    document.addEventListener('mousedown', manejarClickFuera)
+
+    return () => {
+      document.removeEventListener('mousedown', manejarClickFuera)
+    }
+  }, [])
 
   useEffect(() => {
     const cargarCatalogoInicial = async () => {
@@ -102,22 +174,44 @@ function Ejercicios() {
 
   const ejerciciosFiltrados = useMemo(() => {
     const termino = normalizarTexto(busqueda)
+    const orden =
+      criterioOrden === 'fecha'
+        ? direccionOrden === 'asc'
+          ? 'fecha-asc'
+          : 'fecha-desc'
+        : direccionOrden === 'asc'
+          ? 'nombre-asc'
+          : 'nombre-desc'
+    const ejerciciosBase = !termino
+      ? ejercicios
+      : ejercicios.filter((ejercicio) =>
+          [
+            ejercicio.nombre,
+            ejercicio.descripcion,
+            ejercicio.grupoMuscular,
+            ejercicio.patronMovimiento,
+            ejercicio.equipamiento,
+            ejercicio.agarre,
+          ].some((valor) => normalizarTexto(valor).includes(termino)),
+        )
 
-    if (!termino) {
-      return ejercicios
-    }
+    return ordenarEjercicios(ejerciciosBase, orden)
+  }, [busqueda, ejercicios, criterioOrden, direccionOrden])
 
-    return ejercicios.filter((ejercicio) =>
-      [
-        ejercicio.nombre,
-        ejercicio.descripcion,
-        ejercicio.grupoMuscular,
-        ejercicio.patronMovimiento,
-        ejercicio.equipamiento,
-        ejercicio.agarre,
-      ].some((valor) => normalizarTexto(valor).includes(termino)),
-    )
-  }, [busqueda, ejercicios])
+  const cambiarCriterioOrden = (siguienteCriterio) => {
+    setCriterioOrden((criterioActual) => {
+      if (criterioActual === siguienteCriterio) {
+        return criterioActual
+      }
+
+      setDireccionOrden(siguienteCriterio === 'fecha' ? 'desc' : 'asc')
+      return siguienteCriterio
+    })
+  }
+
+  const alternarDireccionOrden = () => {
+    setDireccionOrden((direccionActual) => (direccionActual === 'asc' ? 'desc' : 'asc'))
+  }
 
   const actualizarEjercicio = (idEjercicio, campo, valor) => {
     setEjercicios((ejerciciosActuales) =>
@@ -415,7 +509,7 @@ function Ejercicios() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-lg border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan transition-all duration-300 ease-out dark:bg-white/[0.04]">
+      <section className="rounded-[28px] border border-neon-cyan/25 bg-[linear-gradient(135deg,rgba(248,250,255,0.98),rgba(243,236,255,0.94))] p-5 shadow-[0_24px_60px_rgba(15,23,42,0.12)] transition-all duration-300 ease-out dark:bg-[linear-gradient(135deg,rgba(3,4,7,0.95),rgba(21,10,44,0.94))] dark:shadow-[0_18px_46px_rgba(2,6,23,0.36)] xl:py-7">
         <MobilePullToRefreshIndicator
           isPulling={isPulling}
           isReady={isReady}
@@ -423,52 +517,148 @@ function Ejercicios() {
           pullDistance={pullDistance}
           progress={progress}
         />
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
+        <div className="grid gap-6 xl:min-h-[16.5rem]">
+          <div className="max-w-3xl xl:self-start">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-neon-purple dark:text-neon-cyan">
               Biblioteca de ejercicios
             </p>
             <h1 className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
               Catalogo base para construir sesiones y entrenos.
             </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-400">
               Aqui defines la ficha de cada ejercicio. Este catalogo es la fuente que luego
               podras seleccionar tanto en Entreno como en Configurar sesiones.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="grid gap-3 xl:min-w-0 xl:self-end xl:pt-6">
             <input
-              className={`${claseInputTexto} min-w-72`}
+              className={`${claseInputCabecera} h-14 w-full`}
               placeholder="Buscar por nombre, grupo o descripcion..."
               value={busqueda}
               onChange={(evento) => setBusqueda(evento.target.value)}
             />
-            <button
-              className={`${claseBotonPendientes} border-amber-400/50 text-neon-purple shadow-[0_0_22px_rgba(251,191,36,0.2)] hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink dark:text-amber-300`}
-              type="button"
-              onClick={() => setEstaAbiertoModalPendientes(true)}
-            >
-              Pendientes{ejerciciosPendientes.length ? ` (${ejerciciosPendientes.length})` : ''}
-            </button>
-            <button
-              className="hidden rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-pink disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
-              type="button"
-              disabled={estaRecargando}
-              onClick={() => recargarDesdeServidor()}
-            >
-              {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
-            </button>
-            <button
-              className="rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
-              type="button"
-              onClick={agregarEjercicio}
-            >
-              Nuevo ejercicio
-            </button>
+
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.1fr)_auto]">
+              <div className="flex items-stretch gap-2" ref={dropdownOrdenRef}>
+                <div className="relative flex-1">
+                  <button
+                    className={`${claseControlDestacado} inline-flex h-14 w-full min-w-0 items-center justify-between gap-3 border-neon-cyan/45 bg-white/90 text-neon-purple shadow-[0_12px_28px_rgba(124,58,237,0.14)] hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-transparent dark:text-neon-cyan dark:shadow-glow-cyan`}
+                    type="button"
+                    aria-expanded={estaAbiertoDropdownOrden}
+                    aria-haspopup="menu"
+                    onClick={() => setEstaAbiertoDropdownOrden((valorActual) => !valorActual)}
+                  >
+                    <span>{criterioOrden === 'fecha' ? 'Fecha' : 'Alfabeticamente'}</span>
+                    <svg
+                      className={`h-4 w-4 transition-transform duration-300 ${
+                        estaAbiertoDropdownOrden ? 'rotate-180' : ''
+                      }`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+
+                  {estaAbiertoDropdownOrden ? (
+                    <div className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[22px] border border-neon-cyan/35 bg-[#050B16]/96 p-2 shadow-[0_18px_40px_rgba(8,145,178,0.22)] backdrop-blur">
+                      <button
+                        className={`flex w-full items-center justify-between rounded-[16px] border px-4 py-3 text-left text-sm font-black transition-all duration-300 ease-out ${
+                          criterioOrden === 'fecha'
+                            ? 'border-neon-cyan/35 bg-neon-cyan/12 text-neon-cyan shadow-[0_0_18px_rgba(34,211,238,0.14)]'
+                            : 'border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.05] hover:text-white'
+                        }`}
+                        type="button"
+                        onClick={() => {
+                          cambiarCriterioOrden('fecha')
+                          setEstaAbiertoDropdownOrden(false)
+                        }}
+                      >
+                        <span>Fecha</span>
+                        {criterioOrden === 'fecha' ? (
+                          <span className="text-xs uppercase tracking-wide text-neon-cyan/80">Activo</span>
+                        ) : null}
+                      </button>
+                      <button
+                        className={`mt-1 flex w-full items-center justify-between rounded-[16px] border px-4 py-3 text-left text-sm font-black transition-all duration-300 ease-out ${
+                          criterioOrden === 'alfabetico'
+                            ? 'border-neon-cyan/35 bg-neon-cyan/12 text-neon-cyan shadow-[0_0_18px_rgba(34,211,238,0.14)]'
+                            : 'border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.05] hover:text-white'
+                        }`}
+                        type="button"
+                        onClick={() => {
+                          cambiarCriterioOrden('alfabetico')
+                          setEstaAbiertoDropdownOrden(false)
+                        }}
+                      >
+                        <span>Alfabeticamente</span>
+                        {criterioOrden === 'alfabetico' ? (
+                          <span className="text-xs uppercase tracking-wide text-neon-cyan/80">Activo</span>
+                        ) : null}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  className={`${claseControlDestacado} inline-flex h-14 w-14 shrink-0 items-center justify-center border-neon-cyan/45 bg-white/90 text-neon-purple shadow-[0_12px_28px_rgba(124,58,237,0.14)] hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-transparent dark:text-neon-cyan dark:shadow-glow-cyan`}
+                  type="button"
+                  aria-label={
+                    direccionOrden === 'asc'
+                      ? 'Cambiar a orden descendente'
+                      : 'Cambiar a orden ascendente'
+                  }
+                  onClick={alternarDireccionOrden}
+                >
+                  <svg
+                    className={`h-6 w-6 transition-transform duration-300 ${
+                      direccionOrden === 'asc' ? '' : 'rotate-180'
+                    }`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 5v14" />
+                    <path d="m7 10 5-5 5 5" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <button
+                  className={`${claseBotonPendientes} h-14 border-amber-400/50 bg-white/90 px-4 py-3 text-center text-sm font-black text-amber-600 shadow-[0_12px_28px_rgba(251,191,36,0.16)] hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink dark:bg-transparent dark:text-amber-300`}
+                  type="button"
+                  onClick={() => setEstaAbiertoModalPendientes(true)}
+                >
+                  Pendientes{ejerciciosPendientes.length ? ` (${ejerciciosPendientes.length})` : ''}
+                </button>
+                <button
+                  className="hidden h-14 items-center justify-center rounded-xl border border-neon-purple/50 bg-white/90 px-4 py-3 text-center text-sm font-black text-neon-purple shadow-[0_12px_28px_rgba(105,0,255,0.14)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-transparent dark:text-neon-pink disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
+                  type="button"
+                  disabled={estaRecargando}
+                  onClick={() => recargarDesdeServidor()}
+                >
+                  {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
+                </button>
+                <button
+                  className="h-14 rounded-xl border border-neon-cyan/45 bg-white/90 px-4 py-3 text-center text-sm font-black text-neon-purple shadow-[0_12px_28px_rgba(124,58,237,0.14)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-transparent dark:text-neon-cyan dark:shadow-glow-cyan"
+                  type="button"
+                  onClick={agregarEjercicio}
+                >
+                  Nuevo ejercicio
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           {mensaje ||
             'El catalogo se lee del backend y solo usa el almacenamiento local como respaldo.'}
         </p>

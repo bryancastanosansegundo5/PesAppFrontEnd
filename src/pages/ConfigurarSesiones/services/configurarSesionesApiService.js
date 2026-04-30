@@ -10,6 +10,107 @@ function esIdNumerico(valor) {
   return /^\d+$/.test(String(valor || ''))
 }
 
+function normalizarTexto(valor) {
+  return String(valor || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function encontrarIndiceEjercicioRelacionado(ejercicioObjetivo, ejerciciosDisponibles) {
+  if (!ejercicioObjetivo || !Array.isArray(ejerciciosDisponibles) || ejerciciosDisponibles.length === 0) {
+    return -1
+  }
+
+  const persistedIdObjetivo = String(ejercicioObjetivo.persistedId || '')
+  if (persistedIdObjetivo) {
+    const indice = ejerciciosDisponibles.findIndex(
+      (ejercicio) => String(ejercicio?.persistedId || '') === persistedIdObjetivo,
+    )
+
+    if (indice >= 0) {
+      return indice
+    }
+  }
+
+  const idsLocalesObjetivo = [
+    ejercicioObjetivo.clientId,
+    ejercicioObjetivo.idEjercicio,
+    ejercicioObjetivo.id,
+  ]
+    .filter(Boolean)
+    .map(String)
+
+  if (idsLocalesObjetivo.length) {
+    const indice = ejerciciosDisponibles.findIndex((ejercicio) => {
+      const idsLocalesDisponibles = [ejercicio?.clientId, ejercicio?.idEjercicio, ejercicio?.id]
+        .filter(Boolean)
+        .map(String)
+
+      return idsLocalesObjetivo.some((idLocal) => idsLocalesDisponibles.includes(idLocal))
+    })
+
+    if (indice >= 0) {
+      return indice
+    }
+  }
+
+  const catalogoObjetivo = String(ejercicioObjetivo.catalogoEjercicioId || '')
+  const plantillaObjetivo = String(ejercicioObjetivo.plantillaEjercicioId || '')
+  if (catalogoObjetivo || plantillaObjetivo) {
+    const indice = ejerciciosDisponibles.findIndex(
+      (ejercicio) =>
+        (catalogoObjetivo &&
+          String(ejercicio?.catalogoEjercicioId || '') === catalogoObjetivo) ||
+        (plantillaObjetivo &&
+          String(ejercicio?.plantillaEjercicioId || '') === plantillaObjetivo),
+    )
+
+    if (indice >= 0) {
+      return indice
+    }
+  }
+
+  const nombreObjetivo = normalizarTexto(ejercicioObjetivo.nombre)
+  if (!nombreObjetivo) {
+    return -1
+  }
+
+  return ejerciciosDisponibles.findIndex(
+    (ejercicio) => normalizarTexto(ejercicio?.nombre) === nombreObjetivo,
+  )
+}
+
+function reconciliarEjerciciosConOriginales(ejerciciosOriginales, ejerciciosNormalizados) {
+  const originales = Array.isArray(ejerciciosOriginales) ? ejerciciosOriginales : []
+  const disponibles = Array.isArray(ejerciciosNormalizados) ? [...ejerciciosNormalizados] : []
+  const reconciliados = originales.map((ejercicioOriginal) => {
+    const indiceRelacionado = encontrarIndiceEjercicioRelacionado(ejercicioOriginal, disponibles)
+    const ejercicioNormalizado =
+      indiceRelacionado >= 0 ? disponibles.splice(indiceRelacionado, 1)[0] : null
+
+    return {
+      ...(ejercicioNormalizado || ejercicioOriginal),
+      persistedId: ejercicioNormalizado?.persistedId || ejercicioOriginal?.persistedId || '',
+      clientId: ejercicioOriginal?.clientId || ejercicioNormalizado?.clientId || '',
+      idEjercicio: ejercicioOriginal?.idEjercicio || ejercicioNormalizado?.idEjercicio || '',
+    }
+  })
+
+  return [...reconciliados, ...disponibles]
+}
+
+function obtenerIdPersistidoSesion(sesion) {
+  const candidato =
+    sesion?.persistedId ||
+    sesion?.serverId ||
+    sesion?.idPersistido ||
+    sesion?.idServidor ||
+    sesion?.id
+
+  return esIdNumerico(candidato) ? String(candidato) : ''
+}
+
 const peticionesSesionEnVuelo = new Map()
 
 function reconciliarSesionConOriginal(sesionOriginal, payload) {
@@ -17,17 +118,13 @@ function reconciliarSesionConOriginal(sesionOriginal, payload) {
 
   return normalizarSesion({
     ...sesionNormalizada,
+    persistedId: sesionNormalizada.persistedId || sesionOriginal?.persistedId || '',
     clientId: sesionOriginal?.clientId || sesionNormalizada.clientId,
     idSesion: sesionOriginal?.idSesion || sesionNormalizada.idSesion,
-    ejercicios: (sesionNormalizada.ejercicios || []).map((ejercicioNormalizado, indice) => {
-      const ejercicioOriginal = sesionOriginal?.ejercicios?.[indice] || null
-
-      return {
-        ...ejercicioNormalizado,
-        clientId: ejercicioOriginal?.clientId || ejercicioNormalizado.clientId,
-        idEjercicio: ejercicioOriginal?.idEjercicio || ejercicioNormalizado.idEjercicio,
-      }
-    }),
+    ejercicios: reconciliarEjerciciosConOriginales(
+      sesionOriginal?.ejercicios,
+      sesionNormalizada.ejercicios,
+    ),
   })
 }
 
@@ -39,7 +136,7 @@ export async function guardarSesionEnServidor(sesion) {
   }
 
   const body = crearPayloadSesion(sesion)
-  const idPersistido = esIdNumerico(sesion?.id) ? String(sesion.id) : ''
+  const idPersistido = obtenerIdPersistidoSesion(sesion)
   const metodo = idPersistido ? 'PUT' : 'POST'
   const endpoint = idPersistido
     ? `/api/sesiones-entrenamiento/${idPersistido}`

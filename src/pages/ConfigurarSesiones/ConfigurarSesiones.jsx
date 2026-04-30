@@ -20,6 +20,7 @@ import {
   sincronizarSesionesPendientes as sincronizarSesionesPendientesService,
 } from '../../services/training/trainingSessionDataService'
 import { debugSesion, resumirSesionParaLog } from '../../services/debug/sessionSyncDebug'
+import { obtenerErrorValidacionSesion } from '../../services/training/trainingModel'
 
 const claseInputNumero =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
@@ -37,6 +38,17 @@ function esIdSesionLocal(idSesion) {
   const idNormalizado = String(idSesion || '')
 
   return !/^\d+$/.test(idNormalizado)
+}
+
+function obtenerIdPersistidoSesion(sesion) {
+  const candidato =
+    sesion?.persistedId ||
+    sesion?.serverId ||
+    sesion?.idPersistido ||
+    sesion?.idServidor ||
+    sesion?.id
+
+  return /^\d+$/.test(String(candidato || '')) ? String(candidato) : ''
 }
 
 function reemplazarSesionGuardada(sesionesActuales, sesionOriginal, sesionGuardada) {
@@ -96,6 +108,19 @@ function quitarEstadoPendienteSesion(sesion) {
   }
 }
 
+function obtenerTextoErrorSesion(sesion) {
+  return sesion?.syncFieldErrors?.ejercicios || obtenerErrorValidacionSesion(sesion)
+}
+
+function crearEstadoEjerciciosAbiertos(sesiones) {
+  return Object.fromEntries(
+    (sesiones || []).map((sesion) => [
+      sesion.id,
+      Object.fromEntries((sesion.ejercicios || []).map((ejercicio) => [ejercicio.idEjercicio, false])),
+    ]),
+  )
+}
+
 function ConfigurarSesiones() {
   const [catalogoEjercicios, setCatalogoEjercicios] = useState(obtenerCatalogoEjerciciosConfiguracion)
   const [sesiones, setSesiones] = useState(obtenerSesionesConfiguracion)
@@ -104,6 +129,9 @@ function ConfigurarSesiones() {
     const sesionesIniciales = obtenerSesionesConfiguracion()
     return Object.fromEntries(sesionesIniciales.map((sesion) => [sesion.id, false]))
   })
+  const [ejerciciosAbiertos, setEjerciciosAbiertos] = useState(() =>
+    crearEstadoEjerciciosAbiertos(obtenerSesionesConfiguracion()),
+  )
   const [estadoGuardado, setEstadoGuardado] = useState({})
   const [selectorSesionAbierto, setSelectorSesionAbierto] = useState('')
   const [busquedaEjercicio, setBusquedaEjercicio] = useState('')
@@ -131,6 +159,19 @@ function ConfigurarSesiones() {
         const resultadoSincronizacion = await sincronizarSesionesPendientes()
         if (resultadoSincronizacion?.sincronizados > 0) {
           setSesiones(resultadoSincronizacion.sesiones)
+          setEjerciciosAbiertos((estadoActual) =>
+            Object.fromEntries(
+              resultadoSincronizacion.sesiones.map((sesion) => [
+                sesion.id,
+                Object.fromEntries(
+                  (sesion.ejercicios || []).map((ejercicio) => [
+                    ejercicio.idEjercicio,
+                    Boolean(estadoActual[sesion.id]?.[ejercicio.idEjercicio]),
+                  ]),
+                ),
+              ]),
+            ),
+          )
         }
 
         const catalogoServidor = await obtenerEjerciciosDesdeServidor()
@@ -160,12 +201,26 @@ function ConfigurarSesiones() {
       ...sesionesAbiertasActuales,
       [sesion.id]: true,
     }))
+    setEjerciciosAbiertos((estadoActual) => ({
+      ...estadoActual,
+      [sesion.id]: {},
+    }))
   }
 
   const alternarSesion = (idSesion) => {
     setSesionesAbiertas((sesionesAbiertasActuales) => ({
       ...sesionesAbiertasActuales,
       [idSesion]: !sesionesAbiertasActuales[idSesion],
+    }))
+  }
+
+  const alternarEjercicio = (idSesion, idEjercicio) => {
+    setEjerciciosAbiertos((estadoActual) => ({
+      ...estadoActual,
+      [idSesion]: {
+        ...(estadoActual[idSesion] || {}),
+        [idEjercicio]: !estadoActual[idSesion]?.[idEjercicio],
+      },
     }))
   }
 
@@ -259,11 +314,12 @@ function ConfigurarSesiones() {
     setEstaEliminandoSesion(true)
 
     const idSesion = sesionPendienteEliminar.id
+    const idPersistido = obtenerIdPersistidoSesion(sesionPendienteEliminar)
     const nombreSesion = sesionPendienteEliminar.nombreSesion || 'la sesion seleccionada'
 
     try {
-      if (!esIdSesionLocal(idSesion)) {
-        await eliminarSesionEnServidor(idSesion)
+      if (idPersistido) {
+        await eliminarSesionEnServidor(idPersistido)
       }
 
       const sesionesActualizadas = sesiones.filter((sesion) => sesion.id !== idSesion)
@@ -283,9 +339,9 @@ function ConfigurarSesiones() {
       setSelectorSesionAbierto((valorActual) => (valorActual === idSesion ? '' : valorActual))
       setBusquedaEjercicio('')
       setMensajeGeneral(
-        esIdSesionLocal(idSesion)
-          ? 'Sesion local eliminada de forma permanente en este dispositivo.'
-          : `${nombreSesion} se ha eliminado de la BBDD y del almacenamiento local.`,
+        idPersistido
+          ? `${nombreSesion} se ha eliminado de la BBDD y del almacenamiento local.`
+          : 'Sesion local eliminada de forma permanente en este dispositivo.',
       )
       cerrarConfirmacionEliminarSesion()
     } catch (errorCapturado) {
@@ -344,16 +400,25 @@ function ConfigurarSesiones() {
   }, [busquedaSesion, sesiones])
 
   const agregarEjercicio = (idSesion, plantillaEjercicio) => {
+    const ejercicioNuevo = crearEjercicioDesdeCatalogo(plantillaEjercicio)
+
     setSesiones((sesionesActuales) =>
       sesionesActuales.map((sesion) =>
         sesion.id === idSesion
           ? marcarSesionPendiente({
               ...sesion,
-              ejercicios: [...sesion.ejercicios, crearEjercicioDesdeCatalogo(plantillaEjercicio)],
+              ejercicios: [...sesion.ejercicios, ejercicioNuevo],
             })
           : sesion,
       ),
     )
+    setEjerciciosAbiertos((estadoActual) => ({
+      ...estadoActual,
+      [idSesion]: {
+        ...(estadoActual[idSesion] || {}),
+        [ejercicioNuevo.idEjercicio]: false,
+      },
+    }))
     setSelectorSesionAbierto('')
     setBusquedaEjercicio('')
   }
@@ -409,13 +474,48 @@ function ConfigurarSesiones() {
           : sesion,
       ),
     )
+    setEjerciciosAbiertos((estadoActual) => {
+      const ejerciciosSesion = { ...(estadoActual[idSesion] || {}) }
+      delete ejerciciosSesion[idEjercicio]
+
+      return {
+        ...estadoActual,
+        [idSesion]: ejerciciosSesion,
+      }
+    })
   }
 
   const eliminarPendiente = async (sesionPendiente) => {
     const idPendiente = sesionPendiente.id
+    const idPersistido = obtenerIdPersistidoSesion(sesionPendiente)
     setPendienteEliminandoId(idPendiente)
 
     try {
+      if (idPersistido) {
+        await eliminarSesionEnServidor(idPersistido)
+        setSesiones((sesionesActuales) =>
+          sesionesActuales.filter((sesion) => sesion.id !== idPendiente),
+        )
+        setSesionesAbiertas((estadoActual) => {
+          const siguienteEstado = { ...estadoActual }
+          delete siguienteEstado[idPendiente]
+          return siguienteEstado
+        })
+        setEjerciciosAbiertos((estadoActual) => {
+          const siguienteEstado = { ...estadoActual }
+          delete siguienteEstado[idPendiente]
+          return siguienteEstado
+        })
+        setEstadoGuardado((estadoActual) => {
+          const siguienteEstado = { ...estadoActual }
+          delete siguienteEstado[idPendiente]
+          return siguienteEstado
+        })
+        setSelectorSesionAbierto((valorActual) => (valorActual === idPendiente ? '' : valorActual))
+        setMensajeGeneral('La sesion pendiente se ha eliminado del servidor y del almacenamiento local.')
+        return
+      }
+
       setSesiones((sesionesActuales) =>
         sesionesActuales.map((sesion) =>
           sesion.id === idPendiente ? quitarEstadoPendienteSesion(sesion) : sesion,
@@ -437,6 +537,16 @@ function ConfigurarSesiones() {
   }
 
   const guardarSesionEnServidor = async (sesion) => {
+    const errorValidacion = obtenerErrorValidacionSesion(sesion)
+
+    if (errorValidacion) {
+      setEstadoGuardado((estadoActual) => ({
+        ...estadoActual,
+        [sesion.id]: { state: 'error', text: errorValidacion },
+      }))
+      return
+    }
+
     debugSesion('guardarSesionEnServidor desde UI', {
       online: navigator.onLine,
       sesion: resumirSesionParaLog(sesion),
@@ -467,6 +577,16 @@ function ConfigurarSesiones() {
             Object.entries(sesionesAbiertasActuales).filter(([clave]) => clave !== sesion.id),
           ),
           [sesionGuardada.id]: estaAbierta,
+        }
+      })
+      setEjerciciosAbiertos((estadoActual) => {
+        const estadoSesion = estadoActual[sesion.id] || {}
+
+        return {
+          ...Object.fromEntries(
+            Object.entries(estadoActual).filter(([clave]) => clave !== sesion.id),
+          ),
+          [sesionGuardada.id]: estadoSesion,
         }
       })
       setEstadoGuardado((estadoActual) => {
@@ -518,6 +638,7 @@ function ConfigurarSesiones() {
       setSesionesAbiertas(
         Object.fromEntries(sesionesServidor.map((sesion) => [sesion.id, false])),
       )
+      setEjerciciosAbiertos(crearEstadoEjerciciosAbiertos(sesionesServidor))
       setSelectorSesionAbierto('')
       setBusquedaEjercicio('')
       setMensajeGeneral(
@@ -562,6 +683,19 @@ function ConfigurarSesiones() {
       setSesionesAbiertas((estadoActual) =>
         Object.fromEntries(
           resultado.sesiones.map((sesion) => [sesion.id, Boolean(estadoActual[sesion.id])]),
+        ),
+      )
+      setEjerciciosAbiertos((estadoActual) =>
+        Object.fromEntries(
+          resultado.sesiones.map((sesion) => [
+            sesion.id,
+            Object.fromEntries(
+              (sesion.ejercicios || []).map((ejercicio) => [
+                ejercicio.idEjercicio,
+                Boolean(estadoActual[sesion.id]?.[ejercicio.idEjercicio]),
+              ]),
+            ),
+          ]),
         ),
       )
       setEstadoGuardado({})
@@ -666,6 +800,7 @@ function ConfigurarSesiones() {
         {sesionesFiltradas.map((sesion) => {
           const estaAbierta = Boolean(sesionesAbiertas[sesion.id])
           const estado = estadoGuardado[sesion.id]
+          const errorValidacionSesion = obtenerTextoErrorSesion(sesion)
 
           return (
             <article
@@ -688,13 +823,18 @@ function ConfigurarSesiones() {
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     {sesion.ejercicios.length} ejercicios configurados
                   </p>
+                  {errorValidacionSesion ? (
+                    <p className="mt-2 text-sm font-semibold text-amber-600 dark:text-amber-300">
+                      {errorValidacionSesion}
+                    </p>
+                  ) : null}
                 </button>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     className="rounded-md border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(0,255,237,0.16)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink focus:outline-none focus:ring-2 focus:ring-neon-cyan focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:border-neon-cyan/45 disabled:hover:text-slate-950 disabled:hover:shadow-[0_0_20px_rgba(0,255,237,0.16)] dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan dark:focus:ring-offset-pes-black dark:disabled:hover:text-neon-cyan"
                     type="button"
-                    disabled={estado?.state === 'saving'}
+                    disabled={estado?.state === 'saving' || Boolean(errorValidacionSesion)}
                     onClick={() => guardarSesionEnServidor(sesion)}
                   >
                     {estado?.state === 'saving' ? 'Guardando...' : 'Guardar'}
@@ -816,13 +956,42 @@ function ConfigurarSesiones() {
                     <div className="grid gap-4">
                       {sesion.ejercicios.map((ejercicio, indiceEjercicio) => (
                         <div
-                          className="rounded-lg border border-slate-200 p-4 transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10"
+                          className="rounded-lg border-l-4 border-l-neon-purple border-slate-200 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10 dark:border-l-neon-cyan dark:bg-pes-black/30"
                           key={ejercicio.idEjercicio}
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-bold text-neon-purple dark:text-neon-cyan">
-                              {ejercicio.nombre?.trim() || `Ejercicio ${indiceEjercicio + 1}`}
-                            </p>
+                            <button
+                              className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                              type="button"
+                              aria-expanded={Boolean(
+                                ejerciciosAbiertos[sesion.id]?.[ejercicio.idEjercicio],
+                              )}
+                              onClick={() => alternarEjercicio(sesion.id, ejercicio.idEjercicio)}
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-neon-purple dark:text-neon-cyan">
+                                  {ejercicio.nombre?.trim() || `Ejercicio ${indiceEjercicio + 1}`}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                  Ejercicio {indiceEjercicio + 1} · {ejercicio.seriesPlanificadas || 0} series
+                                </p>
+                              </div>
+                              <svg
+                                className={`h-5 w-5 shrink-0 text-neon-purple transition-transform duration-300 ease-out dark:text-neon-cyan ${
+                                  ejerciciosAbiertos[sesion.id]?.[ejercicio.idEjercicio]
+                                    ? 'rotate-180'
+                                    : ''
+                                }`}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </button>
                             <button
                               className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
                               type="button"
@@ -832,165 +1001,127 @@ function ConfigurarSesiones() {
                             </button>
                           </div>
 
-                          <div className="mt-4 grid gap-3">
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Nombre
-                              <input
-                                className={claseInputTexto}
-                                value={ejercicio.nombre}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'nombre',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                          <div
+                            className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+                              ejerciciosAbiertos[sesion.id]?.[ejercicio.idEjercicio]
+                                ? 'mt-4 grid-rows-[1fr]'
+                                : 'grid-rows-[0fr]'
+                            }`}
+                          >
+                            <div className="overflow-hidden">
+                              <div className="grid gap-3">
+                                <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                  Nombre
+                                  <input
+                                    className={claseInputTexto}
+                                    value={ejercicio.nombre}
+                                    onChange={(evento) =>
+                                      actualizarEjercicio(
+                                        sesion.id,
+                                        ejercicio.idEjercicio,
+                                        'nombre',
+                                        evento.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Grupo muscular
-                              <input
-                                className={claseInputTexto}
-                                value={ejercicio.grupoMuscular}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'grupoMuscular',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <label className={claseCampoCompacto}>
+                                    Series
+                                    <input
+                                      className={claseInputNumero}
+                                      type="number"
+                                      min="0"
+                                      max="99"
+                                      value={ejercicio.seriesPlanificadas}
+                                      onChange={(evento) =>
+                                        actualizarEjercicio(
+                                          sesion.id,
+                                          ejercicio.idEjercicio,
+                                          'seriesPlanificadas',
+                                          evento.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Patron
-                              <input
-                                className={claseInputTexto}
-                                value={ejercicio.patronMovimiento}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'patronMovimiento',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                                  <label className={claseCampoCompacto}>
+                                    Reps
+                                    <input
+                                      className={claseInputNumero}
+                                      type="number"
+                                      min="0"
+                                      max="99"
+                                      value={ejercicio.repeticionesPlanificadas}
+                                      onChange={(evento) =>
+                                        actualizarEjercicio(
+                                          sesion.id,
+                                          ejercicio.idEjercicio,
+                                          'repeticionesPlanificadas',
+                                          evento.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
 
-                            <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                              Descripcion
-                              <input
-                                className={claseInputTexto}
-                                value={ejercicio.descripcion}
-                                onChange={(evento) =>
-                                  actualizarEjercicio(
-                                    sesion.id,
-                                    ejercicio.idEjercicio,
-                                    'descripcion',
-                                    evento.target.value,
-                                  )
-                                }
-                              />
-                            </label>
+                                  <label className={claseCampoCompacto}>
+                                    Peso
+                                    <input
+                                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
+                                      type="number"
+                                      min="0"
+                                      max="999"
+                                      value={ejercicio.pesoPlanificado}
+                                      onChange={(evento) =>
+                                        actualizarEjercicio(
+                                          sesion.id,
+                                          ejercicio.idEjercicio,
+                                          'pesoPlanificado',
+                                          evento.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                </div>
 
-                            <div className="grid grid-cols-3 gap-3">
-                              <label className={claseCampoCompacto}>
-                                Series
-                                <input
-                                  className={claseInputNumero}
-                                  type="number"
-                                  min="0"
-                                  max="99"
-                                  value={ejercicio.seriesPlanificadas}
-                                  onChange={(evento) =>
-                                    actualizarEjercicio(
-                                      sesion.id,
-                                      ejercicio.idEjercicio,
-                                      'seriesPlanificadas',
-                                      evento.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <label className={claseCampoCompacto}>
+                                    Altura banco
+                                    <input
+                                      className={claseInputTexto}
+                                      type="text"
+                                      value={ejercicio.alturaBanco}
+                                      placeholder="Sin definir"
+                                      onChange={(evento) =>
+                                        actualizarEjercicio(
+                                          sesion.id,
+                                          ejercicio.idEjercicio,
+                                          'alturaBanco',
+                                          evento.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
 
-                              <label className={claseCampoCompacto}>
-                                Reps
-                                <input
-                                  className={claseInputNumero}
-                                  type="number"
-                                  min="0"
-                                  max="99"
-                                  value={ejercicio.repeticionesPlanificadas}
-                                  onChange={(evento) =>
-                                    actualizarEjercicio(
-                                      sesion.id,
-                                      ejercicio.idEjercicio,
-                                      'repeticionesPlanificadas',
-                                      evento.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-
-                              <label className={claseCampoCompacto}>
-                                Peso
-                                <input
-                                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white"
-                                  type="number"
-                                  min="0"
-                                  max="999"
-                                  value={ejercicio.pesoPlanificado}
-                                  onChange={(evento) =>
-                                    actualizarEjercicio(
-                                      sesion.id,
-                                      ejercicio.idEjercicio,
-                                      'pesoPlanificado',
-                                      evento.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <label className={claseCampoCompacto}>
-                                Altura banco
-                                <input
-                                  className={claseInputTexto}
-                                  type="text"
-                                  value={ejercicio.alturaBanco}
-                                  placeholder="Sin definir"
-                                  onChange={(evento) =>
-                                    actualizarEjercicio(
-                                      sesion.id,
-                                      ejercicio.idEjercicio,
-                                      'alturaBanco',
-                                      evento.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-
-                              <label className={claseCampoCompacto}>
-                                Agarre
-                                <input
-                                  className={claseInputTexto}
-                                  value={ejercicio.agarre}
-                                  placeholder="Sin definir"
-                                  onChange={(evento) =>
-                                    actualizarEjercicio(
-                                      sesion.id,
-                                      ejercicio.idEjercicio,
-                                      'agarre',
-                                      evento.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
+                                  <label className={claseCampoCompacto}>
+                                    Agarre
+                                    <input
+                                      className={claseInputTexto}
+                                      value={ejercicio.agarre}
+                                      placeholder="Sin definir"
+                                      onChange={(evento) =>
+                                        actualizarEjercicio(
+                                          sesion.id,
+                                          ejercicio.idEjercicio,
+                                          'agarre',
+                                          evento.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1090,6 +1221,11 @@ function ConfigurarSesiones() {
                           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                             {sesion.ejercicios.length} ejercicios configurados
                           </p>
+                          {obtenerTextoErrorSesion(sesion) ? (
+                            <p className="mt-2 text-sm font-semibold text-amber-600 dark:text-amber-300">
+                              {obtenerTextoErrorSesion(sesion)}
+                            </p>
+                          ) : null}
                         </div>
                         <div className={claseCampoCompacto}>
                           <span>Identificador</span>

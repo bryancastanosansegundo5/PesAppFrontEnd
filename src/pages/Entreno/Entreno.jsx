@@ -29,6 +29,7 @@ import {
   guardarEntrenamientoConRespaldo,
   sincronizarEntrenamientosPendientes,
 } from '../../services/training/trainingDataService'
+import { obtenerErrorValidacionSesion } from '../../services/training/trainingModel'
 import { sincronizarDatosOfflineEnOrden } from '../../services/sync/offlineSyncService'
 import {
   clonarPendientes,
@@ -316,6 +317,10 @@ function crearEjemploEntrenamientoAnterior() {
       },
     ],
   }
+}
+
+function obtenerErrorSesionParaEntreno(sesion) {
+  return sesion?.syncFieldErrors?.ejercicios || obtenerErrorValidacionSesion(sesion)
 }
 
 function Entreno() {
@@ -739,6 +744,13 @@ function Entreno() {
     const sesion = sesiones.find((elemento) => elemento.id === idSesion)
 
     if (!sesion) return
+    const errorValidacionSesion = obtenerErrorSesionParaEntreno(sesion)
+
+    if (errorValidacionSesion) {
+      setMensaje(`No puedes iniciar este entreno todavia. ${errorValidacionSesion}`)
+      setEstaAbiertoSelectorSesiones(false)
+      return
+    }
 
     setIdSesionSeleccionada(idSesion)
     const siguienteEntrenamiento = crearEntrenamientoDesdeSesion(sesion)
@@ -809,6 +821,8 @@ function Entreno() {
   }
 
   const actualizarSerie = (idEjercicio, idSerie, campo, valor) => {
+    const valorNormalizado = valor === '' ? '' : Number(valor)
+
     setEntrenamiento((entrenamientoActual) => ({
       ...entrenamientoActual,
       ejercicios: entrenamientoActual.ejercicios.map((ejercicio) =>
@@ -816,12 +830,18 @@ function Entreno() {
           ? {
               ...ejercicio,
               seriesRealizadas: ejercicio.seriesRealizadas.map((serie) =>
-                serie.id === idSerie ? { ...serie, [campo]: Number(valor) } : serie,
+                serie.id === idSerie ? { ...serie, [campo]: valorNormalizado } : serie,
               ),
             }
           : ejercicio,
       ),
     }))
+  }
+
+  const limpiarSerieSiEsCero = (idEjercicio, idSerie, campo, valorActual) => {
+    if (Number(valorActual) === 0) {
+      actualizarSerie(idEjercicio, idSerie, campo, '')
+    }
   }
 
   const agregarSerie = (idEjercicio) => {
@@ -969,6 +989,15 @@ function Entreno() {
 
   const finalizarEntrenamiento = async () => {
     if (!entrenamiento) return
+
+    const sesionRelacionada =
+      sesiones.find((sesion) => sesion.id === entrenamiento.idSesion) || null
+    const errorValidacionSesion = obtenerErrorSesionParaEntreno(sesionRelacionada)
+
+    if (errorValidacionSesion) {
+      setMensaje(`No se puede enviar el entreno. ${errorValidacionSesion}`)
+      return
+    }
 
     setEstaGuardando(true)
     setMensaje('')
@@ -1181,20 +1210,34 @@ function Entreno() {
                       >
                         -- Seleccionar --
                       </button>
-                      {sesionesFiltradas.map((sesion) => (
-                        <button
-                          className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 last:border-b-0 dark:border-white/10 ${
-                            idSesionSeleccionada === sesion.id
-                              ? 'bg-neon-cyan/15 text-neon-cyan'
-                              : 'text-slate-800 hover:bg-neon-pink/10 hover:text-neon-pink dark:text-slate-200'
-                          }`}
-                          key={sesion.id}
-                          type="button"
-                          onClick={() => seleccionarSesion(sesion.id)}
-                        >
-                          {sesion.nombreSesion}
-                        </button>
-                      ))}
+                      {sesionesFiltradas.map((sesion) => {
+                        const errorValidacionSesion = obtenerErrorSesionParaEntreno(sesion)
+
+                        return (
+                          <button
+                            className={`w-full border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 last:border-b-0 dark:border-white/10 ${
+                              idSesionSeleccionada === sesion.id
+                                ? 'bg-neon-cyan/15 text-neon-cyan'
+                                : 'text-slate-800 hover:bg-neon-pink/10 hover:text-neon-pink dark:text-slate-200'
+                            }`}
+                            key={sesion.id}
+                            type="button"
+                            onClick={() => seleccionarSesion(sesion.id)}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span>{sesion.nombreSesion}</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {sesion.ejercicios.length} ejercicios
+                              </span>
+                            </div>
+                            {errorValidacionSesion ? (
+                              <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-300">
+                                {errorValidacionSesion}
+                              </p>
+                            ) : null}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1330,7 +1373,7 @@ function Entreno() {
                 className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04]"
                 key={ejercicio.idEjercicio}
               >
-                <div className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center justify-between gap-3 p-5">
                   <button
                     className="flex min-w-0 flex-1 items-center gap-4 text-left"
                     type="button"
@@ -1599,7 +1642,7 @@ function Entreno() {
                         </div>
                       </div>
 
-                      <div className="grid gap-2 rounded-lg border border-neon-purple/30 bg-slate-50 p-3 text-xs text-slate-600 shadow-glow-purple dark:bg-pes-black/60 dark:text-slate-400 sm:grid-cols-3">
+                      <div className="grid grid-cols-3 gap-2 rounded-lg border border-neon-purple/30 bg-slate-50 p-3 text-xs text-slate-600 shadow-glow-purple dark:bg-pes-black/60 dark:text-slate-400">
                         <p>
                           <span className="font-bold text-slate-950 dark:text-white">
                             Anterior:
@@ -1649,9 +1692,9 @@ function Entreno() {
                                 className="rounded-lg border-l-4 border-l-neon-purple border-slate-200 bg-white p-3 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10 dark:border-l-neon-cyan dark:bg-pes-black/30"
                                 key={grupoSeries.numeroSerie}
                               >
-                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div className="flex items-center justify-between gap-3">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-lg font-black text-neon-purple dark:text-neon-cyan md:text-xl">
+                                    <p className="text-xl font-black text-neon-purple dark:text-neon-cyan">
                                       Serie {grupoSeries.numeroSerie}
                                     </p>
                                     {hayCambioPesoActual ? (
@@ -1666,9 +1709,9 @@ function Entreno() {
                                     ) : null}
                                   </div>
 
-                                  <div className="flex w-full items-center gap-2 md:w-auto">
+                                  <div className="flex items-center gap-2">
                                     <button
-                                      className="min-w-0 flex-1 rounded-md border border-neon-cyan/50 px-3 py-2 text-xs font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan md:flex-none md:text-sm"
+                                      className="min-w-0 rounded-md border border-neon-cyan/50 px-3 py-2 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
                                       type="button"
                                       onClick={() =>
                                         agregarTramoPeso(
@@ -1680,7 +1723,7 @@ function Entreno() {
                                       Otro peso en serie {grupoSeries.numeroSerie}
                                     </button>
                                     <button
-                                      className="inline-flex h-10 w-16 shrink-0 items-center justify-center rounded-md border border-[#39ff14]/60 px-2 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.2)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(57,255,20,0.34)] md:h-9 md:w-14"
+                                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-[#39ff14]/60 px-3 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.2)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(57,255,20,0.34)]"
                                       type="button"
                                       role="switch"
                                       aria-checked={estaPlegadaSerie}
@@ -1732,6 +1775,7 @@ function Entreno() {
                                           )}
                                         </span>
                                       </span>
+                                      <span className="text-sm font-bold">Completada</span>
                                     </button>
                                   </div>
                                 </div>
@@ -1757,7 +1801,15 @@ function Entreno() {
                                             type="number"
                                             min="0"
                                             max="99"
-                                            value={serie.repeticiones}
+                                            value={serie.repeticiones ?? ''}
+                                            onFocus={() =>
+                                              limpiarSerieSiEsCero(
+                                                ejercicio.idEjercicio,
+                                                serie.id,
+                                                'repeticiones',
+                                                serie.repeticiones,
+                                              )
+                                            }
                                             onChange={(evento) =>
                                               actualizarSerie(
                                                 ejercicio.idEjercicio,
@@ -1775,7 +1827,15 @@ function Entreno() {
                                             type="number"
                                             min="0"
                                             max="999"
-                                            value={serie.peso}
+                                            value={serie.peso ?? ''}
+                                            onFocus={() =>
+                                              limpiarSerieSiEsCero(
+                                                ejercicio.idEjercicio,
+                                                serie.id,
+                                                'peso',
+                                                serie.peso,
+                                              )
+                                            }
                                             onChange={(evento) =>
                                               actualizarSerie(
                                                 ejercicio.idEjercicio,

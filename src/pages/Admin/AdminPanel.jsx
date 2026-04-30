@@ -171,6 +171,11 @@ function AdminPanel({ usuarioActual }) {
         const ideasOrdenadas = ordenarIdeasPorEstado(resultadoIdeas.ideas)
         setIdeas(ideasOrdenadas)
         setIdeasAbiertas(crearEstadoIdeasCerradas(ideasOrdenadas))
+        if (!resultadoIdeas.online) {
+          setErrorIdeas(
+            `${resultadoIdeas.error?.message || 'No se pudo conectar con el servidor.'} Mostrando ideas guardadas en este dispositivo.`,
+          )
+        }
       } catch (errorCapturado) {
         setErrorIdeas(errorCapturado.message || 'No se pudieron cargar las ideas.')
       } finally {
@@ -536,10 +541,18 @@ function AdminPanel({ usuarioActual }) {
       setIdeas(ideasOrdenadas)
       setIdeasAbiertas(crearEstadoIdeasCerradas(ideasOrdenadas))
       setEstadoIdeas({})
+      if (!resultado.online) {
+        setErrorIdeas(
+          `${resultado.error?.message || 'No se pudo conectar con el servidor.'} Mostrando ideas guardadas en este dispositivo.`,
+        )
+      }
       publicarToast(
-        resultado.sincronizados > 0
+        !resultado.online
+          ? 'Sin conexion con el servidor. Ideas cargadas desde local.'
+          : resultado.sincronizados > 0
           ? `Se sincronizaron ${resultado.sincronizados} ideas pendientes y se recargo la lista.`
           : 'Ideas recargadas desde la base de datos.',
+        resultado.online ? 'info' : 'error',
       )
     } catch (errorCapturado) {
       setErrorIdeas(errorCapturado.message || 'No se pudieron recargar las ideas.')
@@ -816,31 +829,31 @@ function AdminPanel({ usuarioActual }) {
           </article>
         </section>
 
-        <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/[0.04]">
+        <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/[0.04] sm:rounded-[30px] sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
                 Ideas
               </p>
-              <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+              <h2 className="mt-2 text-xl font-black leading-tight text-slate-950 dark:text-white sm:text-2xl">
                 Lista de ideas del panel de administracion
               </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
+              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300 sm:leading-7">
                 Crea ideas con titulo y descripcion, marcalas como cumplidas cuando toque y deja
                 que la cola offline las sincronice al recuperar conexion.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto">
               <button
-                className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
+                className="w-full rounded-xl border border-neon-cyan/45 bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan sm:px-5"
                 type="button"
                 onClick={crearNuevaIdea}
               >
                 Anadir idea
               </button>
               <button
-                className="rounded-xl border border-neon-purple/40 bg-white px-5 py-3 text-sm font-black text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan"
+                className="w-full rounded-xl border border-neon-purple/40 bg-white px-4 py-3 text-sm font-black text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan sm:px-5"
                 type="button"
                 disabled={estaRecargandoIdeas}
                 onClick={recargarIdeas}
@@ -848,7 +861,7 @@ function AdminPanel({ usuarioActual }) {
                 {estaRecargandoIdeas ? 'Recargando...' : 'Recargar ideas'}
               </button>
               <button
-                className="rounded-xl border border-amber-400/40 bg-white px-5 py-3 text-sm font-black text-amber-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-amber-500 hover:text-amber-700 dark:bg-pes-black dark:text-amber-300"
+                className="w-full rounded-xl border border-amber-400/40 bg-white px-4 py-3 text-sm font-black text-amber-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-amber-500 hover:text-amber-700 dark:bg-pes-black dark:text-amber-300 sm:px-5"
                 type="button"
                 onClick={() => setEstaAbiertoModalPendientesIdeas(true)}
               >
@@ -869,7 +882,7 @@ function AdminPanel({ usuarioActual }) {
             </div>
           ) : null}
 
-          {!estaCargandoIdeas && !errorIdeas ? (
+          {!estaCargandoIdeas && (!errorIdeas || ideasVisibles.length > 0) ? (
             <div className="mt-6 grid gap-4">
               {ideasVisibles.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-5 py-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-[#080B14] dark:text-slate-400">
@@ -883,12 +896,12 @@ function AdminPanel({ usuarioActual }) {
 
                 return (
                   <article
-                    className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50/90 transition-all duration-300 ease-out hover:border-neon-cyan/45 hover:shadow-glow-cyan dark:border-white/10 dark:bg-[#080B14]"
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/90 transition-all duration-300 ease-out hover:border-neon-cyan/45 hover:shadow-glow-cyan dark:border-white/10 dark:bg-[#080B14] sm:rounded-[28px]"
                     key={idea.id}
                   >
-                    <div className="flex items-center justify-between gap-4 px-5 py-4">
+                    <div className="flex flex-col gap-4 px-4 py-4 sm:px-5 md:flex-row md:items-center md:justify-between">
                       <button
-                        className="min-w-0 flex-1 text-left transition-all duration-300 ease-out hover:text-neon-purple dark:hover:text-neon-cyan"
+                        className="min-w-0 text-left transition-all duration-300 ease-out hover:text-neon-purple dark:hover:text-neon-cyan md:flex-1"
                         type="button"
                         aria-expanded={estaAbierta}
                         onClick={() => alternarIdea(idea.id)}
@@ -919,18 +932,18 @@ function AdminPanel({ usuarioActual }) {
                               {idea.activo !== false ? 'Activa' : 'Quitada'}
                             </span>
                           </div>
-                          <h3 className="mt-2 truncate text-2xl font-black text-slate-950 dark:text-white">
+                          <h3 className="mt-2 break-words text-xl font-black leading-tight text-slate-950 dark:text-white sm:text-2xl">
                             {idea.titulo?.trim() || 'Idea sin titulo'}
                           </h3>
-                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          <p className="mt-1 break-words text-sm leading-6 text-slate-500 dark:text-slate-400">
                             {idea.descripcion?.trim() || 'Anade una descripcion para dar contexto a esta idea.'}
                           </p>
                         </div>
                       </button>
 
-                      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                      <div className="grid w-full grid-cols-[1fr_1fr_auto_auto] items-center gap-2 md:w-auto md:shrink-0 md:flex md:flex-wrap md:justify-end">
                         <button
-                          className="inline-flex items-center justify-center rounded-xl border border-neon-cyan/45 bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
+                          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-neon-cyan/45 bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan sm:px-4 sm:py-3"
                           type="button"
                           disabled={estadoIdea?.state === 'saving'}
                           onClick={() => guardarIdea(idea)}
@@ -939,7 +952,7 @@ function AdminPanel({ usuarioActual }) {
                         </button>
 
                         <button
-                          className="rounded-md border border-neon-pink/50 px-4 py-3 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple disabled:cursor-not-allowed disabled:opacity-60"
+                          className="min-h-11 rounded-xl border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-3"
                           type="button"
                           disabled={estadoIdea?.state === 'saving'}
                           onClick={() => abrirConfirmacionQuitarIdea(idea)}
@@ -952,7 +965,7 @@ function AdminPanel({ usuarioActual }) {
                           role="switch"
                           aria-checked={idea.completada}
                           title={idea.completada ? 'Cumplida' : 'Pendiente'}
-                          className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#39ff14]/50 px-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)] sm:px-3"
                           onClick={(event) => {
                             event.stopPropagation()
                             actualizarIdea(idea.id, 'completada', !idea.completada)
@@ -1205,27 +1218,27 @@ function AdminPanel({ usuarioActual }) {
       </main>
 
       {estaAbiertoModalPendientesIdeas ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-4">
           <div
-            className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-amber-400/30 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.38)] dark:bg-[#050816]"
+            className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-amber-400/30 bg-white shadow-[0_24px_90px_rgba(15,23,42,0.38)] dark:bg-[#050816] sm:max-h-[85vh] sm:rounded-3xl"
             aria-modal="true"
             role="dialog"
           >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-white/10">
-              <div>
+            <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between sm:px-5">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-500">
                   Pendientes
                 </p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
+                <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 dark:text-white sm:text-2xl">
                   Cola offline de ideas
                 </h2>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
                   Aqui ves las ideas guardadas en local que aun no se han subido al backend.
                 </p>
               </div>
 
               <button
-                className="rounded-full border border-slate-300 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:text-slate-300"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:border-neon-pink hover:text-neon-pink dark:border-white/10 dark:text-slate-300 sm:w-auto sm:rounded-full"
                 type="button"
                 onClick={() => setEstaAbiertoModalPendientesIdeas(false)}
               >
@@ -1233,23 +1246,23 @@ function AdminPanel({ usuarioActual }) {
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10">
+            <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:px-5">
               <button
-                className="rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:text-neon-cyan"
+                className="w-full rounded-xl border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:text-neon-cyan sm:w-auto sm:rounded-md"
                 type="button"
                 disabled={estaSincronizandoIdeasPendientes}
                 onClick={sincronizarPendientesIdeasAhora}
               >
                 {estaSincronizandoIdeasPendientes ? 'Sincronizando...' : 'Sincronizar ahora'}
               </button>
-              <p className="self-center text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-sm leading-6 text-slate-500 dark:text-slate-400 sm:self-center">
                 {ideasPendientes.length === 0
                   ? 'No hay ideas pendientes.'
                   : `${ideasPendientes.length} idea${ideasPendientes.length === 1 ? '' : 's'} pendiente${ideasPendientes.length === 1 ? '' : 's'} de subida.`}
               </p>
             </div>
 
-            <div className="max-h-[55vh] overflow-y-auto px-5 py-4">
+            <div className="max-h-[55vh] overflow-y-auto px-4 py-4 sm:px-5">
               {ideasPendientes.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
                   No hay ideas pendientes de sincronizar.
@@ -1266,20 +1279,20 @@ function AdminPanel({ usuarioActual }) {
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-500">
                             {idea.ideaId ? 'Edicion pendiente' : 'Alta local pendiente'}
                           </p>
-                          <h3 className="mt-1 text-lg font-black text-slate-950 dark:text-white">
+                          <h3 className="mt-1 break-words text-lg font-black leading-tight text-slate-950 dark:text-white">
                             {idea.titulo || 'Idea sin titulo'}
                           </h3>
-                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          <p className="mt-1 break-words text-sm leading-6 text-slate-500 dark:text-slate-400">
                             {idea.descripcion || 'Sin descripcion'}
                           </p>
                         </div>
-                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-pes-black dark:text-slate-400">
+                        <div className="w-fit rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-pes-black dark:text-slate-400">
                           {idea.activo !== false ? 'Activa' : 'Quitada'}
                         </div>
                       </div>
-                      <div className="mt-4 flex justify-end">
+                      <div className="mt-4 flex justify-stretch sm:justify-end">
                         <button
-                          className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple disabled:cursor-not-allowed disabled:opacity-60"
+                          className="w-full rounded-xl border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:rounded-md"
                           type="button"
                           disabled={ideaPendienteEliminandoId === idea.id}
                           onClick={() => quitarIdeaDeLaCola(idea)}

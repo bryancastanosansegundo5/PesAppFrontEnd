@@ -41,5 +41,5 @@ export function resumirSesionParaLog(sesion) {
 export function debugSesion(etiqueta, detalle = {}) {
   const marca = new Date().toISOString()
 
-  console.log(`[sesiones-debug] ${marca} ${etiqueta}`, serializarSeguro(detalle))
+  // console.log(`[sesiones-debug] ${marca} ${etiqueta}`, serializarSeguro(detalle))
 }

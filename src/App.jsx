@@ -220,13 +220,7 @@ function App() {
     sesion?.usuario?.email ||
     'Tu espacio de trabajo'
   const ultimoEntreno = historialInicio[0]
-  const proximaSesion = sesionesInicio[0]
-  const totalEjerciciosSesion = proximaSesion?.ejercicios?.length || 0
-  const totalSeriesSesion =
-    proximaSesion?.ejercicios?.reduce(
-      (acumulado, ejercicio) => acumulado + (Number(ejercicio.seriesPlanificadas) || 0),
-      0,
-    ) || 0
+  const totalEjerciciosUltimoEntreno = ultimoEntreno?.ejercicios?.length || 0
   const totalSeriesUltimoEntreno =
     ultimoEntreno?.ejercicios?.reduce(
       (acumulado, ejercicio) => acumulado + (ejercicio.seriesRealizadas?.length || 0),
@@ -730,19 +724,19 @@ function App() {
             <div className="grid gap-4 sm:grid-cols-2">
               <article className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 dark:border-neon-cyan/25 dark:bg-neon-cyan/10">
                 <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-violet-700 dark:text-neon-cyan">
-                  {usuarioAutenticado ? 'Proxima sesion' : 'Primera sesion'}
+                  {usuarioAutenticado ? 'Ultimo entreno' : 'Tu ultimo entreno'}
                 </p>
                 <p className="font-display mt-3 text-[1.8rem] font-black tracking-[0.01em] text-slate-900 dark:text-white">
-                  {usuarioAutenticado ? proximaSesion?.nombreSesion || 'Sin definir' : 'Tu plan real'}
+                  {usuarioAutenticado ? ultimoEntreno?.nombreSesion || 'Sin historial' : 'Tu historial real'}
                 </p>
                 <p className="mt-3 text-sm text-slate-800 dark:text-slate-200">
                   {usuarioAutenticado
-                    ? `${totalEjerciciosSesion} ejercicios preparados`
-                    : 'Sin datos de ejemplo ni fechas aleatorias'}
+                    ? `${totalEjerciciosUltimoEntreno} ejercicios registrados`
+                    : 'Sin datos de ejemplo ni predicciones'}
                 </p>
                 <p className="text-sm text-slate-700 dark:text-slate-400">
                   {usuarioAutenticado
-                    ? `${totalSeriesSesion} series previstas`
+                    ? formatearFechaResumen(ultimoEntreno?.fechaFin)
                     : 'Se mostrara cuando accedas'}
                 </p>
               </article>

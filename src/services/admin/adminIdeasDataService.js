@@ -116,14 +116,35 @@ export async function sincronizarIdeasAdminPendientes() {
 }
 
 export async function recargarIdeasAdminConSincronizacion() {
-  const resultadoSincronizacion = await sincronizarIdeasAdminPendientes()
-  const ideasServidor = await obtenerIdeasAdmin()
-  const ideasFusionadas = reemplazarIdeasAdminDesdeRemotoConPendientesLocales(ideasServidor)
+  let resultadoSincronizacion
 
-  return {
-    ideas: ideasFusionadas,
-    sincronizados: resultadoSincronizacion?.sincronizados || 0,
-    error: resultadoSincronizacion?.error || null,
+  try {
+    resultadoSincronizacion = await sincronizarIdeasAdminPendientes()
+  } catch (errorCapturado) {
+    resultadoSincronizacion = {
+      ideas: obtenerIdeasAdminGuardadas(),
+      sincronizados: 0,
+      error: errorCapturado,
+    }
+  }
+
+  try {
+    const ideasServidor = await obtenerIdeasAdmin()
+    const ideasFusionadas = reemplazarIdeasAdminDesdeRemotoConPendientesLocales(ideasServidor)
+
+    return {
+      ideas: ideasFusionadas,
+      sincronizados: resultadoSincronizacion?.sincronizados || 0,
+      error: resultadoSincronizacion?.error || null,
+      online: true,
+    }
+  } catch (errorCapturado) {
+    return {
+      ideas: obtenerIdeasAdminGuardadas(),
+      sincronizados: resultadoSincronizacion?.sincronizados || 0,
+      error: errorCapturado || resultadoSincronizacion?.error || null,
+      online: false,
+    }
   }
 }
 

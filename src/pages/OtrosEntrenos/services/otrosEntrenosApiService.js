@@ -4,7 +4,22 @@ function normalizarNumero(valor) {
   return Number(valor) || 0
 }
 
+function normalizarSerieRealizada(serie, indice = 0) {
+  return {
+    id: serie?.id || `serie-${indice + 1}`,
+    numeroSerie: normalizarNumero(serie?.numeroSerie ?? serie?.setNumber ?? indice + 1) || indice + 1,
+    repeticiones: normalizarNumero(serie?.repeticiones ?? serie?.reps),
+    peso: normalizarNumero(serie?.peso ?? serie?.weight),
+  }
+}
+
 function normalizarEntrada(entrada, indice = 0) {
+  const seriesDetalle = Array.isArray(entrada?.seriesRealizadas)
+    ? entrada.seriesRealizadas.map(normalizarSerieRealizada)
+    : Array.isArray(entrada?.performedSets)
+      ? entrada.performedSets.map(normalizarSerieRealizada)
+      : []
+
   return {
     id: entrada?.id || `entrada-${indice + 1}`,
     fecha: entrada?.fecha || '',
@@ -17,10 +32,11 @@ function normalizarEntrada(entrada, indice = 0) {
         ? ''
         : String(entrada.alturaBanco),
     agarre: entrada?.agarre || '',
-    seriesRealizadas: normalizarNumero(entrada?.seriesRealizadas),
+    seriesRealizadas: seriesDetalle.length || normalizarNumero(entrada?.seriesRealizadas),
     repeticionesTotales: normalizarNumero(entrada?.repeticionesTotales),
     volumenTotal: normalizarNumero(entrada?.volumenTotal),
     pesoMaximo: normalizarNumero(entrada?.pesoMaximo),
+    seriesDetalle,
   }
 }
 
