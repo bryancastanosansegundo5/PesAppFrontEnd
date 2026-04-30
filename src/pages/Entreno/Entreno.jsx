@@ -1134,7 +1134,7 @@ function Entreno() {
         progress={progress}
       />
       <main
-        className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8"
+        className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-5 px-3 py-6 sm:gap-6 sm:px-6 sm:py-8 lg:px-8"
       >
         <section className="rounded-lg border border-neon-cyan/30 bg-white p-5 shadow-glow-cyan transition-all duration-300 ease-out dark:bg-white/[0.04]">
           <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-start">
@@ -1142,7 +1142,7 @@ function Entreno() {
               <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
                 Entreno de hoy
               </p>
-              <h1 className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
+              <h1 className="mt-2 text-2xl font-black leading-tight text-slate-950 sm:text-3xl dark:text-white">
                 Registra lo que haces hoy, sin romper la plantilla.
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">
@@ -1246,9 +1246,9 @@ function Entreno() {
           </div>
         </section>
 
-        <section className="flex flex-wrap justify-end gap-3">
+        <section className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
-            className="rounded-md border border-amber-400/60 px-4 py-3 text-sm font-bold text-amber-600 shadow-[0_0_20px_rgba(251,191,36,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-amber-300"
+            className="w-full rounded-md border border-amber-400/60 px-4 py-3 text-sm font-bold text-amber-600 shadow-[0_0_20px_rgba(251,191,36,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-amber-300 sm:w-auto"
             type="button"
             onClick={abrirModalPendientes}
           >
@@ -1263,14 +1263,14 @@ function Entreno() {
             {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
           </button>
           <button
-            className="rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
+            className="w-full rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan sm:w-auto"
             type="button"
             onClick={cargarEjemploEntrenamiento}
           >
             Cargar ejemplo
           </button>
           <button
-            className="rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-50 dark:text-neon-pink"
+            className="w-full rounded-md border border-neon-purple/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-purple transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-50 dark:text-neon-pink sm:w-auto"
             type="button"
             disabled={!entrenamiento}
             onClick={() => {
@@ -1373,9 +1373,9 @@ function Entreno() {
                 className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04]"
                 key={ejercicio.idEjercicio}
               >
-                <div className="flex items-center justify-between gap-3 p-5">
+                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                   <button
-                    className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left sm:items-center sm:gap-4"
                     type="button"
                     aria-expanded={estaAbiertoEjercicio}
                     onClick={() => alternarEjercicio(ejercicio.idEjercicio)}
@@ -1399,10 +1399,10 @@ function Entreno() {
                       </svg>
                     </span>
                     <span className="min-w-0">
-                      <span className="font-display block truncate text-xl font-black text-slate-950 dark:text-white">
+                      <span className="font-display block break-words text-lg font-black leading-tight text-slate-950 sm:truncate sm:text-xl dark:text-white">
                         {ejercicio.nombre}
                       </span>
-                      <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
+                      <span className="mt-1 block text-xs leading-5 text-slate-600 sm:text-sm dark:text-slate-400">
                         {gruposSeries.length} series · {ejercicio.seriesRealizadas.length} tramos ·{' '}
                         {ejercicio.completado
                           ? 'completado'
@@ -1413,13 +1413,13 @@ function Entreno() {
                     </span>
                   </button>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
                     <button
                       type="button"
                       role="switch"
                       aria-checked={ejercicio.completado}
                       title={ejercicio.completado ? 'Completado' : 'Pendiente'}
-                      className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)] sm:w-auto"
                       onClick={() => alternarEjercicioCompletado(ejercicio.idEjercicio)}
                     >
                       <span
@@ -1467,7 +1467,7 @@ function Entreno() {
                       Completado
                     </button>
                     <button
-                      className="rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
+                      className="w-full rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple sm:w-auto"
                       type="button"
                       onClick={() =>
                         actualizarEjercicio(ejercicio.idEjercicio, 'omitido', !ejercicio.omitido)
@@ -1476,7 +1476,7 @@ function Entreno() {
                       {ejercicio.omitido ? 'Reactivar' : 'No hacer hoy'}
                     </button>
                     <button
-                      className="rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400 sm:w-auto"
                       type="button"
                       onClick={() => quitarEjercicioSoloHoy(ejercicio.idEjercicio)}
                     >
@@ -1493,7 +1493,7 @@ function Entreno() {
                   }`}
                 >
                   <div className="overflow-hidden">
-                    <div className="grid gap-4 border-t border-slate-200 p-5 dark:border-white/10">
+                    <div className="grid gap-4 border-t border-slate-200 p-4 sm:p-5 dark:border-white/10">
                       <button
                         className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-black text-slate-900 transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black/45 dark:text-white dark:hover:text-neon-cyan"
                         type="button"
@@ -1554,7 +1554,7 @@ function Entreno() {
                       </div>
 
                       <div className="grid gap-3">
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-3">
                           <label className={claseCampoCompacto}>
                             Series base
                             <input
@@ -1607,7 +1607,7 @@ function Entreno() {
                             />
                           </label>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <label className={claseCampoCompacto}>
                             Altura banco
                             <input
@@ -1642,7 +1642,7 @@ function Entreno() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 rounded-lg border border-neon-purple/30 bg-slate-50 p-3 text-xs text-slate-600 shadow-glow-purple dark:bg-pes-black/60 dark:text-slate-400">
+                      <div className="grid gap-2 rounded-lg border border-neon-purple/30 bg-slate-50 p-3 text-xs text-slate-600 shadow-glow-purple sm:grid-cols-3 dark:bg-pes-black/60 dark:text-slate-400">
                         <p>
                           <span className="font-bold text-slate-950 dark:text-white">
                             Anterior:
@@ -1692,9 +1692,9 @@ function Entreno() {
                                 className="rounded-lg border-l-4 border-l-neon-purple border-slate-200 bg-white p-3 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10 dark:border-l-neon-cyan dark:bg-pes-black/30"
                                 key={grupoSeries.numeroSerie}
                               >
-                                <div className="flex items-center justify-between gap-3">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-xl font-black text-neon-purple dark:text-neon-cyan">
+                                    <p className="text-lg font-black text-neon-purple sm:text-xl dark:text-neon-cyan">
                                       Serie {grupoSeries.numeroSerie}
                                     </p>
                                     {hayCambioPesoActual ? (
@@ -1709,7 +1709,7 @@ function Entreno() {
                                     ) : null}
                                   </div>
 
-                                  <div className="flex items-center gap-2">
+                                  <div className="grid gap-2 sm:flex sm:items-center">
                                     <button
                                       className="min-w-0 rounded-md border border-neon-cyan/50 px-3 py-2 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
                                       type="button"
@@ -1723,7 +1723,7 @@ function Entreno() {
                                       Otro peso en serie {grupoSeries.numeroSerie}
                                     </button>
                                     <button
-                                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-[#39ff14]/60 px-3 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.2)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(57,255,20,0.34)]"
+                                      className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-md border border-[#39ff14]/60 px-3 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.2)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(57,255,20,0.34)] sm:w-auto"
                                       type="button"
                                       role="switch"
                                       aria-checked={estaPlegadaSerie}
@@ -1793,7 +1793,7 @@ function Entreno() {
                                       className="grid gap-3 rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-pes-black/50"
                                       key={serie.id}
                                     >
-                                      <div className="grid grid-cols-2 gap-3">
+                                      <div className="grid gap-3 sm:grid-cols-2">
                                         <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
                                           Reps hechas
                                           <input
@@ -1855,7 +1855,7 @@ function Entreno() {
                                       </div>
                                       <div className="flex justify-end">
                                         <button
-                                          className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
+                                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400 sm:w-24"
                                           type="button"
                                           onClick={() =>
                                             eliminarSerie(ejercicio.idEjercicio, serie.id)
@@ -1886,7 +1886,7 @@ function Entreno() {
                       </div>
 
                       <button
-                        className="w-fit rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
+                        className="w-full rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink sm:w-fit dark:text-neon-cyan"
                         type="button"
                         onClick={() => agregarSerie(ejercicio.idEjercicio)}
                       >
@@ -1917,13 +1917,13 @@ function Entreno() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-amber-400/35 bg-[#060913] shadow-[0_28px_90px_rgba(15,23,42,0.38)]">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+          <div className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-amber-400/35 bg-[#060913] shadow-[0_28px_90px_rgba(15,23,42,0.38)] sm:rounded-[28px]">
+            <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-400">
                   Pendientes
                 </p>
-                <h2 className="mt-1 text-2xl font-black text-white">
+                <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">
                   Cola offline de entrenos
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">
@@ -1940,9 +1940,9 @@ function Entreno() {
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-3 border-b border-white/10 px-5 py-4">
+            <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:flex-wrap sm:px-5">
               <button
-                className="rounded-md border border-amber-400/60 px-4 py-3 text-sm font-bold text-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-md border border-amber-400/60 px-4 py-3 text-sm font-bold text-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 type="button"
                 disabled={
                   pendientesEditados.length === 0 || clientIdPendienteForzando === '__all__'
@@ -1955,7 +1955,7 @@ function Entreno() {
               </button>
             </div>
 
-            <div className="overflow-y-auto px-5 py-5">
+            <div className="overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
               {pendientesEditados.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/12 bg-[#090D19] p-8 text-center text-sm text-slate-400">
                   No hay entrenos pendientes de sincronizar.
