@@ -871,18 +871,6 @@ function OtrosEntrenos() {
                                 <div className="mt-5 grid gap-3 text-sm text-slate-600 dark:text-slate-400">
                                   <p>
                                     <span className="font-bold text-slate-950 dark:text-white">
-                                      Patron:
-                                    </span>{' '}
-                                    {ejercicio.patronMovimiento || '-'}
-                                  </p>
-                                  <p>
-                                    <span className="font-bold text-slate-950 dark:text-white">
-                                      Equipamiento:
-                                    </span>{' '}
-                                    {ejercicio.equipamiento || '-'}
-                                  </p>
-                                  <p>
-                                    <span className="font-bold text-slate-950 dark:text-white">
                                       Agarre:
                                     </span>{' '}
                                     {ejercicio.agarre || '-'}
