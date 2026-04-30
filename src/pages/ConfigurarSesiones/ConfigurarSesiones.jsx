@@ -4,7 +4,6 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import {
   crearEjercicioDesdeCatalogo,
   crearSesionVacia,
-  guardarCatalogoEjerciciosConfiguracion,
   obtenerCatalogoEjerciciosConfiguracion,
   guardarSesionesConfiguracion,
   obtenerSesionesConfiguracion,

@@ -943,10 +943,11 @@ function Entreno() {
     }
   }
 
-  const recargarDesdeServidor = async ({
-    silencioso = false,
-    forzarSincronizacionOffline = true,
-  } = {}) => {
+  async function recargarDesdeServidor(opciones = {}) {
+    const {
+      silencioso = false,
+      forzarSincronizacionOffline = true,
+    } = opciones
     setEstaRecargando(true)
     if (silencioso) {
       setMensaje('')

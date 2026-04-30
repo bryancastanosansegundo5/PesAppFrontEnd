@@ -23,6 +23,7 @@ export async function obtenerIdeasAdmin() {
     method: 'GET',
     auth: true,
     skip_global_sync: true,
+    suppress_auth_invalid: true,
   })
 
   return Array.isArray(payload) ? payload.map(normalizarIdeaRemota).filter(Boolean) : []
@@ -40,6 +41,7 @@ export async function crearIdeaAdmin(idea) {
       activo: idea.activo !== false,
     },
     skip_global_sync: true,
+    suppress_auth_invalid: true,
   })
 
   return normalizarIdeaRemota(payload)
@@ -57,6 +59,7 @@ export async function actualizarIdeaAdmin(ideaId, idea) {
       version: Number.isFinite(Number(idea.version)) ? Number(idea.version) : 0,
     },
     skip_global_sync: true,
+    suppress_auth_invalid: true,
   })
 
   return normalizarIdeaRemota(payload)
@@ -71,6 +74,7 @@ export async function cambiarEstadoIdeaAdmin(ideaId, activo, version = 0) {
       version: Number.isFinite(Number(version)) ? Number(version) : 0,
     },
     skip_global_sync: true,
+    suppress_auth_invalid: true,
   })
 
   return normalizarIdeaRemota(payload)

@@ -164,6 +164,7 @@ async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
     credentials_mode,
     skip_refresh = false,
     skip_global_sync = false,
+    suppress_auth_invalid = false,
     ...restOptions
   } = options
   const requestHeaders = new Headers(headers)
@@ -235,18 +236,20 @@ async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
       await solicitarRefresh()
       return ejecutarRequest(path, options, false)
     } catch {
-      window.dispatchEvent(
-        new CustomEvent('pesapp:auth-invalid', {
-          detail: {
-            path,
-            status: response.status,
-          },
-        }),
-      )
+      if (!suppress_auth_invalid) {
+        window.dispatchEvent(
+          new CustomEvent('pesapp:auth-invalid', {
+            detail: {
+              path,
+              status: response.status,
+            },
+          }),
+        )
+      }
     }
   }
 
-  if (auth && response.status === 401 && !esEndpointAuth(path)) {
+  if (auth && response.status === 401 && !esEndpointAuth(path) && !suppress_auth_invalid) {
     window.dispatchEvent(
       new CustomEvent('pesapp:auth-invalid', {
         detail: {

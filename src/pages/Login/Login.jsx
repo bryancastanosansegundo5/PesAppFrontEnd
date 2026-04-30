@@ -4,12 +4,10 @@ import { validarPassword, validarUsername } from '../../services/auth/authValida
 const claseInput =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
-function Login({ onLogin, estaCargando, error, tema, modoOfflineDisponible, estaDesconectadoServidor }) {
+function Login({ onLogin, estaCargando, error, modoOfflineDisponible, estaDesconectadoServidor }) {
   const [username, setUsername] = useState('Usuario')
   const [password, setPassword] = useState('Contraseña')
   const [errorFormulario, setErrorFormulario] = useState('')
-  const isDarkTheme = tema === 'dark'
-
   const handleSubmit = (event) => {
     event.preventDefault()
 
