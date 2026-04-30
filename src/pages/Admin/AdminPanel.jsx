@@ -74,6 +74,16 @@ function ordenarUsuarios(usuarios) {
   return [...usuarios].sort((usuarioA, usuarioB) => usuarioA.id - usuarioB.id)
 }
 
+function ordenarIdeasPorEstado(ideas) {
+  return [...ideas].sort(
+    (ideaA, ideaB) => Number(Boolean(ideaA.completada)) - Number(Boolean(ideaB.completada)),
+  )
+}
+
+function crearEstadoIdeasCerradas(ideas) {
+  return Object.fromEntries(ideas.map((idea) => [idea.id, false]))
+}
+
 function obtenerNombreVisibleUsuario(usuario) {
   return usuario?.username || usuario?.nombre || usuario?.email || 'Usuario'
 }
@@ -158,10 +168,9 @@ function AdminPanel({ usuarioActual }) {
 
       try {
         const resultadoIdeas = await recargarIdeasAdminConSincronizacion()
-        setIdeas(resultadoIdeas.ideas)
-        setIdeasAbiertas(
-          Object.fromEntries(resultadoIdeas.ideas.map((idea, indice) => [idea.id, indice === 0])),
-        )
+        const ideasOrdenadas = ordenarIdeasPorEstado(resultadoIdeas.ideas)
+        setIdeas(ideasOrdenadas)
+        setIdeasAbiertas(crearEstadoIdeasCerradas(ideasOrdenadas))
       } catch (errorCapturado) {
         setErrorIdeas(errorCapturado.message || 'No se pudieron cargar las ideas.')
       } finally {
@@ -523,10 +532,9 @@ function AdminPanel({ usuarioActual }) {
 
     try {
       const resultado = await recargarIdeasAdminConSincronizacion()
-      setIdeas(resultado.ideas)
-      setIdeasAbiertas(
-        Object.fromEntries(resultado.ideas.map((idea, indice) => [idea.id, indice === 0])),
-      )
+      const ideasOrdenadas = ordenarIdeasPorEstado(resultado.ideas)
+      setIdeas(ideasOrdenadas)
+      setIdeasAbiertas(crearEstadoIdeasCerradas(ideasOrdenadas))
       setEstadoIdeas({})
       publicarToast(
         resultado.sincronizados > 0
@@ -945,7 +953,10 @@ function AdminPanel({ usuarioActual }) {
                           aria-checked={idea.completada}
                           title={idea.completada ? 'Cumplida' : 'Pendiente'}
                           className="inline-flex items-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
-                          onClick={() => actualizarIdea(idea.id, 'completada', !idea.completada)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            actualizarIdea(idea.id, 'completada', !idea.completada)
+                          }}
                         >
                           <span
                             className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${

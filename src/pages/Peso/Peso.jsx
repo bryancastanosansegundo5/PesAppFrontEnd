@@ -10,7 +10,7 @@ import {
 } from '../../services/weight/weightDataService'
 
 const claseInputPesoDestacado =
-  'w-full rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.96),rgba(0,0,0,0.96))] px-6 py-4 text-center text-4xl font-black tracking-tight text-white outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-[0_0_28px_rgba(0,255,237,0.16)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(1,4,12,0.96),rgba(0,0,0,0.98))]'
+  'w-full rounded-2xl border border-violet-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,243,255,0.94))] px-6 py-4 text-center text-4xl font-black tracking-tight text-slate-900 outline-none transition-all duration-300 ease-out placeholder:text-slate-400 focus:border-neon-purple focus:shadow-[0_0_28px_rgba(105,0,255,0.14)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(1,4,12,0.96),rgba(0,0,0,0.98))] dark:text-white dark:focus:border-neon-cyan dark:focus:shadow-[0_0_28px_rgba(0,255,237,0.16)]'
 
 function obtenerHoraActual() {
   return aHoraRegistro(new Date(), '09:30')
@@ -466,7 +466,7 @@ function Peso() {
                   <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                     {registroEnEdicion ? 'Editar medicion' : 'Nueva medicion'}
                   </span>
-                  <div className="rounded-[22px] border border-white/6 bg-[linear-gradient(180deg,rgba(15,23,42,0.4),rgba(2,6,23,0.18))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <div className="rounded-[22px] border border-violet-200/80 bg-[linear-gradient(180deg,rgba(248,247,255,0.96),rgba(239,246,255,0.86))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_14px_34px_rgba(88,28,135,0.08)] dark:border-white/6 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.4),rgba(2,6,23,0.18))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                     <input
                       className={claseInputPesoDestacado}
                       type="number"
@@ -484,7 +484,7 @@ function Peso() {
                     <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                       Hora
                     </span>
-                    <span className="rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-neon-purple dark:text-neon-cyan">
+                    <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:border-neon-cyan/25 dark:bg-neon-cyan/10 dark:text-neon-cyan">
                       {horaFueEditada ? 'Manual' : 'Ahora'}
                     </span>
                   </div>
@@ -535,7 +535,7 @@ function Peso() {
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
-                  className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
+                  className="rounded-xl border border-slate-900 bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-[0_16px_34px_rgba(15,23,42,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:bg-neon-purple hover:shadow-glow-purple disabled:cursor-not-allowed disabled:opacity-60 dark:border-neon-cyan/45 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan dark:hover:border-neon-pink dark:hover:text-neon-pink dark:hover:shadow-glow-pink"
                   type="button"
                   disabled={estaGuardando || estaRecargando || estaEliminando}
                   onClick={guardarPeso}

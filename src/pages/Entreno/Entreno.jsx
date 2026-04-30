@@ -61,6 +61,23 @@ function formatearSerieAnterior(serieAnterior) {
   return `${serieAnterior.peso || 0}kg x ${serieAnterior.repeticiones || 0}`
 }
 
+function formatearFechaRegistroAnterior(registroAnterior) {
+  const fechaOrigen =
+    registroAnterior?.fechaFin ||
+    registroAnterior?.fechaInicio ||
+    registroAnterior?.completedAt ||
+    registroAnterior?.startedAt ||
+    registroAnterior?.createdAt ||
+    ''
+  const fecha = fechaOrigen ? new Date(fechaOrigen) : null
+
+  if (!fecha || Number.isNaN(fecha.getTime())) {
+    return 'Fecha sin registrar'
+  }
+
+  return fecha.toLocaleDateString('es-ES')
+}
+
 function agruparSeriesPorNumeroSerie(series) {
   return series.reduce((grupos, serie, indice) => {
     const numeroSerie = serie.numeroSerie || indice + 1
@@ -98,6 +115,10 @@ function normalizarTexto(valor) {
 }
 
 function crearEstadoEjerciciosCerrados(ejercicios) {
+  return Object.fromEntries(ejercicios.map((ejercicio) => [ejercicio.idEjercicio, false]))
+}
+
+function crearEstadoDetallesEjercicioAbiertos(ejercicios) {
   return Object.fromEntries(ejercicios.map((ejercicio) => [ejercicio.idEjercicio, false]))
 }
 
@@ -315,6 +336,8 @@ function Entreno() {
   const [estaRecargando, setEstaRecargando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [ejerciciosAbiertos, setEjerciciosAbiertos] = useState({})
+  const [detallesEjercicioAbiertos, setDetallesEjercicioAbiertos] = useState({})
+  const [seriesPlegadas, setSeriesPlegadas] = useState({})
   const [estaAbiertoSelectorSesiones, setEstaAbiertoSelectorSesiones] = useState(false)
   const [busquedaSesion, setBusquedaSesion] = useState('')
   const [estaAbiertoSelectorEjercicios, setEstaAbiertoSelectorEjercicios] = useState(false)
@@ -545,6 +568,8 @@ function Entreno() {
     setIdSesionSeleccionada('')
     setEntrenamiento(null)
     setEjerciciosAbiertos({})
+    setDetallesEjercicioAbiertos({})
+    setSeriesPlegadas({})
     setEstaAbiertoSelectorSesiones(false)
     setEstaAbiertoSelectorEjercicios(false)
     setBusquedaSesion('')
@@ -720,6 +745,10 @@ function Entreno() {
 
     setEntrenamiento(siguienteEntrenamiento)
     setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(siguienteEntrenamiento.ejercicios))
+    setDetallesEjercicioAbiertos(
+      crearEstadoDetallesEjercicioAbiertos(siguienteEntrenamiento.ejercicios),
+    )
+    setSeriesPlegadas({})
     setEstaAbiertoSelectorSesiones(false)
     setBusquedaSesion('')
     setMensaje('')
@@ -735,6 +764,22 @@ function Entreno() {
     setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
       ...ejerciciosAbiertosActuales,
       [idEjercicio]: !ejerciciosAbiertosActuales[idEjercicio],
+    }))
+  }
+
+  const alternarDetallesEjercicio = (idEjercicio) => {
+    setDetallesEjercicioAbiertos((estadoActual) => ({
+      ...estadoActual,
+      [idEjercicio]: !estadoActual[idEjercicio],
+    }))
+  }
+
+  const alternarSeriePlegada = (idEjercicio, numeroSerie) => {
+    const claveSerie = `${idEjercicio}-${numeroSerie}`
+
+    setSeriesPlegadas((estadoActual) => ({
+      ...estadoActual,
+      [claveSerie]: !estadoActual[claveSerie],
     }))
   }
 
@@ -856,6 +901,10 @@ function Entreno() {
       ...ejerciciosAbiertosActuales,
       [ejercicio.idEjercicio]: true,
     }))
+    setDetallesEjercicioAbiertos((estadoActual) => ({
+      ...estadoActual,
+      [ejercicio.idEjercicio]: true,
+    }))
     setEstaAbiertoSelectorEjercicios(false)
     setBusquedaEjercicio('')
   }
@@ -869,6 +918,10 @@ function Entreno() {
     }))
     setEjerciciosAbiertos((ejerciciosAbiertosActuales) => ({
       ...ejerciciosAbiertosActuales,
+      [ejercicio.idEjercicio]: true,
+    }))
+    setDetallesEjercicioAbiertos((estadoActual) => ({
+      ...estadoActual,
       [ejercicio.idEjercicio]: true,
     }))
     setEstaAbiertoSelectorEjercicios(false)
@@ -888,6 +941,8 @@ function Entreno() {
     guardarHistorialEntrenos(historialActualizado)
     setEntrenamiento(ejemploEntrenamiento)
     setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(ejemploEntrenamiento.ejercicios))
+    setDetallesEjercicioAbiertos(crearEstadoDetallesEjercicioAbiertos(ejemploEntrenamiento.ejercicios))
+    setSeriesPlegadas({})
     setMensaje(
       'Ejemplo completo cargado con entreno actual y registro anterior para comparar en linea.',
     )
@@ -900,6 +955,16 @@ function Entreno() {
         (ejercicio) => ejercicio.idEjercicio !== idEjercicio,
       ),
     }))
+    setDetallesEjercicioAbiertos((estadoActual) => {
+      const estadoSiguiente = { ...estadoActual }
+      delete estadoSiguiente[idEjercicio]
+      return estadoSiguiente
+    })
+    setSeriesPlegadas((estadoActual) =>
+      Object.fromEntries(
+        Object.entries(estadoActual).filter(([claveSerie]) => !claveSerie.startsWith(`${idEjercicio}-`)),
+      ),
+    )
   }
 
   const finalizarEntrenamiento = async () => {
@@ -987,10 +1052,16 @@ function Entreno() {
         setIdSesionSeleccionada(sesionSeleccionada.id)
         setEntrenamiento(siguienteEntrenamiento)
         setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(siguienteEntrenamiento.ejercicios))
+        setDetallesEjercicioAbiertos(
+          crearEstadoDetallesEjercicioAbiertos(siguienteEntrenamiento.ejercicios),
+        )
+        setSeriesPlegadas({})
       } else {
         setIdSesionSeleccionada('')
         setEntrenamiento(null)
         setEjerciciosAbiertos({})
+        setDetallesEjercicioAbiertos({})
+        setSeriesPlegadas({})
       }
 
       setEstaAbiertoSelectorEjercicios(false)
@@ -1242,13 +1313,16 @@ function Entreno() {
 
         <section className="grid gap-5">
           {entrenamiento?.ejercicios.map((ejercicio) => {
-            const registroAnterior =
+            let registroAnterior =
               registrosPreviosPorCatalogo[ejercicio.catalogoEjercicioId] ||
               obtenerUltimoRegistroEjercicio(
                 ejercicio.catalogoEjercicioId || ejercicio.idEjercicio,
                 historial,
               )
             const estaAbiertoEjercicio = Boolean(ejerciciosAbiertos[ejercicio.idEjercicio])
+            const estaAbiertoDetallesEjercicio = Boolean(
+              detallesEjercicioAbiertos[ejercicio.idEjercicio],
+            )
             const gruposSeries = agruparSeriesPorNumeroSerie(ejercicio.seriesRealizadas)
 
             return (
@@ -1377,6 +1451,39 @@ function Entreno() {
                 >
                   <div className="overflow-hidden">
                     <div className="grid gap-4 border-t border-slate-200 p-5 dark:border-white/10">
+                      <button
+                        className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-black text-slate-900 transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black/45 dark:text-white dark:hover:text-neon-cyan"
+                        type="button"
+                        role="switch"
+                        aria-checked={estaAbiertoDetallesEjercicio}
+                        onClick={() => alternarDetallesEjercicio(ejercicio.idEjercicio)}
+                      >
+                        <span>Detalles del ejercicio</span>
+                        <span
+                          className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${
+                            estaAbiertoDetallesEjercicio
+                              ? 'border-neon-cyan/70 bg-neon-cyan/20 shadow-glow-cyan'
+                              : 'border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-0.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition-all duration-300 ease-out ${
+                              estaAbiertoDetallesEjercicio
+                                ? 'translate-x-5 bg-neon-cyan'
+                                : 'translate-x-0 bg-white dark:bg-slate-200'
+                            }`}
+                          />
+                        </span>
+                      </button>
+
+                      <div
+                        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                          estaAbiertoDetallesEjercicio
+                            ? 'grid-rows-[1fr] opacity-100'
+                            : 'grid-rows-[0fr] opacity-0'
+                        }`}
+                      >
+                        <div className="grid gap-4 overflow-hidden">
                       <div>
                         <input
                           className="font-display w-full bg-transparent text-xl font-black text-slate-950 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-white dark:focus:text-neon-pink"
@@ -1397,30 +1504,6 @@ function Entreno() {
                             actualizarEjercicio(
                               ejercicio.idEjercicio,
                               'grupoMuscular',
-                              evento.target.value,
-                            )
-                          }
-                        />
-                        <input
-                          className="mt-2 w-full bg-transparent text-sm text-slate-600 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-slate-400 dark:focus:text-neon-cyan"
-                          value={ejercicio.patronMovimiento}
-                          placeholder="Patron"
-                          onChange={(evento) =>
-                            actualizarEjercicio(
-                              ejercicio.idEjercicio,
-                              'patronMovimiento',
-                              evento.target.value,
-                            )
-                          }
-                        />
-                        <input
-                          className="mt-2 w-full bg-transparent text-sm text-slate-600 outline-none transition-all duration-300 ease-out focus:text-neon-purple dark:text-slate-400 dark:focus:text-neon-cyan"
-                          value={ejercicio.descripcion}
-                          placeholder="Descripcion"
-                          onChange={(evento) =>
-                            actualizarEjercicio(
-                              ejercicio.idEjercicio,
-                              'descripcion',
                               evento.target.value,
                             )
                           }
@@ -1522,7 +1605,9 @@ function Entreno() {
                             Anterior:
                           </span>{' '}
                           {registroAnterior
-                            ? `${new Date(registroAnterior.fechaFin).toLocaleDateString('es-ES')} · ${registroAnterior.nombreSesion}`
+                            ? `${formatearFechaRegistroAnterior(registroAnterior)} · ${
+                                registroAnterior.nombreSesion || 'Entreno anterior'
+                              }`
                             : 'Sin registro previo'}
                         </p>
                         <p>
@@ -1537,6 +1622,8 @@ function Entreno() {
                           </span>{' '}
                           {registroAnterior?.agarre || '-'}
                         </p>
+                      </div>
+                        </div>
                       </div>
 
                       <div className="grid gap-3">
@@ -1553,15 +1640,18 @@ function Entreno() {
                               tieneMultiplesPesos(grupoSeries.series)
                             const ultimaSerieDelGrupo =
                               grupoSeries.series[grupoSeries.series.length - 1]
+                            const estaPlegadaSerie = Boolean(
+                              seriesPlegadas[`${ejercicio.idEjercicio}-${grupoSeries.numeroSerie}`],
+                            )
 
                             return (
                               <div
-                                className="rounded-lg border border-slate-200 p-3 transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10"
+                                className="rounded-lg border-l-4 border-l-neon-purple border-slate-200 bg-white p-3 shadow-[0_12px_28px_rgba(15,23,42,0.06)] transition-all duration-300 ease-out hover:border-neon-purple/50 hover:shadow-glow-purple dark:border-white/10 dark:border-l-neon-cyan dark:bg-pes-black/30"
                                 key={grupoSeries.numeroSerie}
                               >
                                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-bold text-neon-purple dark:text-neon-cyan">
+                                    <p className="text-lg font-black text-neon-purple dark:text-neon-cyan md:text-xl">
                                       Serie {grupoSeries.numeroSerie}
                                     </p>
                                     {hayCambioPesoActual ? (
@@ -1576,21 +1666,84 @@ function Entreno() {
                                     ) : null}
                                   </div>
 
-                                  <button
-                                    className="w-fit rounded-md border border-neon-cyan/50 px-3 py-2 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
-                                    type="button"
-                                    onClick={() =>
-                                      agregarTramoPeso(
-                                        ejercicio.idEjercicio,
-                                        ultimaSerieDelGrupo,
-                                      )
-                                    }
-                                  >
-                                    Otro peso en serie {grupoSeries.numeroSerie}
-                                  </button>
+                                  <div className="flex w-full items-center gap-2 md:w-auto">
+                                    <button
+                                      className="min-w-0 flex-1 rounded-md border border-neon-cyan/50 px-3 py-2 text-xs font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan md:flex-none md:text-sm"
+                                      type="button"
+                                      onClick={() =>
+                                        agregarTramoPeso(
+                                          ejercicio.idEjercicio,
+                                          ultimaSerieDelGrupo,
+                                        )
+                                      }
+                                    >
+                                      Otro peso en serie {grupoSeries.numeroSerie}
+                                    </button>
+                                    <button
+                                      className="inline-flex h-10 w-16 shrink-0 items-center justify-center rounded-md border border-[#39ff14]/60 px-2 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.2)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(57,255,20,0.34)] md:h-9 md:w-14"
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={estaPlegadaSerie}
+                                      aria-label={`Marcar serie ${grupoSeries.numeroSerie} como completada`}
+                                      onClick={() =>
+                                        alternarSeriePlegada(
+                                          ejercicio.idEjercicio,
+                                          grupoSeries.numeroSerie,
+                                        )
+                                      }
+                                    >
+                                      <span
+                                        className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${
+                                          estaPlegadaSerie
+                                            ? 'border-[#39ff14]/80 bg-[#39ff14]/20 shadow-[0_0_14px_rgba(57,255,20,0.42)]'
+                                            : 'border-slate-500/40 bg-slate-500/55'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`absolute left-0.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all duration-300 ease-out ${
+                                            estaPlegadaSerie ? 'translate-x-5' : 'translate-x-0'
+                                          }`}
+                                        >
+                                          {estaPlegadaSerie ? (
+                                            <svg
+                                              className="h-3.5 w-3.5"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2.5"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                            >
+                                              <polyline points="20 6 9 17 4 12" />
+                                            </svg>
+                                          ) : (
+                                            <svg
+                                              className="h-3.5 w-3.5"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2.5"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                            >
+                                              <path d="M18 6 6 18" />
+                                              <path d="m6 6 12 12" />
+                                            </svg>
+                                          )}
+                                        </span>
+                                      </span>
+                                    </button>
+                                  </div>
                                 </div>
 
-                                <div className="mt-3 grid gap-2">
+                                <div
+                                  className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                                    estaPlegadaSerie
+                                      ? 'grid-rows-[0fr] opacity-0'
+                                      : 'mt-3 grid-rows-[1fr] opacity-100'
+                                  }`}
+                                >
+                                  <div className="grid gap-2 overflow-hidden">
                                   {grupoSeries.series.map((serie, indiceSerie) => (
                                     <div
                                       className="grid gap-3 rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-pes-black/50"
@@ -1664,6 +1817,7 @@ function Entreno() {
                                         .join(' + ')}
                                     </div>
                                   ) : null}
+                                  </div>
                                 </div>
                               </div>
                             )

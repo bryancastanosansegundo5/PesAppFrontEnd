@@ -155,30 +155,37 @@ function App() {
   const [estaGuardandoPesoRapido, setEstaGuardandoPesoRapido] = useState(false)
   const ultimaSincronizacionGlobalRef = useRef(0)
 
-  const sesionesInicio = obtenerSesionesGuardadas()
-  const historialInicio = obtenerHistorialEntrenamientosGuardado()
-  const catalogoInicio = obtenerCatalogoEjerciciosGuardado()
-  const registrosPeso = obtenerRegistrosPesoGuardados()
+  const usuarioAutenticado = Boolean(sesion)
+  const sesionesInicio = usuarioAutenticado ? obtenerSesionesGuardadas() : []
+  const historialInicio = usuarioAutenticado ? obtenerHistorialEntrenamientosGuardado() : []
+  const catalogoInicio = usuarioAutenticado ? obtenerCatalogoEjerciciosGuardado() : []
+  const registrosPeso = usuarioAutenticado ? obtenerRegistrosPesoGuardados() : []
   const ultimoPesoRegistrado = registrosPeso[0] || null
 
   const caracteristicas = [
-    { title: 'Configura', text: 'Define sesiones base con estructura clara y lista para repetir.' },
-    { title: 'Ejecuta', text: 'Lanza el entreno del dia y ajusta series, peso o variantes al vuelo.' },
+    { title: 'Planifica', text: 'Crea una estructura de entrenamiento lista para repetir y ajustar.' },
+    { title: 'Registra', text: 'Anota series, cargas y peso corporal sin cortar el ritmo del dia.' },
     {
-      title: 'Revisa',
-      text: 'Consulta el ultimo registro y manten continuidad entre sesiones.',
+      title: 'Evoluciona',
+      text: 'Revisa tu progreso con datos utiles, sin ruido ni paneles pensados para expertos.',
     },
   ]
 
-  const resumenInicio = [
-    { label: 'Sesiones base', value: sesionesInicio.length, accent: 'cyan' },
-    { label: 'Ejercicios en catalogo', value: catalogoInicio.length, accent: 'purple' },
-    {
-      label: 'Ultimo entreno',
-      value: formatearFechaResumen(historialInicio[0]?.fechaFin),
-      accent: 'pink',
-    },
-  ]
+  const resumenInicio = usuarioAutenticado
+    ? [
+        { label: 'Sesiones base', value: sesionesInicio.length, accent: 'cyan' },
+        { label: 'Ejercicios en catalogo', value: catalogoInicio.length, accent: 'purple' },
+        {
+          label: 'Ultimo entreno',
+          value: formatearFechaResumen(historialInicio[0]?.fechaFin),
+          accent: 'pink',
+        },
+      ]
+    : [
+        { label: 'Entrenos guiados', value: 'Plan', accent: 'cyan' },
+        { label: 'Peso corporal', value: 'Track', accent: 'purple' },
+        { label: 'Progreso personal', value: 'Sync', accent: 'pink' },
+      ]
 
   const accesosRapidos = [
     {
@@ -461,6 +468,13 @@ function App() {
   }
 
   const registrarPesoRapido = async () => {
+    if (!sesion) {
+      setRutaProtegidaPendiente('peso')
+      window.history.pushState({}, '', '/login')
+      setRuta('login')
+      return
+    }
+
     if (estaGuardandoPesoRapido) {
       return
     }
@@ -624,25 +638,24 @@ function App() {
         id="inicio"
       >
         <div className="space-y-6">
-          <div className="inline-flex rounded-full border border-neon-cyan/35 bg-white/90 px-4 py-2 text-sm font-semibold text-neon-purple shadow-glow-cyan dark:bg-white/5 dark:text-neon-cyan">
-            Plataforma de entrenamiento y seguimiento
+          <div className="inline-flex rounded-full border border-neon-cyan/35 bg-violet-50/90 px-4 py-2 text-sm font-semibold text-violet-700 shadow-glow-cyan dark:bg-white/5 dark:text-neon-cyan">
+            Entrenamiento personal con pulso futurista
           </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-neon-purple dark:text-slate-400">
                 PesApp
               </p>
-              <h1 className="font-display max-w-4xl text-[2.76rem] font-black leading-[0.94] tracking-[0.008em] text-slate-950 sm:text-[3.41rem] lg:text-[3.76rem] dark:text-white">
-                Gestiona tus entrenamientos con una interfaz clara, rapida y preparada para el dia
-                a dia.
+              <h1 className="font-display max-w-4xl text-[2.76rem] font-black leading-[0.94] tracking-[0.008em] text-slate-900 sm:text-[3.41rem] lg:text-[3.76rem] dark:text-white">
+                Entrena, registra y progresa con una app visual, directa y preparada para tu rutina.
               </h1>
             </div>
 
-            <p className="max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-              Centraliza sesiones, ejercicios, peso corporal y variantes de entreno en un entorno
-              visual pensado para trabajar con ritmo, mantener contexto y revisar el progreso sin
-              friccion.
+            <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
+              PesApp une sesiones, ejercicios y peso corporal en un panel claro para personas que
+              quieren entrenar mejor sin perderse entre hojas sueltas, notas antiguas o datos
+              inventados.
             </p>
           </div>
 
@@ -652,14 +665,14 @@ function App() {
               type="button"
               onClick={() => navegarA('/entreno')}
             >
-              Empezar entreno
+              {usuarioAutenticado ? 'Empezar entreno' : 'Entrar en mi cuenta'}
             </button>
             <button
               className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-black text-slate-800 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-cyan hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:hover:text-neon-cyan"
               type="button"
               onClick={() => navegarA('/peso')}
             >
-              Registrar peso
+              {usuarioAutenticado ? 'Registrar peso' : 'Ver acceso'}
             </button>
           </div>
 
@@ -689,7 +702,7 @@ function App() {
         <aside className="rounded-[28px] border border-neon-cyan/20 bg-[linear-gradient(160deg,rgba(239,252,255,0.98),rgba(255,255,255,0.92))] p-5 text-slate-950 shadow-[0_28px_80px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(2,6,23,0.98),rgba(15,23,42,0.96))] dark:text-white dark:shadow-[0_28px_80px_rgba(2,6,23,0.42)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:text-neon-cyan/90">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-violet-700 dark:text-neon-cyan/90">
                 Vista operativa
               </p>
               <h2 className="font-display mt-3 text-[1.75rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">
@@ -704,42 +717,50 @@ function App() {
           </div>
 
           <div className="mt-6 grid gap-4">
-            <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <article className="rounded-2xl border border-violet-200/70 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.04]">
               <p className="text-sm text-slate-500 dark:text-slate-400">Espacio activo</p>
-              <p className="mt-2 text-xl font-bold text-slate-950 dark:text-white">{nombreUsuario}</p>
+              <p className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{nombreUsuario}</p>
               <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                Accede rapido al flujo principal y manten a mano la estructura semanal.
+                {usuarioAutenticado
+                  ? 'Accede rapido al flujo principal y manten a mano la estructura semanal.'
+                  : 'Inicia sesion para cargar tus entrenos, tu historial y tus registros de peso.'}
               </p>
             </article>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <article className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 dark:border-neon-cyan/25 dark:bg-neon-cyan/10">
-                <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700 dark:text-neon-cyan">
-                  Proxima sesion
+              <article className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 dark:border-neon-cyan/25 dark:bg-neon-cyan/10">
+                <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-violet-700 dark:text-neon-cyan">
+                  {usuarioAutenticado ? 'Proxima sesion' : 'Primera sesion'}
                 </p>
-                <p className="font-display mt-3 text-[1.8rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">
-                  {proximaSesion?.nombreSesion || 'Sin definir'}
+                <p className="font-display mt-3 text-[1.8rem] font-black tracking-[0.01em] text-slate-900 dark:text-white">
+                  {usuarioAutenticado ? proximaSesion?.nombreSesion || 'Sin definir' : 'Tu plan real'}
                 </p>
                 <p className="mt-3 text-sm text-slate-800 dark:text-slate-200">
-                  {totalEjerciciosSesion} ejercicios preparados
+                  {usuarioAutenticado
+                    ? `${totalEjerciciosSesion} ejercicios preparados`
+                    : 'Sin datos de ejemplo ni fechas aleatorias'}
                 </p>
                 <p className="text-sm text-slate-700 dark:text-slate-400">
-                  {totalSeriesSesion} series previstas
+                  {usuarioAutenticado
+                    ? `${totalSeriesSesion} series previstas`
+                    : 'Se mostrara cuando accedas'}
                 </p>
               </article>
 
-              <article className="rounded-2xl border border-fuchsia-200 bg-fuchsia-50/70 p-4 dark:border-neon-pink/25 dark:bg-neon-pink/10">
-                <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-fuchsia-700 dark:text-neon-pink">
-                  Ultima actividad
+              <article className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 dark:border-neon-pink/25 dark:bg-neon-pink/10">
+                <p className="font-display text-xs font-semibold uppercase tracking-[0.2em] text-violet-700 dark:text-neon-pink">
+                  {usuarioAutenticado ? 'Ultima actividad' : 'Historial privado'}
                 </p>
-                <p className="font-display mt-3 text-[1.8rem] font-black tracking-[0.01em] text-slate-950 dark:text-white">
-                  {formatearFechaResumen(ultimoEntreno?.fechaFin)}
+                <p className="font-display mt-3 text-[1.8rem] font-black tracking-[0.01em] text-slate-900 dark:text-white">
+                  {usuarioAutenticado ? formatearFechaResumen(ultimoEntreno?.fechaFin) : 'Solo tuyo'}
                 </p>
                 <p className="mt-3 text-sm text-slate-800 dark:text-slate-200">
-                  {ultimoEntreno?.nombreSesion || 'Sin historial'}
+                  {usuarioAutenticado ? ultimoEntreno?.nombreSesion || 'Sin historial' : 'Tus datos aparecen tras iniciar sesion'}
                 </p>
                 <p className="text-sm text-slate-700 dark:text-slate-400">
-                  {totalSeriesUltimoEntreno} series registradas
+                  {usuarioAutenticado
+                    ? `${totalSeriesUltimoEntreno} series registradas`
+                    : 'Nada inventado en portada'}
                 </p>
               </article>
             </div>
@@ -748,16 +769,18 @@ function App() {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Peso mas reciente
+                    {usuarioAutenticado ? 'Peso mas reciente' : 'Peso corporal'}
                   </p>
                   <p className="mt-1 text-sm text-slate-700 dark:text-slate-400">
-                    {ultimoPesoRegistrado
-                      ? formatearFechaResumen(ultimoPesoRegistrado.fecha)
-                      : 'Aun no hay registro de bascula'}
+                    {usuarioAutenticado
+                      ? ultimoPesoRegistrado
+                        ? formatearFechaResumen(ultimoPesoRegistrado.fecha)
+                        : 'Aun no hay registro de bascula'
+                      : 'Tu registro se carga despues del login'}
                   </p>
                 </div>
                 <span className="rounded-full border border-neon-purple/35 bg-neon-purple/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-neon-purple shadow-glow-purple">
-                  {formatearPesoResumen(ultimoPesoRegistrado)}
+                  {usuarioAutenticado ? formatearPesoResumen(ultimoPesoRegistrado) : 'Privado'}
                 </span>
               </div>
             </article>
@@ -771,7 +794,9 @@ function App() {
                   <p className="mt-1 text-sm leading-5 text-slate-700 dark:text-slate-400">
                     {estaDesconectadoServidor
                       ? 'Trabajando en modo local por desconexion con el servidor.'
-                      : 'Todo listo para entrar, registrar y revisar entrenos.'}
+                      : usuarioAutenticado
+                        ? 'Todo listo para entrar, registrar y revisar entrenos.'
+                        : 'Listo para validar tu cuenta y cargar tus datos reales.'}
                   </p>
                 </div>
                 <span
@@ -796,16 +821,19 @@ function App() {
           </p>
           <div className="flex flex-col justify-center space-y-3">
             <h2 className="text-3xl font-black text-slate-950 dark:text-white">
-            Registra la bascula sin navegar.
+              {usuarioAutenticado ? 'Registra la bascula sin navegar.' : 'Tu seguimiento empieza al entrar.'}
             </h2>
             <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Pensado para entrar, escribir el numero y guardarlo al instante. Luego lo ves en la
-              pantalla de peso con historico, medias semanales y grafica.
+              {usuarioAutenticado
+                ? 'Pensado para entrar, escribir el numero y guardarlo al instante. Luego lo ves en la pantalla de peso con historico, medias semanales y grafica.'
+                : 'La portada no enseña registros locales ni ejemplos falsos. Cuando inicies sesion, PesApp carga tu informacion real.'}
             </p>
             <p className="lg:col-span-2 text-xs text-slate-500 dark:text-slate-400">
-              {ultimoPesoRegistrado
-                ? `Hora registrada: ${formatearHoraResumen(ultimoPesoRegistrado)}`
-                : 'Si no tocas la hora, guardamos la hora actual al registrar.'}
+              {usuarioAutenticado
+                ? ultimoPesoRegistrado
+                  ? `Hora registrada: ${formatearHoraResumen(ultimoPesoRegistrado)}`
+                  : 'Si no tocas la hora, guardamos la hora actual al registrar.'
+                : 'Acceso protegido para mantener tu historial privado.'}
             </p>
           </div>
         </div>
@@ -816,14 +844,14 @@ function App() {
               <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                 Nueva medicion
               </span>
-              <div className="rounded-[22px] border border-white/6 bg-[linear-gradient(180deg,rgba(15,23,42,0.4),rgba(2,6,23,0.18))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="rounded-[22px] border border-violet-200/80 bg-[linear-gradient(180deg,rgba(248,247,255,0.96),rgba(239,246,255,0.86))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_14px_34px_rgba(88,28,135,0.08)] dark:border-white/6 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.4),rgba(2,6,23,0.18))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                 <input
-                  className="w-full rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(2,6,23,0.96),rgba(0,0,0,0.96))] px-6 py-4 text-center text-4xl font-black tracking-tight text-white outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-[0_0_28px_rgba(0,255,237,0.16)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(1,4,12,0.96),rgba(0,0,0,0.98))]"
+                  className="w-full rounded-2xl border border-violet-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,243,255,0.94))] px-6 py-4 text-center text-4xl font-black tracking-tight text-slate-900 outline-none transition-all duration-300 ease-out placeholder:text-slate-400 focus:border-neon-purple focus:shadow-[0_0_28px_rgba(105,0,255,0.14)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(1,4,12,0.96),rgba(0,0,0,0.98))] dark:text-white dark:focus:border-neon-cyan dark:focus:shadow-[0_0_28px_rgba(0,255,237,0.16)]"
                   type="number"
                   min="0"
                   step="0.1"
                   placeholder="82.4"
-                  value={pesoRapido}
+                  value={usuarioAutenticado ? pesoRapido : ''}
                   onChange={(evento) => {
                     setPesoRapido(evento.target.value)
                     if (mensajePesoRapido) {
@@ -839,7 +867,7 @@ function App() {
                 <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                   Hora
                 </span>
-                <span className="rounded-full border border-neon-cyan/25 bg-neon-cyan/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-neon-purple dark:text-neon-cyan">
+                <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-violet-700 dark:border-neon-cyan/25 dark:bg-neon-cyan/10 dark:text-neon-cyan">
                   {horaPesoRapidoFueEditada ? 'Manual' : 'Ahora'}
                 </span>
               </div>
@@ -858,12 +886,16 @@ function App() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <button
-              className="rounded-xl border border-neon-cyan/45 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_22px_rgba(0,255,237,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan"
+              className="rounded-xl border border-slate-900 bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-[0_16px_34px_rgba(15,23,42,0.18)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:bg-neon-purple hover:shadow-glow-purple dark:border-neon-cyan/45 dark:bg-pes-black dark:text-neon-cyan dark:shadow-glow-cyan dark:hover:border-neon-pink dark:hover:text-neon-pink dark:hover:shadow-glow-pink"
               type="button"
               disabled={estaGuardandoPesoRapido}
               onClick={registrarPesoRapido}
             >
-              {estaGuardandoPesoRapido ? 'Guardando...' : 'Guardar peso'}
+              {estaGuardandoPesoRapido
+                ? 'Guardando...'
+                : usuarioAutenticado
+                  ? 'Guardar peso'
+                  : 'Iniciar sesion'}
             </button>
 
             <button
@@ -871,15 +903,17 @@ function App() {
               type="button"
               onClick={() => navegarA('/peso')}
             >
-              Ver pantalla
+              {usuarioAutenticado ? 'Ver pantalla' : 'Entrar'}
             </button>
           </div>
 
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {mensajePesoRapido ||
-              `Ultimo dato: ${formatearPesoResumen(ultimoPesoRegistrado)}${
-                ultimoPesoRegistrado ? ` · ${formatearFechaResumen(ultimoPesoRegistrado.fecha)}` : ''
-              }`}
+              (usuarioAutenticado
+                ? `Ultimo dato: ${formatearPesoResumen(ultimoPesoRegistrado)}${
+                    ultimoPesoRegistrado ? ` · ${formatearFechaResumen(ultimoPesoRegistrado.fecha)}` : ''
+                  }`
+                : 'Inicia sesion para registrar el peso en tu historial real.')}
           </p>
         </div>
       </section>

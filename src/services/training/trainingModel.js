@@ -521,6 +521,7 @@ export function obtenerUltimoRegistroEjercicio(idEjercicio, historial) {
       return {
         ...ejercicio,
         fechaFin: sesion.fechaFin,
+        fechaInicio: sesion.fechaInicio,
         nombreSesion: sesion.nombreSesion,
       }
     }
