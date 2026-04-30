@@ -222,7 +222,7 @@ function GraficaLineal({ data }) {
   const polyline = points.map((point) => `${point.x},${point.y}`).join(' ')
 
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-pes-black/40">
+    <div className="flex h-full flex-col rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-pes-black/40">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
@@ -236,7 +236,7 @@ function GraficaLineal({ data }) {
       </div>
 
       <svg
-        className="h-auto w-full"
+        className="h-auto w-full flex-1"
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="Grafica lineal de progresion por ejercicio"
@@ -859,9 +859,9 @@ function OtrosEntrenos() {
                     >
                       <div className="overflow-hidden">
                         <div className="grid gap-5 border-t border-slate-200 p-5 dark:border-white/10">
-                          <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
-                            <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-5 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-pes-black/45">
-                              <div className="rounded-[22px] border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-pes-black/70">
+                          <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-stretch">
+                            <div className="h-full rounded-[28px] border border-slate-200 bg-slate-50/80 p-5 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-pes-black/45">
+                              <div className="h-full rounded-[22px] border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-pes-black/70">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
                                   Nombre ejercicio
                                 </p>
