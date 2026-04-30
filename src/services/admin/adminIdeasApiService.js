@@ -22,6 +22,7 @@ export async function obtenerIdeasAdmin() {
   const payload = await apiRequest('/api/admin/ideas', {
     method: 'GET',
     auth: true,
+    skip_global_sync: true,
   })
 
   return Array.isArray(payload) ? payload.map(normalizarIdeaRemota).filter(Boolean) : []

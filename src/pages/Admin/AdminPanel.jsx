@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Toast from '../../components/Toast/Toast'
 import {
   cambiarEstadoUsuarioAdmin,
@@ -78,6 +78,10 @@ function obtenerNombreVisibleUsuario(usuario) {
   return usuario?.username || usuario?.nombre || usuario?.email || 'Usuario'
 }
 
+function esUsuarioAdmin(usuario) {
+  return usuario?.rol === 'ADMIN'
+}
+
 function reemplazarIdea(ideas, ideaOriginal, ideaActualizada) {
   return ideas.map((idea) => {
     const coincidePorId = idea.id === ideaOriginal.id
@@ -119,6 +123,7 @@ function AdminPanel({ usuarioActual }) {
   const [toast, setToast] = useState(null)
   const sincronizacionIdeasActivaRef = useRef(null)
   const ultimoEventoConexionRef = useRef(0)
+  const puedeSincronizarIdeasAdmin = esUsuarioAdmin(usuarioActual)
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -145,6 +150,12 @@ function AdminPanel({ usuarioActual }) {
         setEstaCargando(false)
       }
 
+      if (!puedeSincronizarIdeasAdmin) {
+        setIdeas([])
+        setEstaCargandoIdeas(false)
+        return
+      }
+
       try {
         const resultadoIdeas = await recargarIdeasAdminConSincronizacion()
         setIdeas(resultadoIdeas.ideas)
@@ -159,15 +170,15 @@ function AdminPanel({ usuarioActual }) {
     }
 
     cargarDatos()
-  }, [])
+  }, [puedeSincronizarIdeasAdmin])
 
-  const publicarToast = (mensaje, tipo = 'info') => {
+  const publicarToast = useCallback((mensaje, tipo = 'info') => {
     setToast((toastActual) => ({
       id: (toastActual?.id || 0) + 1,
       mensaje,
       tipo,
     }))
-  }
+  }, [])
 
   const manejarCambioFormulario = (campo, valor) => {
     if (errorFormulario) {
@@ -417,7 +428,7 @@ function AdminPanel({ usuarioActual }) {
     }))
 
     try {
-      const resultado = await sincronizarIdeasAdminPendientes()
+      const resultado = await sincronizarPendientesIdeas()
       const ideasSiguientes = resultado?.ideas || ideas
 
       setIdeas(ideasSiguientes)
@@ -447,7 +458,11 @@ function AdminPanel({ usuarioActual }) {
     }
   }
 
-  const sincronizarPendientesIdeas = async () => {
+  const sincronizarPendientesIdeas = useCallback(async () => {
+    if (!puedeSincronizarIdeasAdmin) {
+      return null
+    }
+
     if (sincronizacionIdeasActivaRef.current) {
       return sincronizacionIdeasActivaRef.current
     }
@@ -457,7 +472,7 @@ function AdminPanel({ usuarioActual }) {
     })
 
     return sincronizacionIdeasActivaRef.current
-  }
+  }, [puedeSincronizarIdeasAdmin])
 
   const sincronizarPendientesIdeasAhora = async () => {
     setEstaSincronizandoIdeasPendientes(true)
@@ -498,6 +513,11 @@ function AdminPanel({ usuarioActual }) {
   }
 
   const recargarIdeas = async () => {
+    if (!puedeSincronizarIdeasAdmin) {
+      setErrorIdeas('Solo un administrador puede sincronizar ideas.')
+      return
+    }
+
     setEstaRecargandoIdeas(true)
     setErrorIdeas('')
 
@@ -546,6 +566,10 @@ function AdminPanel({ usuarioActual }) {
   }
 
   useEffect(() => {
+    if (!puedeSincronizarIdeasAdmin) {
+      return undefined
+    }
+
     let cancelado = false
 
     const sincronizarAlRecuperarConexion = async () => {
@@ -590,7 +614,7 @@ function AdminPanel({ usuarioActual }) {
       window.removeEventListener('online', sincronizarAlRecuperarConexion)
       window.removeEventListener('pesapp:server-reachable', sincronizarAlRecuperarConexion)
     }
-  }, [])
+  }, [puedeSincronizarIdeasAdmin, publicarToast, sincronizarPendientesIdeas])
 
   const totalActivos = usuarios.filter((usuario) => usuario.activo).length
   const totalInactivos = usuarios.length - totalActivos
