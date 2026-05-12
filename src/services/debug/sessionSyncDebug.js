@@ -14,6 +14,7 @@ function resumirEjercicio(ejercicio) {
     catalogoEjercicioId: ejercicio?.catalogoEjercicioId || '',
     plantillaEjercicioId: ejercicio?.plantillaEjercicioId || '',
     nombre: ejercicio?.nombre || '',
+    observaciones: ejercicio?.observaciones || '',
     version: ejercicio?.version ?? null,
     syncStatus: ejercicio?.syncStatus || '',
   }
@@ -29,6 +30,7 @@ export function resumirSesionParaLog(sesion) {
     idSesion: sesion.idSesion || '',
     clientId: sesion.clientId || '',
     nombreSesion: sesion.nombreSesion || '',
+    observaciones: sesion.observaciones || '',
     version: sesion.version ?? null,
     syncStatus: sesion.syncStatus || '',
     updatedAt: sesion.updatedAt || '',
@@ -41,5 +43,7 @@ export function resumirSesionParaLog(sesion) {
 export function debugSesion(etiqueta, detalle = {}) {
   const marca = new Date().toISOString()
 
-  // console.log(`[sesiones-debug] ${marca} ${etiqueta}`, serializarSeguro(detalle))
+  if (globalThis.localStorage?.getItem('pesapp:debug-sesiones') === 'true') {
+    console.log(`[sesiones-debug] ${marca} ${etiqueta}`, serializarSeguro(detalle))
+  }
 }

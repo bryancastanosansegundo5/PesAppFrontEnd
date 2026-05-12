@@ -45,14 +45,14 @@ const claseInputNumero =
 const claseInputPeso =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
-const claseInputTexto =
-  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
+const claseInputDetalleEjercicio =
+  'min-w-0 w-full cursor-default rounded-md border border-slate-200 bg-white px-3 py-2.5 text-base font-bold leading-none text-slate-950 outline-none sm:py-2 sm:text-sm dark:border-white/10 dark:bg-pes-black dark:text-white'
 
 const claseValorPendiente =
   'min-h-12 w-full rounded-xl border border-white/10 bg-[#04070F] px-4 py-3 text-sm font-semibold text-slate-100'
 
 const claseCampoCompacto =
-  'grid gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/85 p-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-pes-black/45 dark:text-slate-400'
+  'grid min-w-0 gap-2 rounded-xl border border-slate-200/80 bg-slate-50/85 p-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 sm:gap-1.5 sm:p-2.5 dark:border-white/10 dark:bg-pes-black/45 dark:text-slate-400'
 
 function formatearSerieAnterior(serieAnterior) {
   if (!serieAnterior) {
@@ -139,6 +139,7 @@ function crearEjercicioDeHoy() {
     catalogoEjercicioId: '',
     nombre: 'Ejercicio extra',
     descripcion: '',
+    observaciones: '',
     grupoMuscular: '',
     patronMovimiento: '',
     equipamiento: '',
@@ -170,6 +171,7 @@ function crearEjercicioDeHoyDesdePlantilla(ejercicioPlantilla) {
     ),
     nombre: ejercicioPlantilla.nombre,
     descripcion: ejercicioPlantilla.descripcion || '',
+    observaciones: ejercicioPlantilla.observaciones || '',
     grupoMuscular: ejercicioPlantilla.grupoMuscular || '',
     patronMovimiento: ejercicioPlantilla.patronMovimiento || '',
     equipamiento: ejercicioPlantilla.equipamiento || '',
@@ -196,6 +198,7 @@ function crearEjemploEntrenamiento() {
     id: `entrenamiento-ejemplo-${marcaTiempo}`,
     idSesion: 'push-session',
     nombreSesion: 'Ejemplo empuje',
+    observaciones: '',
     fechaInicio: new Date().toISOString(),
     fechaFin: '',
     ejercicios: [
@@ -203,6 +206,7 @@ function crearEjemploEntrenamiento() {
         idEjercicio: 'bench-press',
         nombre: 'Press banca',
         descripcion: 'Ejemplo con fallo en segunda serie y bajada de peso.',
+        observaciones: 'La segunda serie pide bajar carga si se complica.',
         seriesPlanificadas: 4,
         repeticionesPlanificadas: 12,
         pesoPlanificado: 60,
@@ -221,6 +225,7 @@ function crearEjemploEntrenamiento() {
         idEjercicio: 'shoulder-press',
         nombre: 'Press hombro',
         descripcion: 'Ejemplo con una serie menos que la plantilla.',
+        observaciones: '',
         seriesPlanificadas: 3,
         repeticionesPlanificadas: 10,
         pesoPlanificado: 22,
@@ -237,6 +242,7 @@ function crearEjemploEntrenamiento() {
         idEjercicio: 'today-extra-example',
         nombre: 'Fondos asistidos',
         descripcion: 'Ejercicio anadido solo para hoy.',
+        observaciones: '',
         seriesPlanificadas: 3,
         repeticionesPlanificadas: 12,
         pesoPlanificado: 35,
@@ -259,6 +265,7 @@ function crearEjemploEntrenamientoAnterior() {
     id: 'example-previous-workout',
     idSesion: 'push-session',
     nombreSesion: 'Empuje anterior',
+    observaciones: '',
     fechaInicio: '2026-04-20T17:30:00.000Z',
     fechaFin: '2026-04-20T18:30:00.000Z',
     ejercicios: [
@@ -266,6 +273,7 @@ function crearEjemploEntrenamientoAnterior() {
         idEjercicio: 'bench-press',
         nombre: 'Press banca',
         descripcion: '',
+        observaciones: '',
         seriesPlanificadas: 0,
         repeticionesPlanificadas: 0,
         pesoPlanificado: 0,
@@ -285,6 +293,7 @@ function crearEjemploEntrenamientoAnterior() {
         idEjercicio: 'shoulder-press',
         nombre: 'Press hombro',
         descripcion: '',
+        observaciones: '',
         seriesPlanificadas: 0,
         repeticionesPlanificadas: 0,
         pesoPlanificado: 0,
@@ -302,6 +311,7 @@ function crearEjemploEntrenamientoAnterior() {
         idEjercicio: 'today-extra-example',
         nombre: 'Fondos asistidos',
         descripcion: '',
+        observaciones: '',
         seriesPlanificadas: 0,
         repeticionesPlanificadas: 0,
         pesoPlanificado: 0,
@@ -386,6 +396,7 @@ function Entreno() {
       (ejercicio) =>
         normalizarTexto(ejercicio.nombre).includes(busquedaNormalizada) ||
         normalizarTexto(ejercicio.descripcion).includes(busquedaNormalizada) ||
+        normalizarTexto(ejercicio.observaciones).includes(busquedaNormalizada) ||
         normalizarTexto(ejercicio.grupoMuscular).includes(busquedaNormalizada) ||
         normalizarTexto(ejercicio.equipamiento).includes(busquedaNormalizada),
     )
@@ -411,7 +422,7 @@ function Entreno() {
         setCatalogoEjercicios(catalogoActualizado)
       } catch (errorCapturado) {
         setMensaje(
-          `${errorCapturado.message} Se mantiene el catalogo local mientras no se pueda leer el backend.`,
+          `${errorCapturado.message} Se muestra el catalogo disponible.`,
         )
       }
     }
@@ -635,8 +646,8 @@ function Entreno() {
     setMensaje(
       mensajeExito ||
         (mapaPendientes.size === 0
-          ? 'No quedan entrenos pendientes en local.'
-          : `Cambios guardados en local para ${mapaPendientes.size} pendiente${mapaPendientes.size === 1 ? '' : 's'}.`),
+          ? 'No quedan entrenos pendientes.'
+          : `Cambios guardados para ${mapaPendientes.size} pendiente${mapaPendientes.size === 1 ? '' : 's'}.`),
     )
 
     return historialActualizado
@@ -665,8 +676,8 @@ function Entreno() {
     persistirPendientesEditados(
       pendientesActualizados,
       pendientesActualizados.length === 0
-        ? 'Pendiente eliminado de local. Ya no quedan entrenos pendientes.'
-        : 'Pendiente eliminado de local.',
+        ? 'Pendiente eliminado. Ya no quedan entrenos pendientes.'
+        : 'Pendiente eliminado.',
     )
     setPendientesAbiertos((estadoActual) => {
       const siguienteEstado = { ...estadoActual }
@@ -705,8 +716,8 @@ function Entreno() {
     persistirPendientesEditados(
       pendientesActualizados,
       pendientesActualizados.some((entrenamientoPendiente) => entrenamientoPendiente.clientId === clientId)
-        ? 'Ejercicio pendiente eliminado de local.'
-        : 'Entreno pendiente eliminado de local al quedarse sin ejercicios.',
+        ? 'Ejercicio pendiente eliminado.'
+        : 'Entreno pendiente eliminado al quedarse sin ejercicios.',
     )
 
     setEjerciciosPendientesAbiertos((estadoActual) =>
@@ -818,6 +829,12 @@ function Entreno() {
         ejercicio.idEjercicio === idEjercicio ? { ...ejercicio, [campo]: valor } : ejercicio,
       ),
     }))
+  }
+
+  const actualizarEntrenamiento = (campo, valor) => {
+    setEntrenamiento((entrenamientoActual) =>
+      entrenamientoActual ? { ...entrenamientoActual, [campo]: valor } : entrenamientoActual,
+    )
   }
 
   const actualizarSerie = (idEjercicio, idSerie, campo, valor) => {
@@ -1019,7 +1036,7 @@ function Entreno() {
         setMensaje(
           resultado.online
             ? ''
-            : `${resultado.error?.message || 'No se pudo sincronizar ahora mismo.'} El entreno queda guardado en local y pendiente de sincronizar.`,
+            : 'Entreno guardado. Se actualizara cuando vuelva la conexion.',
         )
       if (resultado.online && resultado.entrenamientosSincronizados?.length) {
         setToastSincronizacion({
@@ -1031,7 +1048,7 @@ function Entreno() {
       if (errorCapturado?.historial) {
         setHistorial(errorCapturado.historial)
       }
-      setMensaje(`${errorCapturado.message} El borrador sigue guardado en localStorage.`)
+      setMensaje(`${errorCapturado.message} El borrador se mantiene guardado.`)
     } finally {
       setEstaGuardando(false)
     }
@@ -1072,25 +1089,32 @@ function Entreno() {
         aplicarResultadoSincronizacionPendientes(resultadoSincronizacion)
       }
 
-      const sesionSeleccionada = idSesionSeleccionada
-        ? sesionesActualizadas.find((sesion) => sesion.id === idSesionSeleccionada) || null
-        : null
+      const entrenamientoEnCurso = obtenerEntrenamientoBorrador()
 
-      if (sesionSeleccionada) {
-        const siguienteEntrenamiento = crearEntrenamientoDesdeSesion(sesionSeleccionada)
-        setIdSesionSeleccionada(sesionSeleccionada.id)
-        setEntrenamiento(siguienteEntrenamiento)
-        setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(siguienteEntrenamiento.ejercicios))
-        setDetallesEjercicioAbiertos(
-          crearEstadoDetallesEjercicioAbiertos(siguienteEntrenamiento.ejercicios),
-        )
-        setSeriesPlegadas({})
+      if (entrenamientoEnCurso) {
+        setEntrenamiento(entrenamientoEnCurso)
+        setIdSesionSeleccionada(entrenamientoEnCurso.idSesion || idSesionSeleccionada)
       } else {
-        setIdSesionSeleccionada('')
-        setEntrenamiento(null)
-        setEjerciciosAbiertos({})
-        setDetallesEjercicioAbiertos({})
-        setSeriesPlegadas({})
+        const sesionSeleccionada = idSesionSeleccionada
+          ? sesionesActualizadas.find((sesion) => sesion.id === idSesionSeleccionada) || null
+          : null
+
+        if (sesionSeleccionada) {
+          const siguienteEntrenamiento = crearEntrenamientoDesdeSesion(sesionSeleccionada)
+          setIdSesionSeleccionada(sesionSeleccionada.id)
+          setEntrenamiento(siguienteEntrenamiento)
+          setEjerciciosAbiertos(crearEstadoEjerciciosCerrados(siguienteEntrenamiento.ejercicios))
+          setDetallesEjercicioAbiertos(
+            crearEstadoDetallesEjercicioAbiertos(siguienteEntrenamiento.ejercicios),
+          )
+          setSeriesPlegadas({})
+        } else {
+          setIdSesionSeleccionada('')
+          setEntrenamiento(null)
+          setEjerciciosAbiertos({})
+          setDetallesEjercicioAbiertos({})
+          setSeriesPlegadas({})
+        }
       }
 
       setEstaAbiertoSelectorEjercicios(false)
@@ -1102,7 +1126,7 @@ function Entreno() {
       }
     } catch (errorCapturado) {
       setMensaje(
-        `${errorCapturado.message} No se pudieron recuperar los datos originales desde la base de datos.`,
+        `${errorCapturado.message} No se pudieron actualizar los datos.`,
       )
     } finally {
       setEstaRecargando(false)
@@ -1118,7 +1142,14 @@ function Entreno() {
     progress,
   } =
     usePullToRefresh({
-      onRefresh: () => recargarDesdeServidor({ silencioso: true }),
+      onRefresh: () => {
+        if (obtenerEntrenamientoBorrador()) {
+          setMensaje('Entreno en curso protegido. Termina o descarta el entreno antes de recargar.')
+          return undefined
+        }
+
+        return recargarDesdeServidor({ silencioso: true })
+      },
     })
 
   const ocultarAyudaGesto = true
@@ -1260,7 +1291,7 @@ function Entreno() {
             disabled={estaRecargando}
             onClick={recargarDesdeServidor}
           >
-            {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
+            {estaRecargando ? 'Recargando...' : 'Actualizar'}
           </button>
           <button
             className="w-full rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan sm:w-auto"
@@ -1413,13 +1444,13 @@ function Entreno() {
                     </span>
                   </button>
 
-                  <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
+                  <div className="grid w-full gap-2 sm:w-auto sm:min-w-[420px]">
                     <button
                       type="button"
                       role="switch"
                       aria-checked={ejercicio.completado}
                       title={ejercicio.completado ? 'Completado' : 'Pendiente'}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)] sm:w-auto"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#39ff14]/50 px-3 py-2 text-sm font-black text-[#39ff14] shadow-[0_0_16px_rgba(57,255,20,0.28)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(57,255,20,0.45)]"
                       onClick={() => alternarEjercicioCompletado(ejercicio.idEjercicio)}
                     >
                       <span
@@ -1466,22 +1497,24 @@ function Entreno() {
                       </span>
                       Completado
                     </button>
-                    <button
-                      className="w-full rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple sm:w-auto"
-                      type="button"
-                      onClick={() =>
-                        actualizarEjercicio(ejercicio.idEjercicio, 'omitido', !ejercicio.omitido)
-                      }
-                    >
-                      {ejercicio.omitido ? 'Reactivar' : 'No hacer hoy'}
-                    </button>
-                    <button
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400 sm:w-auto"
-                      type="button"
-                      onClick={() => quitarEjercicioSoloHoy(ejercicio.idEjercicio)}
-                    >
-                      Quitar
-                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        className="w-full rounded-md border border-neon-pink/50 px-3 py-2 text-sm font-bold text-neon-pink shadow-glow-pink transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-purple hover:text-neon-purple hover:shadow-glow-purple"
+                        type="button"
+                        onClick={() =>
+                          actualizarEjercicio(ejercicio.idEjercicio, 'omitido', !ejercicio.omitido)
+                        }
+                      >
+                        {ejercicio.omitido ? 'Reactivar' : 'No hacer hoy'}
+                      </button>
+                      <button
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:border-white/10 dark:text-slate-400"
+                        type="button"
+                        onClick={() => quitarEjercicioSoloHoy(ejercicio.idEjercicio)}
+                      >
+                        Quitar
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1554,14 +1587,15 @@ function Entreno() {
                       </div>
 
                       <div className="grid gap-3">
-                        <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="grid grid-cols-3 gap-3">
                           <label className={claseCampoCompacto}>
-                            Series base
+                            Series
                             <input
-                              className={claseInputNumero}
+                              className={claseInputDetalleEjercicio}
                               type="number"
                               min="0"
                               max="99"
+                              readOnly
                               value={ejercicio.seriesPlanificadas}
                               onChange={(evento) =>
                                 actualizarEjercicio(
@@ -1573,12 +1607,13 @@ function Entreno() {
                             />
                           </label>
                           <label className={claseCampoCompacto}>
-                            Reps base
+                            Reps
                             <input
-                              className={claseInputNumero}
+                              className={claseInputDetalleEjercicio}
                               type="number"
                               min="0"
                               max="99"
+                              readOnly
                               value={ejercicio.repeticionesPlanificadas}
                               onChange={(evento) =>
                                 actualizarEjercicio(
@@ -1590,12 +1625,13 @@ function Entreno() {
                             />
                           </label>
                           <label className={claseCampoCompacto}>
-                            Peso base
+                            Peso
                             <input
-                              className={claseInputPeso}
+                              className={claseInputDetalleEjercicio}
                               type="number"
                               min="0"
                               max="999"
+                              readOnly
                               value={ejercicio.pesoPlanificado}
                               onChange={(evento) =>
                                 actualizarEjercicio(
@@ -1607,12 +1643,13 @@ function Entreno() {
                             />
                           </label>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid grid-cols-2 gap-3">
                           <label className={claseCampoCompacto}>
                             Altura banco
                             <input
-                              className={claseInputTexto}
+                              className={claseInputDetalleEjercicio}
                               type="text"
+                              readOnly
                               value={ejercicio.alturaBanco}
                               placeholder="Sin definir"
                               onChange={(evento) =>
@@ -1627,7 +1664,8 @@ function Entreno() {
                           <label className={claseCampoCompacto}>
                             Agarre
                             <input
-                              className={claseInputTexto}
+                              className={claseInputDetalleEjercicio}
+                              readOnly
                               value={ejercicio.agarre}
                               placeholder="Sin definir"
                               onChange={(evento) =>
@@ -1709,9 +1747,9 @@ function Entreno() {
                                     ) : null}
                                   </div>
 
-                                  <div className="grid gap-2 sm:flex sm:items-center">
+                                  <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[420px]">
                                     <button
-                                      className="min-w-0 rounded-md border border-neon-cyan/50 px-3 py-2 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
+                                      className="min-h-10 min-w-0 rounded-md border border-neon-cyan/50 px-3 py-2 text-center text-xs font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink sm:text-sm dark:text-neon-cyan"
                                       type="button"
                                       onClick={() =>
                                         agregarTramoPeso(
@@ -1723,7 +1761,7 @@ function Entreno() {
                                       Otro peso en serie {grupoSeries.numeroSerie}
                                     </button>
                                     <button
-                                      className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-md border border-[#39ff14]/60 px-3 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.2)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(57,255,20,0.34)] sm:w-auto"
+                                      className="inline-flex min-h-10 min-w-0 shrink-0 items-center justify-center gap-2 rounded-md border border-[#39ff14]/60 px-2 text-[#39ff14] shadow-[0_0_12px_rgba(57,255,20,0.2)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(57,255,20,0.34)] sm:px-3"
                                       type="button"
                                       role="switch"
                                       aria-checked={estaPlegadaSerie}
@@ -1775,7 +1813,7 @@ function Entreno() {
                                           )}
                                         </span>
                                       </span>
-                                      <span className="text-sm font-bold">Completada</span>
+                                      <span className="text-xs font-bold sm:text-sm">Completada</span>
                                     </button>
                                   </div>
                                 </div>
@@ -1892,6 +1930,31 @@ function Entreno() {
                       >
                         Añadir serie
                       </button>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="grid gap-2 rounded-lg border border-neon-cyan/35 bg-neon-cyan/5 p-3 text-xs font-semibold uppercase tracking-wide text-neon-cyan shadow-[0_0_22px_rgba(0,255,237,0.08)] dark:bg-neon-cyan/8">
+                          Observaciones de hoy
+                          <textarea
+                            className="min-h-24 w-full resize-y rounded-md border border-neon-cyan/45 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-700 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:bg-pes-black/80 dark:text-slate-200"
+                            value={ejercicio.observaciones || ''}
+                            placeholder="Sensaciones, tecnica o notas de este ejercicio"
+                            onChange={(evento) =>
+                              actualizarEjercicio(
+                                ejercicio.idEjercicio,
+                                'observaciones',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                        </label>
+
+                        <div className="grid gap-2 rounded-lg border border-slate-300/70 bg-slate-100/70 p-3 text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[0_0_22px_rgba(148,163,184,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+                          Entreno anterior
+                          <div className="min-h-24 whitespace-pre-wrap rounded-md border border-slate-300/80 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-slate-700 dark:border-white/10 dark:bg-pes-black/80 dark:text-slate-300">
+                            {registroAnterior?.observaciones ||
+                              'Sin observaciones registradas en el entreno anterior.'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1899,6 +1962,22 @@ function Entreno() {
             )
           })}
         </section>
+
+        {entrenamiento ? (
+          <section className="rounded-lg border border-neon-cyan/35 bg-neon-cyan/5 p-4 shadow-[0_0_22px_rgba(0,255,237,0.08)] dark:bg-neon-cyan/8">
+            <label className="grid gap-2 text-xs font-semibold uppercase tracking-wide text-neon-cyan">
+              Observaciones del entreno
+              <textarea
+                className="min-h-24 w-full resize-y rounded-md border border-neon-cyan/45 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:bg-pes-black/80 dark:text-white"
+                value={entrenamiento.observaciones || ''}
+                placeholder="Sensaciones generales, fatiga o notas de la sesion"
+                onChange={(evento) =>
+                  actualizarEntrenamiento('observaciones', evento.target.value)
+                }
+              />
+            </label>
+          </section>
+        ) : null}
       </main>
 
       {entrenamiento ? (
@@ -1924,10 +2003,10 @@ function Entreno() {
                   Pendientes
                 </p>
                 <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">
-                  Cola offline de entrenos
+                  Entrenos pendientes
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  Aqui puedes ver lo que sigue guardado en local y reintentar la subida cuando quieras.
+                  Aqui puedes revisar los entrenos pendientes de actualizar.
                 </p>
               </div>
 
@@ -2064,7 +2143,7 @@ function Entreno() {
                           <div className={claseValorPendiente}>
                             {entrenamientoPendiente.ejercicios.length} ejercicio
                             {entrenamientoPendiente.ejercicios.length === 1 ? '' : 's'} guardado
-                            {entrenamientoPendiente.ejercicios.length === 1 ? '' : 's'} en local
+                            {entrenamientoPendiente.ejercicios.length === 1 ? '' : 's'} pendiente
                           </div>
                           {entrenamientoPendiente.syncFieldErrors?.idSesion ? (
                             <span className="text-[11px] font-medium normal-case text-neon-pink">
@@ -2191,7 +2270,10 @@ function Entreno() {
                               <label className="grid content-start gap-2 text-xs font-semibold text-slate-400">
                                 Notas
                                 <div className={claseValorPendiente}>
-                                  {ejercicio.descripcion || ejercicio.patronMovimiento || 'Sin notas'}
+                                  {ejercicio.observaciones ||
+                                    ejercicio.descripcion ||
+                                    ejercicio.patronMovimiento ||
+                                    'Sin notas'}
                                 </div>
                                 {ejercicio.syncFieldErrors?.plantillaEjercicioId ? (
                                   <span className="text-[11px] font-medium normal-case text-neon-pink">

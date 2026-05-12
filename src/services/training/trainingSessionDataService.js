@@ -53,6 +53,7 @@ function remapearEntrenamientoSesion(entrenamiento, idsAntiguos, sesionGuardada)
     ...entrenamiento,
     idSesion: sesionGuardada.persistedId || sesionGuardada.idSesion || sesionGuardada.id,
     nombreSesion: sesionGuardada.nombreSesion || entrenamiento.nombreSesion,
+    observaciones: sesionGuardada.observaciones || entrenamiento.observaciones,
   }
 }
 
@@ -127,6 +128,7 @@ function reconciliarSesionPendienteConCatalogo(sesionPendiente, catalogoEjercici
         catalogoEjercicioId: ejercicioCatalogo.catalogoEjercicioId,
         nombre: ejercicioCatalogo.nombre || ejercicioSesion.nombre,
         descripcion: ejercicioCatalogo.descripcion || ejercicioSesion.descripcion,
+        observaciones: ejercicioCatalogo.observaciones || ejercicioSesion.observaciones,
         grupoMuscular: ejercicioCatalogo.grupoMuscular || ejercicioSesion.grupoMuscular,
         patronMovimiento: ejercicioCatalogo.patronMovimiento || ejercicioSesion.patronMovimiento,
         equipamiento: ejercicioCatalogo.equipamiento || ejercicioSesion.equipamiento,
@@ -166,7 +168,7 @@ function marcarSesionConError(sesion, error) {
     syncStatus: 'pending',
     syncError: esConflictoVersion
       ? error.backendMessage ||
-        'La version enviada no coincide con la version actual del backend.'
+        'La sesion cambio mientras la editabas. Actualiza la lista antes de volver a guardar.'
       : mensajeError,
     lastSyncAttemptAt: new Date().toISOString(),
     syncFieldErrors: esConflictoVersion
@@ -179,7 +181,7 @@ function marcarSesionConError(sesion, error) {
       syncStatus: 'pending',
       syncError: esConflictoVersion
         ? error.backendMessage ||
-          'La version enviada no coincide con la version actual del backend.'
+          'La sesion cambio mientras la editabas. Actualiza la lista antes de volver a guardar.'
         : mensajeError,
       syncFieldErrors: esConflictoVersion ? { version: true } : {},
     })),

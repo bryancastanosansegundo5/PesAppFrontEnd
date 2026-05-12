@@ -89,7 +89,7 @@ async function resolverConflictoDeVersion(registroLocal, registrosPrevios, error
       latestRecords: registrosActualizados,
       message:
         errorOriginal.backendMessage ||
-        'La version enviada no coincide con la version actual del recurso. Se ha recargado el dato mas reciente del backend.',
+        'El dato cambio mientras lo editabas. Se ha cargado la version mas reciente.',
     })
   } catch (errorRefresco) {
     if (errorRefresco instanceof ApiError && errorRefresco.conflictType === 'version') {

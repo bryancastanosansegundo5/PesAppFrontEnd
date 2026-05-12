@@ -213,11 +213,23 @@ function esEjercicioSincronizadoConServidor(ejercicio) {
 }
 
 export function normalizarSerieRealizada(serie, indice = 0) {
+  const idSerie = serie?.id || crearId(`serie-${indice + 1}`)
+  const persistedId = normalizarIdPersistido(
+    serie?.persistedId,
+    serie?.serverId,
+    serie?.idPersistido,
+    serie?.idServidor,
+    serie?.id,
+  )
+
   return {
-    id: serie?.id || crearId(`serie-${indice + 1}`),
+    id: idSerie,
+    persistedId,
+    clientId: normalizarIdTexto(serie?.clientId, serie?.localId, idSerie),
     numeroSerie: Number(serie?.numeroSerie ?? serie?.setNumber ?? indice + 1) || indice + 1,
     repeticiones: Number(serie?.repeticiones ?? serie?.reps) || 0,
     peso: Number(serie?.peso ?? serie?.weight) || 0,
+    version: normalizarVersion(serie?.version, 1),
   }
 }
 
@@ -264,6 +276,7 @@ export function normalizarEjercicio(ejercicio, indice = 0) {
     catalogoEjercicioId: catalogoEjercicioId ? String(catalogoEjercicioId) : '',
     nombre: ejercicio?.nombre || ejercicio?.name || 'Ejercicio sin nombre',
     descripcion: ejercicio?.descripcion || ejercicio?.description || '',
+    observaciones: ejercicio?.observaciones || ejercicio?.notes || '',
     grupoMuscular: ejercicio?.grupoMuscular || ejercicio?.muscleGroup || '',
     patronMovimiento: ejercicio?.patronMovimiento || ejercicio?.movementPattern || '',
     equipamiento: ejercicio?.equipamiento || ejercicio?.equipment || '',
@@ -327,6 +340,7 @@ export function normalizarSesion(sesion) {
     clientId: normalizarIdTexto(sesion?.clientId, sesion?.localId, idSesion),
     idSesion,
     nombreSesion: sesion?.nombreSesion || sesion?.sessionName || sesion?.name || 'Sesion sin nombre',
+    observaciones: sesion?.observaciones || sesion?.notes || '',
     fechaInicio: aIsoString(sesion?.fechaInicio || sesion?.startedAt, ''),
     fechaFin: aIsoString(sesion?.fechaFin || sesion?.completedAt, ''),
     ejercicios: Array.isArray(ejerciciosOrigen) ? ejerciciosOrigen.map(normalizarEjercicio) : [],
@@ -434,6 +448,7 @@ export function crearSesionVacia() {
     clientId: idSesion,
     idSesion,
     nombreSesion: 'Nueva sesion',
+    observaciones: '',
     fechaInicio: '',
     fechaFin: '',
     ejercicios: [],
@@ -453,6 +468,7 @@ export function crearEjercicioVacio() {
     catalogoEjercicioId: '',
     nombre: 'Nuevo ejercicio',
     descripcion: '',
+    observaciones: '',
     grupoMuscular: '',
     patronMovimiento: '',
     equipamiento: '',
@@ -482,6 +498,7 @@ export function crearEjercicioDesdeCatalogo(plantilla) {
     ),
     nombre: plantilla.nombre,
     descripcion: plantilla.descripcion || '',
+    observaciones: plantilla.observaciones || '',
     grupoMuscular: plantilla.grupoMuscular || '',
     patronMovimiento: plantilla.patronMovimiento || '',
     equipamiento: plantilla.equipamiento || '',
@@ -506,6 +523,7 @@ export function crearEntrenamientoDesdeSesion(sesion) {
     clientId: crearId('entrenamiento-cliente'),
     idSesion: sesionNormalizada.idSesion,
     nombreSesion: sesionNormalizada.nombreSesion,
+    observaciones: sesionNormalizada.observaciones || '',
     fechaInicio: new Date().toISOString(),
     fechaFin: '',
     ejercicios: sesionNormalizada.ejercicios.map((ejercicio) => ({
@@ -530,9 +548,9 @@ export function crearEntrenamientoDesdeSesion(sesion) {
       ),
       version: 1,
       syncStatus: 'pending',
-    })),
-    version: 1,
-    syncStatus: 'pending',
+        })),
+      version: 1,
+      syncStatus: 'pending',
     pendingAction: 'upsert',
     deletedAt: '',
   }
@@ -595,6 +613,7 @@ export function crearPayloadSesion(sesion) {
     clientId: sesionNormalizada.clientId,
     ...(idSesion ? { idSesion } : {}),
     nombreSesion: sesionNormalizada.nombreSesion,
+    observaciones: sesionNormalizada.observaciones,
     fechaInicio: normalizarFechaPayload(sesionNormalizada.fechaInicio),
     fechaFin: normalizarFechaPayload(sesionNormalizada.fechaFin),
     ...(incluirVersionSesion ? { version: sesionNormalizada.version } : {}),
@@ -619,6 +638,7 @@ export function crearPayloadSesion(sesion) {
         ...(catalogoEjercicioId ? { catalogoEjercicioId } : {}),
         nombre: ejercicio.nombre,
         descripcion: ejercicio.descripcion,
+        observaciones: ejercicio.observaciones,
         grupoMuscular: ejercicio.grupoMuscular,
         patronMovimiento: ejercicio.patronMovimiento,
         equipamiento: ejercicio.equipamiento,
@@ -639,21 +659,25 @@ export function crearPayloadEntrenamiento(entrenamiento) {
   const idPersistidoEntrenamiento = normalizarReferenciaPayload(
     entrenamientoNormalizado.persistedId || entrenamientoNormalizado.id,
   )
+  const incluirVersionEntrenamiento = esSesionSincronizadaConServidor(entrenamientoNormalizado)
 
   return {
     id: idPersistidoEntrenamiento || normalizarIdLocalPayload(entrenamientoNormalizado.id),
     clientId: entrenamientoNormalizado.clientId,
     ...(idSesion ? { idSesion } : {}),
     nombreSesion: entrenamientoNormalizado.nombreSesion,
+    observaciones: entrenamientoNormalizado.observaciones,
     fechaInicio: entrenamientoNormalizado.fechaInicio,
     fechaFin: entrenamientoNormalizado.fechaFin,
-    version: entrenamientoNormalizado.version,
+    ...(incluirVersionEntrenamiento ? { version: entrenamientoNormalizado.version } : {}),
     ejercicios: entrenamientoNormalizado.ejercicios.map((ejercicio) => {
       const catalogoEjercicioId = normalizarReferenciaPayload(ejercicio.catalogoEjercicioId)
       const plantillaEjercicioId = normalizarPlantillaEjercicioId(
         ejercicio.plantillaEjercicioId,
         ejercicio.idEjercicio,
       )
+      const incluirVersionEjercicio =
+        incluirVersionEntrenamiento && esEjercicioSincronizadoConServidor(ejercicio)
 
       return {
         id:
@@ -665,6 +689,7 @@ export function crearPayloadEntrenamiento(entrenamiento) {
         ...(plantillaEjercicioId ? { plantillaEjercicioId } : {}),
         nombre: ejercicio.nombre,
         descripcion: ejercicio.descripcion,
+        observaciones: ejercicio.observaciones,
         grupoMuscular: ejercicio.grupoMuscular,
         patronMovimiento: ejercicio.patronMovimiento,
         equipamiento: ejercicio.equipamiento,
@@ -675,11 +700,16 @@ export function crearPayloadEntrenamiento(entrenamiento) {
         agarre: ejercicio.agarre || '',
         completado: Boolean(ejercicio.completado),
         omitido: Boolean(ejercicio.omitido),
-        version: ejercicio.version,
+        ...(incluirVersionEjercicio ? { version: ejercicio.version } : {}),
         seriesRealizadas: ejercicio.seriesRealizadas.map((serie) => ({
+          id:
+            normalizarReferenciaPayload(serie.persistedId || serie.id) ||
+            normalizarIdLocalPayload(serie.id),
+          clientId: normalizarIdLocalPayload(serie.clientId || serie.id),
           numeroSerie: Number(serie.numeroSerie) || 0,
           repeticiones: Number(serie.repeticiones) || 0,
           peso: Number(serie.peso) || 0,
+          ...(incluirVersionEjercicio ? { version: serie.version } : {}),
         })),
       }
     }),

@@ -292,6 +292,76 @@ function reconciliarIdentificadoresEntrenamiento(entrenamiento, historial) {
   })
 }
 
+function tieneReferenciasMasRecientes(entrenamientoOriginal, entrenamientoReconciliado) {
+  if (
+    String(entrenamientoOriginal?.persistedId || '') !==
+      String(entrenamientoReconciliado?.persistedId || '') ||
+    String(entrenamientoOriginal?.id || '') !== String(entrenamientoReconciliado?.id || '') ||
+    Number(entrenamientoReconciliado?.version) > Number(entrenamientoOriginal?.version)
+  ) {
+    return true
+  }
+
+  return (entrenamientoReconciliado?.ejercicios || []).some((ejercicioReconciliado, indice) => {
+    const ejercicioOriginal = entrenamientoOriginal?.ejercicios?.[indice] || {}
+
+    return (
+      String(ejercicioOriginal.persistedId || '') !==
+        String(ejercicioReconciliado.persistedId || '') ||
+      String(ejercicioOriginal.id || '') !== String(ejercicioReconciliado.id || '') ||
+      Number(ejercicioReconciliado.version) > Number(ejercicioOriginal.version)
+    )
+  })
+}
+
+async function refrescarReferenciasEntrenamiento(entrenamiento) {
+  const historialServidor = await obtenerEntrenamientosDesdeServidor()
+  const entrenamientoReconciliado = reconciliarIdentificadoresEntrenamiento(
+    entrenamiento,
+    historialServidor,
+  )
+
+  return tieneReferenciasMasRecientes(entrenamiento, entrenamientoReconciliado)
+    ? entrenamientoReconciliado
+    : null
+}
+
+async function guardarEntrenamientoEnServidorConVersionActual(entrenamiento) {
+  try {
+    return await guardarEntrenamientoEnServidor(entrenamiento)
+  } catch (error) {
+    if (!esConflictoDeVersion(error)) {
+      throw error
+    }
+
+    const entrenamientoReconciliado = await refrescarReferenciasEntrenamiento(entrenamiento)
+
+    if (!entrenamientoReconciliado) {
+      throw error
+    }
+
+    return guardarEntrenamientoEnServidor(entrenamientoReconciliado)
+  }
+}
+
+async function eliminarEntrenamientoEnServidorConVersionActual(entrenamiento) {
+  try {
+    return await eliminarEntrenamientoEnServidor(entrenamiento)
+  } catch (error) {
+    if (!esConflictoDeVersion(error)) {
+      throw error
+    }
+
+    const entrenamientoReconciliado = await refrescarReferenciasEntrenamiento(entrenamiento)
+
+    if (!entrenamientoReconciliado) {
+      throw error
+    }
+
+    return eliminarEntrenamientoEnServidor(entrenamientoReconciliado)
+  }
+}
+
 function actualizarEntrenamientoActualSiCoincide(entrenamientoActualizado) {
   const entrenamientoActual = obtenerEntrenamientoActualGuardado()
 
@@ -484,6 +554,11 @@ function reconciliarEntrenamientoPendiente(entrenamiento, sesiones, catalogoEjer
           ejercicioSesion?.descripcion ||
           ejercicioCatalogo?.descripcion ||
           '',
+        observaciones:
+          ejercicio.observaciones ||
+          ejercicioSesion?.observaciones ||
+          ejercicioCatalogo?.observaciones ||
+          '',
         grupoMuscular:
           ejercicio.grupoMuscular ||
           ejercicioSesion?.grupoMuscular ||
@@ -566,7 +641,8 @@ export async function guardarEntrenamientoConRespaldo(entrenamiento) {
       reemplazarEntrenamiento(obtenerHistorialEntrenamientosGuardado(), entrenamientoReconciliado),
     )
     actualizarEntrenamientoActualSiCoincide(entrenamientoReconciliado)
-    const entrenamientoServidor = await guardarEntrenamientoEnServidor(entrenamientoReconciliado)
+    const entrenamientoServidor =
+      await guardarEntrenamientoEnServidorConVersionActual(entrenamientoReconciliado)
     const historial = guardarHistorialEntrenamientosGuardado(
       reemplazarEntrenamientoSincronizado(
         historialConReferenciasActualizadas,
@@ -616,23 +692,6 @@ export async function eliminarEntrenamientoConRespaldo(entrenamiento) {
     entrenamiento,
     historialPrevio,
   )
-  console.log('[trainingDataService] eliminarEntrenamientoConRespaldo:inicio', {
-    original: {
-      id: entrenamiento?.id,
-      persistedId: entrenamiento?.persistedId,
-      clientId: entrenamiento?.clientId,
-      version: entrenamiento?.version,
-      nombreSesion: entrenamiento?.nombreSesion,
-    },
-    reconciliadoLocal: {
-      id: entrenamientoReconciliadoConHistorial?.id,
-      persistedId: entrenamientoReconciliadoConHistorial?.persistedId,
-      clientId: entrenamientoReconciliadoConHistorial?.clientId,
-      version: entrenamientoReconciliadoConHistorial?.version,
-      nombreSesion: entrenamientoReconciliadoConHistorial?.nombreSesion,
-    },
-    historialPrevioLength: historialPrevio.length,
-  })
 
   if (!obtenerIdPersistidoEntrenamiento(entrenamientoReconciliadoConHistorial)) {
     try {
@@ -641,18 +700,7 @@ export async function eliminarEntrenamientoConRespaldo(entrenamiento) {
         entrenamientoReconciliadoConHistorial,
         historialServidor,
       )
-      console.log('[trainingDataService] eliminarEntrenamientoConRespaldo:reconciliado-servidor', {
-        id: entrenamientoReconciliadoConHistorial?.id,
-        persistedId: entrenamientoReconciliadoConHistorial?.persistedId,
-        clientId: entrenamientoReconciliadoConHistorial?.clientId,
-        version: entrenamientoReconciliadoConHistorial?.version,
-        nombreSesion: entrenamientoReconciliadoConHistorial?.nombreSesion,
-        historialServidorLength: historialServidor.length,
-      })
     } catch {
-      console.log(
-        '[trainingDataService] eliminarEntrenamientoConRespaldo:sin-reconciliacion-servidor',
-      )
       // Si el servidor no responde, mantenemos el flujo offline con la mejor referencia local disponible.
     }
   }
@@ -660,26 +708,12 @@ export async function eliminarEntrenamientoConRespaldo(entrenamiento) {
   const entrenamientoPendiente = marcarEntrenamientoPendiente(
     crearCopiaEliminadaEntrenamiento(entrenamientoReconciliadoConHistorial),
   )
-  console.log('[trainingDataService] eliminarEntrenamientoConRespaldo:pendiente-delete', {
-    id: entrenamientoPendiente?.id,
-    persistedId: entrenamientoPendiente?.persistedId,
-    clientId: entrenamientoPendiente?.clientId,
-    version: entrenamientoPendiente?.version,
-    pendingAction: entrenamientoPendiente?.pendingAction,
-    deletedAt: entrenamientoPendiente?.deletedAt,
-  })
   guardarHistorialEntrenamientosGuardado(
     reemplazarEntrenamiento(historialPrevio, entrenamientoPendiente),
   )
 
   try {
-    await eliminarEntrenamientoEnServidor(entrenamientoPendiente)
-    console.log('[trainingDataService] eliminarEntrenamientoConRespaldo:delete-ok', {
-      id: entrenamientoPendiente?.id,
-      persistedId: entrenamientoPendiente?.persistedId,
-      clientId: entrenamientoPendiente?.clientId,
-      version: entrenamientoPendiente?.version,
-    })
+    await eliminarEntrenamientoEnServidorConVersionActual(entrenamientoPendiente)
     const historial = guardarHistorialEntrenamientosGuardado(
       quitarEntrenamientoDeHistorial(obtenerHistorialEntrenamientosGuardado(), entrenamientoPendiente),
     )
@@ -691,17 +725,6 @@ export async function eliminarEntrenamientoConRespaldo(entrenamiento) {
       error: null,
     }
   } catch (error) {
-    console.log('[trainingDataService] eliminarEntrenamientoConRespaldo:delete-error', {
-      id: entrenamientoPendiente?.id,
-      persistedId: entrenamientoPendiente?.persistedId,
-      clientId: entrenamientoPendiente?.clientId,
-      version: entrenamientoPendiente?.version,
-      status: error?.status || 0,
-      message: error?.message || 'unknown-error',
-      backendError: error?.backendError || '',
-      backendMessage: error?.backendMessage || '',
-      payload: error?.payload || null,
-    })
     if (!esErrorRecuperable(error)) {
       const entrenamientoConError = marcarEntrenamientoConError(entrenamientoPendiente, error)
       const historialConError = guardarHistorialEntrenamientosGuardado(
@@ -769,14 +792,14 @@ export async function sincronizarEntrenamientosPendientes(clientIds = []) {
         validarSesionRelacionadaParaEntrenamiento(entrenamientoReconciliado, dependencias.sesiones)
 
         if (entrenamientoReconciliado.pendingAction === 'delete') {
-          await eliminarEntrenamientoEnServidor(entrenamientoReconciliado)
+          await eliminarEntrenamientoEnServidorConVersionActual(entrenamientoReconciliado)
           historialActual = guardarHistorialEntrenamientosGuardado(
             quitarEntrenamientoDeHistorial(historialActual, entrenamientoReconciliado),
           )
           actualizarEntrenamientoActualSiCoincide(entrenamientoReconciliado)
         } else {
           const entrenamientoServidor =
-            await guardarEntrenamientoEnServidor(entrenamientoReconciliado)
+            await guardarEntrenamientoEnServidorConVersionActual(entrenamientoReconciliado)
           historialActual = guardarHistorialEntrenamientosGuardado(
             reemplazarEntrenamientoSincronizado(
               historialActual,

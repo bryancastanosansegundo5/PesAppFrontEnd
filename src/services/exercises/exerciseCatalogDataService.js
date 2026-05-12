@@ -40,6 +40,7 @@ function actualizarReferenciaEjercicio(item, idsAntiguos, ejercicioGuardado) {
     catalogoEjercicioId: ejercicioGuardado.catalogoEjercicioId || item.catalogoEjercicioId,
     nombre: ejercicioGuardado.nombre || item.nombre,
     descripcion: ejercicioGuardado.descripcion || item.descripcion,
+    observaciones: ejercicioGuardado.observaciones || item.observaciones,
     grupoMuscular: ejercicioGuardado.grupoMuscular || item.grupoMuscular,
     patronMovimiento: ejercicioGuardado.patronMovimiento || item.patronMovimiento,
     equipamiento: ejercicioGuardado.equipamiento || item.equipamiento,

@@ -100,6 +100,7 @@ function construirHistoricoEjercicios(historial) {
           id: clave,
           nombre: ejercicio.nombre || 'Ejercicio sin nombre',
           descripcion: ejercicio.descripcion || '',
+          observaciones: ejercicio.observaciones || '',
           grupoMuscular: ejercicio.grupoMuscular || '',
           patronMovimiento: ejercicio.patronMovimiento || '',
           equipamiento: ejercicio.equipamiento || '',
@@ -160,6 +161,7 @@ function construirHistoricoEjercicios(historial) {
         entrenamientoId: entrenamiento.clientId || entrenamiento.id,
         fecha: fechaEntrada,
         nombreSesion: entrenamiento.nombreSesion || 'Sesion',
+        observaciones: ejercicio.observaciones || entrenamiento.observaciones || '',
         seriesPlanificadas: Number(ejercicio.seriesPlanificadas) || 0,
         repeticionesPlanificadas: Number(ejercicio.repeticionesPlanificadas) || 0,
         pesoPlanificado: Number(ejercicio.pesoPlanificado) || 0,
@@ -378,6 +380,7 @@ function OtrosEntrenos() {
       [
         ejercicio.nombre,
         ejercicio.descripcion,
+        ejercicio.observaciones,
         ejercicio.grupoMuscular,
         ejercicio.patronMovimiento,
         ejercicio.equipamiento,
@@ -412,17 +415,13 @@ function OtrosEntrenos() {
       const historialServidor = await obtenerEntrenamientosDesdeServidor()
       const historialFusionado = reemplazarHistorialEntrenosDesdeRemoto(historialServidor)
       setHistorial(historialFusionado)
-      setMensaje(
-        desdeReconnect
-          ? 'Historico actualizado desde el backend al recuperar la conexion.'
-          : 'Historico de entrenos actualizado correctamente.',
-      )
+      setMensaje(desdeReconnect ? '' : 'Historial actualizado correctamente.')
     } catch (errorCapturado) {
       const historialLocal = obtenerHistorialEntrenos()
       setHistorial(historialLocal)
       setMensaje(
         historialLocal.length > 0
-          ? `${errorCapturado.message} Se mantiene la copia local disponible.`
+          ? `${errorCapturado.message} Se muestran los entrenos disponibles.`
           : errorCapturado.message,
       )
     } finally {
@@ -448,7 +447,7 @@ function OtrosEntrenos() {
         }
 
         setHistorial(historialFusionado)
-        setMensaje('Historico de entrenos cargado desde la base de datos.')
+        setMensaje('')
       } catch (errorCapturado) {
         if (cancelado) {
           return
@@ -458,7 +457,7 @@ function OtrosEntrenos() {
         setHistorial(historialLocal)
         setMensaje(
           historialLocal.length > 0
-            ? `${errorCapturado.message} Se muestra la ultima copia guardada en este dispositivo.`
+            ? `${errorCapturado.message} Se muestran los entrenos disponibles.`
             : errorCapturado.message,
         )
       } finally {
@@ -497,7 +496,7 @@ function OtrosEntrenos() {
         }
 
         setHistorial(historialFusionado)
-        setMensaje('Historico actualizado desde el backend al recuperar la conexion.')
+        setMensaje('')
       } catch {
         if (cancelado) {
           return
@@ -589,8 +588,8 @@ function OtrosEntrenos() {
       resetearDraftEntreno(entrenamiento)
       setMensaje(
         resultado.online
-          ? 'Entreno actualizado y sincronizado.'
-          : 'Entreno guardado en local. Se sincronizara cuando vuelva la conexion.',
+          ? 'Entreno actualizado correctamente.'
+          : 'Entreno guardado. Se actualizara cuando vuelva la conexion.',
       )
     } catch (errorCapturado) {
       if (errorCapturado?.historial) {
@@ -604,40 +603,18 @@ function OtrosEntrenos() {
 
   const eliminarEntreno = async (entrenamiento) => {
     const clave = entrenamiento.clientId || entrenamiento.id
-    console.log('[OtrosEntrenos] eliminarEntreno:start', {
-      clave,
-      id: entrenamiento?.id,
-      persistedId: entrenamiento?.persistedId,
-      clientId: entrenamiento?.clientId,
-      version: entrenamiento?.version,
-      nombreSesion: entrenamiento?.nombreSesion,
-    })
     setEliminandoEntrenoId(clave)
 
     try {
       const resultado = await eliminarEntrenamientoConRespaldo(entrenamiento)
-      console.log('[OtrosEntrenos] eliminarEntreno:resultado', {
-        clave,
-        online: resultado?.online,
-        error: resultado?.error?.message || null,
-        historialLength: resultado?.historial?.length ?? null,
-      })
       setHistorial(resultado.historial)
       resetearDraftEntreno(entrenamiento)
       setMensaje(
         resultado.online
-          ? 'Entreno eliminado y sincronizado.'
-          : 'Entreno eliminado en local. Se borrara online al recuperar la conexion.',
+          ? 'Entreno eliminado correctamente.'
+          : 'Entreno eliminado. Se actualizara cuando vuelva la conexion.',
       )
     } catch (errorCapturado) {
-      console.log('[OtrosEntrenos] eliminarEntreno:error', {
-        clave,
-        status: errorCapturado?.status || 0,
-        message: errorCapturado?.message || 'unknown-error',
-        backendError: errorCapturado?.backendError || '',
-        backendMessage: errorCapturado?.backendMessage || '',
-        payload: errorCapturado?.payload || null,
-      })
       if (errorCapturado?.historial) {
         setHistorial(errorCapturado.historial)
       }
@@ -648,13 +625,6 @@ function OtrosEntrenos() {
   }
 
   const abrirConfirmacionEliminarEntreno = (entrenamiento) => {
-    console.log('[OtrosEntrenos] abrirConfirmacionEliminarEntreno', {
-      id: entrenamiento?.id,
-      persistedId: entrenamiento?.persistedId,
-      clientId: entrenamiento?.clientId,
-      version: entrenamiento?.version,
-      nombreSesion: entrenamiento?.nombreSesion,
-    })
     setEntrenoPendienteEliminar(entrenamiento)
   }
 
@@ -668,17 +638,9 @@ function OtrosEntrenos() {
 
   const confirmarEliminarEntreno = async () => {
     if (!entrenoPendienteEliminar) {
-      console.log('[OtrosEntrenos] confirmarEliminarEntreno:sin-entreno')
       return
     }
 
-    console.log('[OtrosEntrenos] confirmarEliminarEntreno', {
-      id: entrenoPendienteEliminar?.id,
-      persistedId: entrenoPendienteEliminar?.persistedId,
-      clientId: entrenoPendienteEliminar?.clientId,
-      version: entrenoPendienteEliminar?.version,
-      nombreSesion: entrenoPendienteEliminar?.nombreSesion,
-    })
     await eliminarEntreno(entrenoPendienteEliminar)
     setEntrenoPendienteEliminar(null)
   }
@@ -738,8 +700,7 @@ function OtrosEntrenos() {
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
               La tab de ejercicios mantiene la vista por ejercicio y la tab de entrenos te deja
-              editar pesos, repeticiones y borrar series o entrenos, con el mismo enfoque offline
-              y sincronizacion de toda la app.
+              editar pesos, repeticiones y borrar series o entrenos desde la misma vista.
             </p>
           </div>
 
@@ -761,13 +722,13 @@ function OtrosEntrenos() {
               disabled={estaRecargando}
               onClick={() => cargarHistorial()}
             >
-              {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
+              {estaRecargando ? 'Recargando...' : 'Actualizar'}
             </button>
           </div>
         </div>
 
         <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-          {mensaje || 'El historico se consulta desde tu cuenta y se guarda tambien en local.'}
+          {mensaje || 'Consulta y edita tus entrenos guardados.'}
         </p>
         <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
           {tabActiva === 'ejercicios'
@@ -1109,8 +1070,7 @@ function OtrosEntrenos() {
                               Edicion del entreno
                             </p>
                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                              Cambia pesos o repeticiones y guarda para dejarlo pendiente si estas
-                              offline.
+                              Cambia pesos o repeticiones y guarda cuando termines.
                             </p>
                           </div>
                           </div>
@@ -1199,6 +1159,20 @@ function OtrosEntrenos() {
                                             onChange={(event) =>
                                               actualizarDraftEntreno(draft, (draftActual) => {
                                                 draftActual.ejercicios[indiceEjercicio].grupoMuscular =
+                                                  event.target.value
+                                                return draftActual
+                                              })
+                                            }
+                                          />
+                                        </label>
+                                        <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 md:col-span-2 dark:text-slate-400">
+                                          Observaciones
+                                          <textarea
+                                            className={`${claseInput} min-h-20 resize-y`}
+                                            value={ejercicio.observaciones || ''}
+                                            onChange={(event) =>
+                                              actualizarDraftEntreno(draft, (draftActual) => {
+                                                draftActual.ejercicios[indiceEjercicio].observaciones =
                                                   event.target.value
                                                 return draftActual
                                               })

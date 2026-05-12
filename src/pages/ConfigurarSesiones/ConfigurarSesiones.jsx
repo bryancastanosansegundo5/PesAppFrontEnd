@@ -180,7 +180,7 @@ function ConfigurarSesiones() {
         setCatalogoEjercicios(catalogoActualizado)
       } catch (errorCapturado) {
         setMensajeGeneral(
-          `${errorCapturado.message} Se mantiene el catalogo local mientras no se pueda leer el backend.`,
+          `${errorCapturado.message} Se muestra el catalogo disponible.`,
         )
       }
     }
@@ -281,17 +281,17 @@ function ConfigurarSesiones() {
       setEstadoGuardado({})
 
       if (resultado.sincronizados > 0) {
-        setMensajeGeneral(`Se sincronizaron ${resultado.sincronizados} sesiones pendientes.`)
+        setMensajeGeneral('Cambios actualizados correctamente.')
       } else if (resultado.error) {
         setMensajeGeneral(
-          `${resultado.error.message} Las sesiones pendientes siguen guardadas en local.`,
+          `${resultado.error.message} Los cambios pendientes se mantienen guardados.`,
         )
       } else {
-        setMensajeGeneral('No habia sesiones pendientes por sincronizar.')
+        setMensajeGeneral('No hay cambios pendientes.')
       }
     } catch (errorCapturado) {
       setMensajeGeneral(
-        `${errorCapturado.message} Las sesiones pendientes siguen guardadas en local.`,
+        `${errorCapturado.message} Los cambios pendientes se mantienen guardados.`,
       )
     } finally {
       setEstaSincronizandoPendientes(false)
@@ -340,8 +340,8 @@ function ConfigurarSesiones() {
       setBusquedaEjercicio('')
       setMensajeGeneral(
         idPersistido
-          ? `${nombreSesion} se ha eliminado de la BBDD y del almacenamiento local.`
-          : 'Sesion local eliminada de forma permanente en este dispositivo.',
+          ? `${nombreSesion} se ha eliminado correctamente.`
+          : 'Sesion eliminada correctamente.',
       )
       cerrarConfirmacionEliminarSesion()
     } catch (errorCapturado) {
@@ -356,13 +356,13 @@ function ConfigurarSesiones() {
         cerrarConfirmacionEliminarSesion()
         await recargarSesionesDesdeServidor()
         setMensajeGeneral(
-          'La sesion ya no existe en el servidor o tu lista estaba desincronizada. Se ha recargado la lista.',
+          'La sesion ya no estaba disponible. La lista se ha actualizado.',
         )
         return
       }
 
       setMensajeGeneral(
-        `${errorCapturado.message} No se ha eliminado la sesion; se mantiene en local y en pantalla.`,
+        `${errorCapturado.message} No se ha eliminado la sesion.`,
       )
     } finally {
       setEstaEliminandoSesion(false)
@@ -378,6 +378,7 @@ function ConfigurarSesiones() {
       return [
         ejercicio.nombre,
         ejercicio.descripcion,
+        ejercicio.observaciones,
         ejercicio.grupoMuscular,
         ejercicio.patronMovimiento,
         ejercicio.equipamiento,
@@ -429,6 +430,7 @@ function ConfigurarSesiones() {
       catalogoEjercicioId: '',
       nombre: 'Nuevo ejercicio',
       descripcion: '',
+      observaciones: '',
       grupoMuscular: '',
       patronMovimiento: '',
       equipamiento: '',
@@ -512,7 +514,7 @@ function ConfigurarSesiones() {
           return siguienteEstado
         })
         setSelectorSesionAbierto((valorActual) => (valorActual === idPendiente ? '' : valorActual))
-        setMensajeGeneral('La sesion pendiente se ha eliminado del servidor y del almacenamiento local.')
+        setMensajeGeneral('La sesion pendiente se ha eliminado correctamente.')
         return
       }
 
@@ -527,7 +529,7 @@ function ConfigurarSesiones() {
         return siguienteEstado
       })
       setMensajeGeneral(
-        'Se ha quitado de la cola de pendientes. La sesion sigue en local y ya no se sincronizara automaticamente.',
+        'Se ha quitado de pendientes.',
       )
     } catch (errorCapturado) {
       setMensajeGeneral(`${errorCapturado.message} No se pudo quitar este pendiente.`)
@@ -596,7 +598,7 @@ function ConfigurarSesiones() {
           ),
         }
 
-        siguienteEstado[sesionGuardada.id] = { state: 'saved', text: 'Guardado en servidor' }
+        siguienteEstado[sesionGuardada.id] = { state: 'saved', text: 'Guardado correctamente' }
         return siguienteEstado
       })
       setSelectorSesionAbierto((valorActual) =>
@@ -612,8 +614,8 @@ function ConfigurarSesiones() {
         [sesion.id]: {
           state: 'error',
           text: esConflictoDeVersion(errorCapturado)
-            ? 'Conflicto de version con el backend. Recarga la sesion para traer la ultima version antes de volver a guardar.'
-            : `${errorCapturado.message} Borrador local conservado.`,
+            ? 'Esta sesion ha cambiado. Actualiza la lista antes de volver a guardar.'
+            : `${errorCapturado.message} El borrador se mantiene guardado.`,
         },
       }))
     }
@@ -621,7 +623,7 @@ function ConfigurarSesiones() {
 
   const recargarSesionesDesdeServidor = async () => {
     setEstaRecargando(true)
-    setMensajeGeneral('Recargando sesiones desde la base de datos...')
+    setMensajeGeneral('Actualizando sesiones...')
 
     try {
       const [resultadoSesiones, catalogoServidor] = await Promise.all([
@@ -643,12 +645,12 @@ function ConfigurarSesiones() {
       setBusquedaEjercicio('')
       setMensajeGeneral(
         resultadoSesiones.sincronizados > 0
-          ? `Se sincronizaron ${resultadoSesiones.sincronizados} sesiones pendientes y se recargo la configuracion.`
-          : 'Sesiones y ejercicios recargados desde la base de datos.',
+          ? 'Cambios actualizados correctamente.'
+          : 'Sesiones y ejercicios actualizados.',
       )
     } catch (errorCapturado) {
       setMensajeGeneral(
-        `${errorCapturado.message} No se pudieron recuperar los datos originales desde la base de datos.`,
+        `${errorCapturado.message} No se pudieron actualizar los datos.`,
       )
     } finally {
       setEstaRecargando(false)
@@ -701,7 +703,7 @@ function ConfigurarSesiones() {
       setEstadoGuardado({})
 
       if (resultado.sincronizados > 0) {
-        setMensajeGeneral(`Se sincronizaron ${resultado.sincronizados} sesiones pendientes.`)
+        setMensajeGeneral('Cambios actualizados correctamente.')
       }
     }
 
@@ -774,7 +776,7 @@ function ConfigurarSesiones() {
               disabled={estaRecargando}
               onClick={recargarSesionesDesdeServidor}
             >
-              {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
+              {estaRecargando ? 'Recargando...' : 'Actualizar'}
             </button>
             <button
               className="rounded-md border border-neon-cyan/50 px-4 py-3 text-sm font-bold text-neon-purple shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:text-neon-cyan"
@@ -787,7 +789,7 @@ function ConfigurarSesiones() {
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {mensajeGeneral ||
-            'Si te equivocas, puedes recargar las sesiones y ejercicios originales desde la base de datos.'}
+            'Si necesitas recuperar cambios recientes, actualiza las sesiones y ejercicios.'}
         </p>
         {gestoRecargaDisponible ? (
           <p className="text-xs text-slate-400 sm:hidden dark:text-slate-500">
@@ -1026,6 +1028,23 @@ function ConfigurarSesiones() {
                                   />
                                 </label>
 
+                                <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                  Observaciones
+                                  <textarea
+                                    className={`${claseInputTexto} min-h-24 resize-y`}
+                                    value={ejercicio.observaciones || ''}
+                                    placeholder="Notas especificas para esta sesion"
+                                    onChange={(evento) =>
+                                      actualizarEjercicio(
+                                        sesion.id,
+                                        ejercicio.idEjercicio,
+                                        'observaciones',
+                                        evento.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
+
                                 <div className="grid grid-cols-3 gap-3">
                                   <label className={claseCampoCompacto}>
                                     Series
@@ -1166,10 +1185,10 @@ function ConfigurarSesiones() {
                   Pendientes
                 </p>
                 <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
-                  Cola offline de sesiones
+                  Sesiones pendientes
                 </h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  Aqui ves las sesiones guardadas en local que aun no se han subido al backend.
+                  Aqui puedes revisar las sesiones pendientes de actualizar.
                 </p>
               </div>
 
@@ -1274,7 +1293,7 @@ function ConfigurarSesiones() {
             </p>
             <p className="mt-3 rounded-2xl border border-amber-400/35 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-300">
               Esta accion no se puede deshacer desde aqui. Si te equivocas, tendras que recargar
-              las sesiones desde la BBDD o volver a crearla manualmente.
+              las sesiones o volver a crearla manualmente.
             </p>
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button

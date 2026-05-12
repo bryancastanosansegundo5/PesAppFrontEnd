@@ -578,7 +578,7 @@ function Peso() {
       setRegistros(resultado.registros)
       setMensaje(
         resultado.online
-          ? 'Datos de peso actualizados.'
+          ? ''
           : resultado.error?.message ||
               'No se pudieron actualizar los datos. Se muestran los registros disponibles.',
       )
@@ -615,8 +615,8 @@ function Peso() {
       setMensaje(
         resultado.online
           ? resultado.sincronizados > 0
-            ? `Se sincronizaron ${resultado.sincronizados} registros de peso pendientes.`
-            : 'Datos de peso actualizados.'
+            ? 'Cambios actualizados correctamente.'
+            : ''
           : resultado.error?.message ||
               'No se pudieron actualizar los datos. Se muestran los registros disponibles.',
       )
@@ -827,7 +827,7 @@ function Peso() {
           ? eraEdicion
             ? 'Medicion actualizada correctamente.'
             : 'Nueva medicion guardada correctamente.'
-          : `${resultado.error?.message || 'No se pudo sincronizar ahora mismo.'} El registro queda guardado en la app.`,
+          : 'Medicion guardada. Se actualizara cuando vuelva la conexion.',
       )
       setToast({
         id: Date.now(),
@@ -835,7 +835,7 @@ function Peso() {
           ? eraEdicion
             ? 'Peso actualizado correctamente.'
             : 'Peso registrado correctamente.'
-          : 'Peso guardado en local. Se sincronizara cuando vuelva la conexion.',
+          : 'Peso guardado. Se actualizara cuando vuelva la conexion.',
         tipo: 'info',
       })
       subirAlInicio()
@@ -1214,7 +1214,7 @@ function Peso() {
                     Informe
                   </p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    Texto estructurado listo para copiar a otro documento.
+                    Informe listo.
                   </p>
                 </div>
                 <button

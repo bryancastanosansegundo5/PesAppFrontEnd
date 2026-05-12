@@ -180,24 +180,7 @@ export async function eliminarEntrenamientoEnServidor(entrenamiento) {
     ...(idPersistido ? { id: idPersistido } : {}),
   }
 
-  console.log('[entrenoApiService] eliminarEntrenamientoEnServidor', {
-    endpoint: identificadorEliminacion ? `/api/entrenamientos/${identificadorEliminacion}` : null,
-    idPersistido,
-    identificadorEliminacion,
-    payload,
-    entrenamiento: {
-      id: entrenamiento?.id,
-      persistedId: entrenamiento?.persistedId,
-      clientId: entrenamiento?.clientId,
-      version: entrenamiento?.version,
-      nombreSesion: entrenamiento?.nombreSesion,
-      pendingAction: entrenamiento?.pendingAction,
-      deletedAt: entrenamiento?.deletedAt,
-    },
-  })
-
   if (!identificadorEliminacion) {
-    console.log('[entrenoApiService] eliminarEntrenamientoEnServidor:skip-local-only')
     return { ok: true, localOnly: true }
   }
 
@@ -210,10 +193,6 @@ export async function eliminarEntrenamientoEnServidor(entrenamiento) {
     })
   } catch (error) {
     if (!idPersistido && error instanceof ApiError && error.status === 404) {
-      console.log('[entrenoApiService] eliminarEntrenamientoEnServidor:not-found-client-id', {
-        identificadorEliminacion,
-        clientId: entrenamiento?.clientId || '',
-      })
       return { ok: true, localOnly: true, notFound: true }
     }
 
@@ -226,26 +205,6 @@ export async function obtenerEntrenamientosDesdeServidor() {
     method: 'GET',
     auth: true,
   })
-
-  // console.log('[entrenoApiService] obtenerEntrenamientosDesdeServidor:payload', payload)
-  // console.log(
-  //   '[entrenoApiService] obtenerEntrenamientosDesdeServidor:shape',
-  //   Array.isArray(payload)
-  //     ? payload.map((item, indice) => ({
-  //         indice,
-  //         claves: Object.keys(item || {}),
-  //         id: item?.id,
-  //         idEntrenamiento: item?.idEntrenamiento,
-  //         entrenamientoId: item?.entrenamientoId,
-  //         trainingId: item?.trainingId,
-  //         workoutId: item?.workoutId,
-  //         clientId: item?.clientId,
-  //         version: item?.version,
-  //         nombreSesion: item?.nombreSesion,
-  //       }))
-  //     : payload,
-  // )
-
   return normalizarListaSesiones(payload, [])
 }
 

@@ -12,5 +12,5 @@ export function normalizarIdTexto(...valores) {
     (valor) => valor !== null && valor !== undefined && String(valor).trim() !== '',
   )
 
-  return encontrado === undefined ? '' : String(encontrado)
+  return encontrado === undefined ? '' : String(encontrado).trim()
 }

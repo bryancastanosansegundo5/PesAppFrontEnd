@@ -5,8 +5,8 @@ const claseInput =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black dark:text-white'
 
 function Login({ onLogin, estaCargando, error, modoOfflineDisponible, estaDesconectadoServidor }) {
-  const [username, setUsername] = useState('Usuario')
-  const [password, setPassword] = useState('Contraseña')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [errorFormulario, setErrorFormulario] = useState('')
   const handleSubmit = (event) => {
     event.preventDefault()
@@ -42,27 +42,26 @@ function Login({ onLogin, estaCargando, error, modoOfflineDisponible, estaDescon
               Entra en PesApp con tu cuenta.
             </h1>
             <p className="max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300">
-              El catalogo de ejercicios y el resto de areas protegidas ya usan JWT, asi que
-              desde aqui validamos la sesion antes de entrar en la app.
+              Accede a tus entrenos, ejercicios y registros personales desde un espacio privado.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-neon-cyan/30 bg-white p-4 shadow-glow-cyan dark:bg-white/[0.04]">
-              <p className="text-sm font-bold text-slate-950 dark:text-white">JWT</p>
+              <p className="text-sm font-bold text-slate-950 dark:text-white">Privado</p>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                Se guarda la sesion local y se revalida al arrancar.
+                Tu informacion solo aparece despues de iniciar sesion.
               </p>
             </div>
             <div className="rounded-2xl border border-neon-purple/30 bg-white p-4 shadow-glow-purple dark:bg-white/[0.04]">
               <p className="text-sm font-bold text-slate-950 dark:text-white">24h</p>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                Usamos la expiracion que devuelve el backend.
+                La sesion se mantiene activa durante el dia.
               </p>
             </div>
             <div className="rounded-2xl border border-neon-pink/30 bg-white p-4 shadow-glow-pink dark:bg-white/[0.04]">
               <p className="text-sm font-bold text-slate-950 dark:text-white">Roles</p>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                Compatible con ADMIN, COACH y USUARIO.
+                Acceso adaptado al tipo de cuenta.
               </p>
             </div>
           </div>
@@ -103,7 +102,7 @@ function Login({ onLogin, estaCargando, error, modoOfflineDisponible, estaDescon
               </label>
 
               <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Password
+                Contraseña
                 <input
                   className={claseInput}
                   type="password"
@@ -135,15 +134,15 @@ function Login({ onLogin, estaCargando, error, modoOfflineDisponible, estaDescon
               ) : null}
 
               <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
-                Accede con tu username y password suministradas por el administrador del sitio.
+                Accede con las credenciales de tu cuenta.
               </p>
 
               {estaDesconectadoServidor ? (
                 <div className="rounded-xl border border-red-500/35 bg-red-500/8 px-4 py-3 text-sm text-red-600 dark:text-red-300">
-                  El servidor no esta disponible.{' '}
+                  No hay conexion con el servicio.{' '}
                   {modoOfflineDisponible
-                    ? 'Puedes entrar en modo offline si este dispositivo ya valido antes esas credenciales.'
-                    : 'Necesitas haber iniciado sesion antes en este dispositivo para poder entrar offline.'}
+                    ? 'Puedes entrar si ya usaste esta cuenta en este dispositivo.'
+                    : 'Necesitas conexion para iniciar sesion por primera vez en este dispositivo.'}
                 </div>
               ) : null}
 

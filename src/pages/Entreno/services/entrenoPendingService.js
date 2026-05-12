@@ -25,10 +25,10 @@ export function crearMensajeToastSincronizacion(entrenamientosSincronizados) {
   if (entrenamientosSincronizados.length === 1) {
     return `Entreno del ${formatearFechaEntrenamiento(
       entrenamientosSincronizados[0].fechaFin || entrenamientosSincronizados[0].fechaInicio,
-    )} subido correctamente al servidor.`
+    )} actualizado correctamente.`
   }
 
-  return `${entrenamientosSincronizados.length} entrenos pendientes subidos correctamente al servidor.`
+  return `${entrenamientosSincronizados.length} entrenos pendientes actualizados correctamente.`
 }
 
 export function crearMensajeResumenSincronizacion(resultado) {

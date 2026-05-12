@@ -111,7 +111,7 @@ async function solicitarRefresh() {
         })
       } catch (errorCapturado) {
         publicarServidorNoDisponible(
-          'No se pudo refrescar la sesion porque el servidor no responde.',
+          'No se pudo renovar la sesion porque el servicio no responde.',
           {
             path: '/api/auth/refresh',
             cause: errorCapturado?.message || 'network-error',
@@ -119,7 +119,7 @@ async function solicitarRefresh() {
         )
 
         throw new ApiError(
-          'No se pudo refrescar la sesion porque el servidor no responde.',
+          'No se pudo renovar la sesion porque el servicio no responde.',
           0,
           null,
         )
@@ -130,7 +130,7 @@ async function solicitarRefresh() {
       if (!response.ok) {
         if (response.status >= 500) {
           publicarServidorNoDisponible(
-            'No se pudo refrescar la sesion porque el servidor no responde.',
+            'No se pudo renovar la sesion porque el servicio no responde.',
             {
               path: '/api/auth/refresh',
               status: response.status,
@@ -194,7 +194,7 @@ async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
     })
   } catch (errorCapturado) {
     publicarServidorNoDisponible(
-      'No se pudo conectar con el servidor. La app seguira funcionando con los datos locales disponibles.',
+      'No se pudo conectar con el servicio. La app seguira funcionando con los datos disponibles.',
       {
         path,
         cause: errorCapturado?.message || 'network-error',
@@ -202,7 +202,7 @@ async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
     )
 
     throw new ApiError(
-      'No se pudo conectar con el servidor. Revisa la conexion o usa el modo local.',
+      'No se pudo conectar con el servicio. Revisa la conexion e intentalo de nuevo.',
       0,
       null,
     )
@@ -217,7 +217,7 @@ async function ejecutarRequest(path, options = {}, intentoRefresh = true) {
 
   if (response.status >= 500) {
     publicarServidorNoDisponible(
-      'El servidor no responde correctamente. Seguimos mostrando la informacion guardada en local.',
+      'El servicio no responde correctamente. Seguimos mostrando la informacion disponible.',
       {
         path,
         status: response.status,

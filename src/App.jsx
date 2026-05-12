@@ -378,7 +378,7 @@ function App() {
         id: Date.now(),
         mensaje:
           evento.detail?.message ||
-          'Sin conexion con el servidor. La app sigue funcionando con los datos locales disponibles.',
+          'Sin conexion. La app sigue funcionando con los datos disponibles.',
         tipo: 'error',
         persistente: true,
       })
@@ -491,14 +491,14 @@ function App() {
       reiniciarFormularioPesoRapido()
       setMensajePesoRapido(
         resultado.online
-          ? 'Nueva medicion guardada y sincronizada.'
-          : `${resultado.error?.message || 'No se pudo sincronizar ahora.'} El dato queda guardado en local.`,
+          ? 'Peso registrado correctamente.'
+          : 'Peso guardado. Se actualizara cuando vuelva la conexion.',
       )
       setToastNotificacion({
         id: Date.now(),
         mensaje: resultado.online
           ? 'Peso registrado correctamente.'
-          : 'Peso guardado en local. Se sincronizara cuando vuelva la conexion.',
+          : 'Peso guardado. Se actualizara cuando vuelva la conexion.',
         tipo: 'info',
         persistente: false,
       })
@@ -578,7 +578,7 @@ function App() {
           setErrorLogin('')
         } else {
           setErrorLogin(
-            'No hay conexion con el servidor y este dispositivo no tiene una sesion offline valida para ese usuario.',
+            'No hay conexion y esta cuenta necesita iniciar sesion online al menos una vez en este dispositivo.',
           )
         }
       } else if (errorCapturado instanceof ApiError && errorCapturado.status === 401) {
@@ -754,7 +754,7 @@ function App() {
                 <p className="text-sm text-slate-700 dark:text-slate-400">
                   {usuarioAutenticado
                     ? `${totalSeriesUltimoEntreno} series registradas`
-                    : 'Nada inventado en portada'}
+                    : 'Tu historial, siempre privado'}
                 </p>
               </article>
             </div>
@@ -787,7 +787,7 @@ function App() {
                   </p>
                   <p className="mt-1 text-sm leading-5 text-slate-700 dark:text-slate-400">
                     {estaDesconectadoServidor
-                      ? 'Trabajando en modo local por desconexion con el servidor.'
+                      ? 'Sin conexion. Puedes seguir usando la app.'
                       : usuarioAutenticado
                         ? 'Todo listo para entrar, registrar y revisar entrenos.'
                         : 'Listo para validar tu cuenta y cargar tus datos reales.'}
@@ -820,7 +820,7 @@ function App() {
             <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
               {usuarioAutenticado
                 ? 'Pensado para entrar, escribir el numero y guardarlo al instante. Luego lo ves en la pantalla de peso con historico, medias semanales y grafica.'
-                : 'La portada no enseña registros locales ni ejemplos falsos. Cuando inicies sesion, PesApp carga tu informacion real.'}
+                : 'Inicia sesion para ver tu historial y registrar nuevas mediciones.'}
             </p>
             <p className="lg:col-span-2 text-xs text-slate-500 dark:text-slate-400">
               {usuarioAutenticado

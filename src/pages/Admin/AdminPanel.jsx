@@ -117,6 +117,7 @@ function AdminPanel({ usuarioActual }) {
   const [ideas, setIdeas] = useState([])
   const [ideasAbiertas, setIdeasAbiertas] = useState({})
   const [estadoIdeas, setEstadoIdeas] = useState(estadoIdeaInicial)
+  const [mostrarIdeasCompletadas, setMostrarIdeasCompletadas] = useState(false)
   const [formulario, setFormulario] = useState(formularioInicial)
   const [estaCargando, setEstaCargando] = useState(true)
   const [estaCargandoIdeas, setEstaCargandoIdeas] = useState(true)
@@ -173,7 +174,7 @@ function AdminPanel({ usuarioActual }) {
         setIdeasAbiertas(crearEstadoIdeasCerradas(ideasOrdenadas))
         if (!resultadoIdeas.online) {
           setErrorIdeas(
-            `${resultadoIdeas.error?.message || 'No se pudo conectar con el servidor.'} Mostrando ideas guardadas en este dispositivo.`,
+            `${resultadoIdeas.error?.message || 'No se pudo conectar con el servicio.'} Mostrando las ideas disponibles.`,
           )
         }
       } catch (errorCapturado) {
@@ -304,10 +305,15 @@ function AdminPanel({ usuarioActual }) {
     () => ideas.filter((idea) => idea.syncStatus === 'pending'),
     [ideas],
   )
-  const ideasVisibles = useMemo(() => ideas.filter((idea) => idea.activo !== false), [ideas])
+  const ideasActivas = useMemo(() => ideas.filter((idea) => idea.activo !== false), [ideas])
+  const ideasVisibles = useMemo(
+    () =>
+      ideasActivas.filter((idea) => mostrarIdeasCompletadas || !idea.completada),
+    [ideasActivas, mostrarIdeasCompletadas],
+  )
 
-  const totalIdeasCompletadas = ideasVisibles.filter((idea) => idea.completada).length
-  const totalIdeasActivas = ideasVisibles.length
+  const totalIdeasCompletadas = ideasActivas.filter((idea) => idea.completada).length
+  const totalIdeasActivas = ideasActivas.length
 
   const persistirIdeas = (ideasSiguientes) => {
     const ideasGuardadas = guardarIdeasAdminGuardadas(ideasSiguientes)
@@ -332,11 +338,11 @@ function AdminPanel({ usuarioActual }) {
     }))
     setEstadoIdeas((estadoActual) => ({
       ...estadoActual,
-      [nuevaIdea.id]: { state: 'draft', text: 'Idea nueva guardada en local y pendiente.' },
+      [nuevaIdea.id]: { state: 'draft', text: 'Idea nueva pendiente de guardar.' },
     }))
     publicarToast(
       ideasSiguientes.length === 1
-        ? 'Primera idea creada en local.'
+        ? 'Primera idea creada.'
         : 'Nueva idea creada y marcada como pendiente.',
     )
   }
@@ -361,7 +367,7 @@ function AdminPanel({ usuarioActual }) {
 
     setEstadoIdeas((estadoActual) => ({
       ...estadoActual,
-      [idIdea]: { state: 'draft', text: 'Cambios guardados en local. Falta sincronizar.' },
+      [idIdea]: { state: 'draft', text: 'Cambios pendientes de guardar.' },
     }))
   }
 
@@ -390,16 +396,16 @@ function AdminPanel({ usuarioActual }) {
         [idea.id]: {
           state: resultado.pendiente ? 'draft' : 'saved',
           text: resultado.pendiente
-            ? `${resultado.error?.message || 'No se pudo sincronizar ahora.'} El cambio queda pendiente en local.`
+            ? `${resultado.error?.message || 'No se pudo guardar ahora.'} El cambio queda pendiente.`
             : ideaActualizada.activo
-              ? 'Idea reactivada en el servidor.'
-              : 'Idea quitada de forma logica en el servidor.',
+              ? 'Idea reactivada correctamente.'
+              : 'Idea quitada correctamente.',
         },
       }))
 
       publicarToast(
         resultado.pendiente
-          ? `${resultado.error?.message || 'No se pudo sincronizar ahora.'} El cambio queda en cola.`
+          ? `${resultado.error?.message || 'No se pudo guardar ahora.'} El cambio queda pendiente.`
           : ideaActualizada.activo
             ? 'Idea reactivada correctamente.'
             : 'Idea quitada correctamente.',
@@ -412,7 +418,7 @@ function AdminPanel({ usuarioActual }) {
         ...estadoActual,
         [idea.id]: {
           state: 'error',
-          text: `${errorCapturado.message} El cambio se mantiene pendiente en local.`,
+          text: `${errorCapturado.message} El cambio se mantiene pendiente.`,
         },
       }))
     }
@@ -455,9 +461,9 @@ function AdminPanel({ usuarioActual }) {
           state: 'saved',
           text:
             resultado?.sincronizados > 0
-              ? 'Idea sincronizada con el servidor.'
+              ? 'Idea guardada correctamente.'
               : resultado?.error
-                ? `${resultado.error.message} La idea sigue pendiente en local.`
+                ? `${resultado.error.message} La idea sigue pendiente.`
                 : 'No habia cambios pendientes que subir.',
         },
       }))
@@ -466,7 +472,7 @@ function AdminPanel({ usuarioActual }) {
         ...estadoActual,
         [idea.id]: {
           state: 'error',
-          text: `${errorCapturado.message} La idea se mantiene pendiente en local.`,
+          text: `${errorCapturado.message} La idea se mantiene pendiente.`,
         },
       }))
     }
@@ -507,10 +513,10 @@ function AdminPanel({ usuarioActual }) {
       setEstadoIdeas({})
 
       if (resultado.sincronizados > 0) {
-        publicarToast(`Se sincronizaron ${resultado.sincronizados} ideas pendientes.`)
+        publicarToast('Ideas actualizadas correctamente.')
       } else if (resultado.error) {
         publicarToast(
-          `${resultado.error.message} Las ideas siguen guardadas en local.`,
+          `${resultado.error.message} Las ideas pendientes se mantienen guardadas.`,
           'error',
         )
       } else {
@@ -518,7 +524,7 @@ function AdminPanel({ usuarioActual }) {
       }
     } catch (errorCapturado) {
       publicarToast(
-        `${errorCapturado.message} Las ideas pendientes siguen guardadas en local.`,
+        `${errorCapturado.message} Las ideas pendientes se mantienen guardadas.`,
         'error',
       )
     } finally {
@@ -543,15 +549,15 @@ function AdminPanel({ usuarioActual }) {
       setEstadoIdeas({})
       if (!resultado.online) {
         setErrorIdeas(
-          `${resultado.error?.message || 'No se pudo conectar con el servidor.'} Mostrando ideas guardadas en este dispositivo.`,
+          `${resultado.error?.message || 'No se pudo conectar con el servicio.'} Mostrando las ideas disponibles.`,
         )
       }
       publicarToast(
         !resultado.online
-          ? 'Sin conexion con el servidor. Ideas cargadas desde local.'
+          ? 'Sin conexion. Mostrando las ideas disponibles.'
           : resultado.sincronizados > 0
-          ? `Se sincronizaron ${resultado.sincronizados} ideas pendientes y se recargo la lista.`
-          : 'Ideas recargadas desde la base de datos.',
+          ? 'Ideas actualizadas correctamente.'
+          : 'Ideas actualizadas.',
         resultado.online ? 'info' : 'error',
       )
     } catch (errorCapturado) {
@@ -577,7 +583,7 @@ function AdminPanel({ usuarioActual }) {
         return siguienteEstado
       })
       publicarToast(
-        'La idea sigue en local y ya no se sincronizara automaticamente.',
+        'La idea se ha quitado de pendientes.',
       )
     } catch (errorCapturado) {
       publicarToast(`${errorCapturado.message} No se pudo quitar de la cola.`, 'error')
@@ -655,7 +661,7 @@ function AdminPanel({ usuarioActual }) {
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
                   Desde aqui puedes dar de alta nuevas cuentas, asignar su rol y aplicar un
-                  borrado logico usando el estado activo sin eliminar nada de la base de datos.
+                  control de estado sin eliminar el historial asociado.
                   Por norma general trabajaremos con username y el email quedara como dato
                   opcional de apoyo.
                 </p>
@@ -697,7 +703,7 @@ function AdminPanel({ usuarioActual }) {
                 <div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Total</p>
                   <p className="text-2xl font-black text-slate-950 dark:text-white">
-                    {ideasVisibles.length}
+                    {ideasActivas.length}
                   </p>
                 </div>
                 <div>
@@ -840,7 +846,7 @@ function AdminPanel({ usuarioActual }) {
               </h2>
               <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300 sm:leading-7">
                 Crea ideas con titulo y descripcion, marcalas como cumplidas cuando toque y deja
-                que la cola offline las sincronice al recuperar conexion.
+                que se actualicen al recuperar conexion.
               </p>
             </div>
 
@@ -870,6 +876,44 @@ function AdminPanel({ usuarioActual }) {
             </div>
           </div>
 
+          <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#080B14] sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-black text-slate-950 dark:text-white">
+                Mostrar ideas completadas
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Por defecto la lista ensena solo las pendientes.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={mostrarIdeasCompletadas}
+              title={mostrarIdeasCompletadas ? 'Ocultar completadas' : 'Mostrar completadas'}
+              className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-neon-cyan/40 bg-white px-4 text-sm font-black text-neon-cyan shadow-glow-cyan transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-pes-black sm:w-auto"
+              onClick={() =>
+                setMostrarIdeasCompletadas((estadoActual) => !estadoActual)
+              }
+            >
+              <span
+                className={`relative h-6 w-11 rounded-full border transition-all duration-300 ease-out ${
+                  mostrarIdeasCompletadas
+                    ? 'border-neon-cyan/80 bg-neon-cyan/30 shadow-glow-cyan'
+                    : 'border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`absolute left-0.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full transition-all duration-300 ease-out ${
+                    mostrarIdeasCompletadas
+                      ? 'translate-x-5 bg-neon-cyan'
+                      : 'translate-x-0 bg-white dark:bg-slate-200'
+                  }`}
+                />
+              </span>
+              {mostrarIdeasCompletadas ? 'Completadas visibles' : 'Completadas ocultas'}
+            </button>
+          </div>
+
           {estaCargandoIdeas ? (
             <div className="mt-6 rounded-2xl border border-neon-cyan/25 bg-slate-50 px-5 py-6 text-sm font-semibold text-slate-600 dark:bg-[#080B14] dark:text-slate-300">
               Cargando ideas...
@@ -882,11 +926,13 @@ function AdminPanel({ usuarioActual }) {
             </div>
           ) : null}
 
-          {!estaCargandoIdeas && (!errorIdeas || ideasVisibles.length > 0) ? (
+          {!estaCargandoIdeas && (!errorIdeas || ideasActivas.length > 0) ? (
             <div className="mt-6 grid gap-4">
               {ideasVisibles.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-5 py-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-[#080B14] dark:text-slate-400">
-                  Aun no hay ideas creadas. Usa el boton de arriba para anadir la primera.
+                  {ideasActivas.length === 0
+                    ? 'Aun no hay ideas creadas. Usa el boton de arriba para anadir la primera.'
+                    : 'No hay ideas pendientes visibles. Activa el switch para ver tambien las completadas.'}
                 </div>
               ) : null}
 
@@ -1078,7 +1124,7 @@ function AdminPanel({ usuarioActual }) {
                               {estadoIdea?.text ||
                                 (idea.syncStatus === 'pending'
                                   ? 'Hay cambios pendientes de sincronizar.'
-                                  : 'Todo sincronizado con el servidor.')}
+                                  : 'Todo actualizado.')}
                             </div>
                           </div>
 
@@ -1230,10 +1276,10 @@ function AdminPanel({ usuarioActual }) {
                   Pendientes
                 </p>
                 <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 dark:text-white sm:text-2xl">
-                  Cola offline de ideas
+                  Ideas pendientes
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  Aqui ves las ideas guardadas en local que aun no se han subido al backend.
+                  Aqui puedes revisar las ideas pendientes de actualizar.
                 </p>
               </div>
 

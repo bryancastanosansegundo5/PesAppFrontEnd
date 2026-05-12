@@ -161,10 +161,10 @@ function Ejercicios() {
         setEjercicios(ejerciciosActualizados)
         setEjerciciosAbiertos(crearEstadoAbierto(ejerciciosActualizados))
         setEstadoPorEjercicio({})
-        setMensaje('Catalogo recargado desde la base de datos.')
+        setMensaje('')
       } catch (errorCapturado) {
         setMensaje(
-          `${errorCapturado.message} Se mantiene el catalogo local como respaldo mientras el backend no responde.`,
+          `${errorCapturado.message} Se muestra el catalogo disponible.`,
         )
       }
     }
@@ -188,6 +188,7 @@ function Ejercicios() {
           [
             ejercicio.nombre,
             ejercicio.descripcion,
+            ejercicio.observaciones,
             ejercicio.grupoMuscular,
             ejercicio.patronMovimiento,
             ejercicio.equipamiento,
@@ -244,7 +245,7 @@ function Ejercicios() {
   const cargarCatalogo = async (silencioso = false) => {
     if (!silencioso) {
       setEstaRecargando(true)
-      setMensaje('Recargando ejercicios desde la base de datos...')
+      setMensaje('Actualizando ejercicios...')
     }
 
     try {
@@ -255,12 +256,12 @@ function Ejercicios() {
       guardarCatalogoEjercicios(resultadoSincronizacion.ejercicios)
       setMensaje(
         resultadoSincronizacion?.sincronizados > 0
-          ? `Se sincronizaron ${resultadoSincronizacion.sincronizados} ejercicios pendientes y se recargo el catalogo.`
-          : 'Catalogo recargado desde la base de datos.',
+          ? 'Cambios actualizados correctamente.'
+          : 'Catalogo actualizado.',
       )
     } catch (errorCapturado) {
       setMensaje(
-        `${errorCapturado.message} Se mantiene el catalogo local como respaldo mientras el backend no responde.`,
+        `${errorCapturado.message} Se muestra el catalogo disponible.`,
       )
     } finally {
       if (!silencioso) {
@@ -370,10 +371,10 @@ function Ejercicios() {
       setEstadoPorEjercicio((estadoActual) => {
         const siguienteEstado = { ...estadoActual }
         delete siguienteEstado[idTemporal]
-        siguienteEstado[ejercicioGuardado.idEjercicio] = 'Guardado en servidor'
+        siguienteEstado[ejercicioGuardado.idEjercicio] = 'Guardado correctamente'
         return siguienteEstado
       })
-      setMensaje('Catalogo sincronizado con el backend.')
+      setMensaje('Ejercicio guardado correctamente.')
     } catch (errorCapturado) {
       setEstadoPorEjercicio((estadoActual) => ({
         ...estadoActual,
@@ -425,7 +426,7 @@ function Ejercicios() {
         delete siguienteEstado[idEjercicio]
         return siguienteEstado
       })
-      setMensaje('Ejercicio eliminado del backend.')
+      setMensaje('Ejercicio eliminado correctamente.')
     } catch (errorCapturado) {
       setEstadoPorEjercicio((estadoActual) => ({
         ...estadoActual,
@@ -468,14 +469,14 @@ function Ejercicios() {
         setMensaje(`Se sincronizaron ${resultado.sincronizados} ejercicios pendientes.`)
       } else if (resultado.error) {
         setMensaje(
-          `${resultado.error.message} Los ejercicios pendientes siguen guardados en local.`,
+          `${resultado.error.message} Los cambios pendientes se mantienen guardados.`,
         )
       } else {
         setMensaje('No habia ejercicios pendientes por sincronizar.')
       }
     } catch (errorCapturado) {
       setMensaje(
-        `${errorCapturado.message} Los ejercicios pendientes siguen guardados en local.`,
+        `${errorCapturado.message} Los cambios pendientes se mantienen guardados.`,
       )
     } finally {
       setEstaSincronizandoPendientes(false)
@@ -498,7 +499,7 @@ function Ejercicios() {
         return siguienteEstado
       })
       setMensaje(
-        'Se ha quitado de la cola de pendientes. El ejercicio sigue en local y ya no se sincronizara automaticamente.',
+        'Se ha quitado de pendientes.',
       )
     } catch (errorCapturado) {
       setMensaje(`${errorCapturado.message} No se pudo quitar este pendiente.`)
@@ -534,7 +535,7 @@ function Ejercicios() {
           <div className="grid gap-3 xl:min-w-0 xl:self-end xl:pt-6">
             <input
               className={`${claseInputCabecera} h-14 w-full`}
-              placeholder="Buscar por nombre, grupo o descripcion..."
+              placeholder="Buscar por nombre, grupo, descripcion u observaciones..."
               value={busqueda}
               onChange={(evento) => setBusqueda(evento.target.value)}
             />
@@ -645,7 +646,7 @@ function Ejercicios() {
                   disabled={estaRecargando}
                   onClick={() => recargarDesdeServidor()}
                 >
-                  {estaRecargando ? 'Recargando...' : 'Recargar BBDD'}
+                  {estaRecargando ? 'Recargando...' : 'Actualizar'}
                 </button>
                 <button
                   className="h-14 rounded-xl border border-neon-cyan/45 bg-white/90 px-4 py-3 text-center text-sm font-black text-neon-purple shadow-[0_12px_28px_rgba(124,58,237,0.14)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink dark:bg-transparent dark:text-neon-cyan dark:shadow-glow-cyan"
@@ -659,8 +660,7 @@ function Ejercicios() {
           </div>
         </div>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          {mensaje ||
-            'El catalogo se lee del backend y solo usa el almacenamiento local como respaldo.'}
+          {mensaje || 'Gestiona los ejercicios que usas en tus sesiones y entrenos.'}
         </p>
         {gestoRecargaDisponible ? (
           <p className="text-xs text-slate-400 sm:hidden dark:text-slate-500">
@@ -799,6 +799,21 @@ function Ejercicios() {
                           }
                         />
                       </label>
+                      <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Observaciones
+                        <textarea
+                          className={`${claseInputTexto} min-h-24 resize-y`}
+                          value={ejercicio.observaciones || ''}
+                          placeholder="Ej: Cuidar retraccion escapular y no bloquear arriba"
+                          onChange={(evento) =>
+                            actualizarEjercicio(
+                              ejercicio.idEjercicio,
+                              'observaciones',
+                              evento.target.value,
+                            )
+                          }
+                        />
+                      </label>
                     </div>
 
                     <div className="grid gap-3">
@@ -896,7 +911,7 @@ function Ejercicios() {
 
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       {estadoPorEjercicio[ejercicio.idEjercicio] ||
-                        'Edita los campos y usa Guardar para sincronizar con el backend.'}
+                        'Edita los campos y guarda los cambios cuando termines.'}
                     </p>
                   </div>
                 </div>
@@ -925,10 +940,10 @@ function Ejercicios() {
                   Pendientes
                 </p>
                 <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
-                  Cola offline de ejercicios
+                  Ejercicios pendientes
                 </h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  Aqui ves los ejercicios guardados en local que aun no han subido al backend.
+                  Aqui puedes revisar los ejercicios pendientes de actualizar.
                 </p>
               </div>
 
