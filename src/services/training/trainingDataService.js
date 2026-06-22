@@ -165,24 +165,14 @@ function quitarEntrenamientoDeHistorial(historial, entrenamiento) {
 
 function encontrarEntrenamientoRelacionado(entrenamiento, historial) {
   const clavesEntrenamiento = new Set(
-    [
-      entrenamiento?.persistedId,
-      entrenamiento?.clientId,
-      entrenamiento?.id,
-      entrenamiento?.idSesion,
-    ]
+    [entrenamiento?.persistedId, entrenamiento?.clientId, entrenamiento?.id]
       .filter(Boolean)
       .map(String),
   )
 
   if (clavesEntrenamiento.size > 0) {
     const relacionadoPorId = (historial || []).find((item) =>
-      [
-        item?.persistedId,
-        item?.clientId,
-        item?.id,
-        item?.idSesion,
-      ]
+      [item?.persistedId, item?.clientId, item?.id]
         .filter(Boolean)
         .map(String)
         .some((clave) => clavesEntrenamiento.has(clave)),
@@ -200,6 +190,52 @@ function encontrarEntrenamientoRelacionado(entrenamiento, historial) {
         String(item?.fechaInicio || '') === String(entrenamiento?.fechaInicio || ''),
     ) || null
   )
+}
+
+function encontrarSerieRelacionada(serie, series) {
+  const clavesSerie = new Set(
+    [serie?.persistedId, serie?.clientId, serie?.id]
+      .filter(Boolean)
+      .map(String),
+  )
+
+  if (clavesSerie.size === 0) {
+    return null
+  }
+
+  return (
+    (series || []).find((item) =>
+      [item?.persistedId, item?.clientId, item?.id]
+        .filter(Boolean)
+        .map(String)
+        .some((clave) => clavesSerie.has(clave)),
+    ) || null
+  )
+}
+
+function reconciliarSeriesRealizadas(seriesOriginales, seriesReferencia) {
+  const seriesDisponibles = [...(seriesReferencia || [])]
+
+  return (seriesOriginales || []).map((serie) => {
+    const relacionada = encontrarSerieRelacionada(serie, seriesDisponibles)
+
+    if (!relacionada) {
+      return serie
+    }
+
+    const indiceRelacionado = seriesDisponibles.indexOf(relacionada)
+    if (indiceRelacionado >= 0) {
+      seriesDisponibles.splice(indiceRelacionado, 1)
+    }
+
+    return {
+      ...serie,
+      persistedId: serie.persistedId || relacionada.persistedId || '',
+      id: relacionada.id || serie.id,
+      clientId: relacionada.clientId || serie.clientId,
+      version: Math.max(Number(serie.version) || 0, Number(relacionada.version) || 0) || 1,
+    }
+  })
 }
 
 function encontrarEjercicioRelacionado(ejercicio, ejercicios) {
@@ -274,6 +310,10 @@ function reconciliarIdentificadoresEntrenamiento(entrenamiento, historial) {
       clientId: relacionado.clientId || ejercicio.clientId,
       idEjercicio: relacionado.idEjercicio || ejercicio.idEjercicio,
       version: Math.max(Number(ejercicio.version) || 0, Number(relacionado.version) || 0) || 1,
+      seriesRealizadas: reconciliarSeriesRealizadas(
+        ejercicio.seriesRealizadas,
+        relacionado.seriesRealizadas,
+      ),
     }
   })
 
@@ -305,12 +345,24 @@ function tieneReferenciasMasRecientes(entrenamientoOriginal, entrenamientoReconc
   return (entrenamientoReconciliado?.ejercicios || []).some((ejercicioReconciliado, indice) => {
     const ejercicioOriginal = entrenamientoOriginal?.ejercicios?.[indice] || {}
 
-    return (
+    if (
       String(ejercicioOriginal.persistedId || '') !==
         String(ejercicioReconciliado.persistedId || '') ||
       String(ejercicioOriginal.id || '') !== String(ejercicioReconciliado.id || '') ||
       Number(ejercicioReconciliado.version) > Number(ejercicioOriginal.version)
-    )
+    ) {
+      return true
+    }
+
+    return (ejercicioReconciliado.seriesRealizadas || []).some((serieReconciliada, indiceSerie) => {
+      const serieOriginal = ejercicioOriginal?.seriesRealizadas?.[indiceSerie] || {}
+
+      return (
+        String(serieOriginal.persistedId || '') !== String(serieReconciliada.persistedId || '') ||
+        String(serieOriginal.id || '') !== String(serieReconciliada.id || '') ||
+        Number(serieReconciliada.version) > Number(serieOriginal.version)
+      )
+    })
   })
 }
 

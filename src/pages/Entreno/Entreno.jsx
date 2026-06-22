@@ -31,6 +31,7 @@ import {
 } from '../../services/training/trainingDataService'
 import { obtenerErrorValidacionSesion } from '../../services/training/trainingModel'
 import { sincronizarDatosOfflineEnOrden } from '../../services/sync/offlineSyncService'
+import { obtenerSyncQueueGuardada } from '../../services/sync/syncQueueStorage'
 import {
   clonarPendientes,
   crearMensajeResumenSincronizacion,
@@ -725,6 +726,71 @@ function Entreno() {
         Object.entries(estadoActual).filter(([clave]) => clave !== `${clientId}-${indiceEjercicio}`),
       ),
     )
+  }
+
+
+  const copiarDiagnosticoPendientes = async () => {
+    const idsPendientes = new Set(
+      pendientesEditados.map((entrenamientoPendiente) => entrenamientoPendiente.clientId),
+    )
+    const queuePendientes = obtenerSyncQueueGuardada().filter(
+      (itemQueue) => itemQueue.resourceType === 'training' && idsPendientes.has(itemQueue.clientId),
+    )
+    const diagnostico = {
+      generatedAt: new Date().toISOString(),
+      pendingCount: pendientesEditados.length,
+      queue: queuePendientes,
+      trainings: pendientesEditados.map((entrenamientoPendiente) => ({
+        clientId: entrenamientoPendiente.clientId,
+        id: entrenamientoPendiente.id,
+        persistedId: entrenamientoPendiente.persistedId,
+        idSesion: entrenamientoPendiente.idSesion,
+        nombreSesion: entrenamientoPendiente.nombreSesion,
+        version: entrenamientoPendiente.version,
+        pendingAction: entrenamientoPendiente.pendingAction,
+        syncStatus: entrenamientoPendiente.syncStatus,
+        syncError: entrenamientoPendiente.syncError,
+        syncFieldErrors: entrenamientoPendiente.syncFieldErrors,
+        lastSyncAttemptAt: entrenamientoPendiente.lastSyncAttemptAt,
+        updatedAt: entrenamientoPendiente.updatedAt,
+        fechaInicio: entrenamientoPendiente.fechaInicio,
+        fechaFin: entrenamientoPendiente.fechaFin,
+        ejercicios: (entrenamientoPendiente.ejercicios || []).map((ejercicio) => ({
+          clientId: ejercicio.clientId,
+          id: ejercicio.id,
+          persistedId: ejercicio.persistedId,
+          idEjercicio: ejercicio.idEjercicio,
+          catalogoEjercicioId: ejercicio.catalogoEjercicioId,
+          plantillaEjercicioId: ejercicio.plantillaEjercicioId,
+          nombre: ejercicio.nombre,
+          version: ejercicio.version,
+          syncStatus: ejercicio.syncStatus,
+          syncError: ejercicio.syncError,
+          syncFieldErrors: ejercicio.syncFieldErrors,
+          seriesRealizadas: ejercicio.seriesRealizadas,
+        })),
+      })),
+    }
+    const textoDiagnostico = JSON.stringify(diagnostico, null, 2)
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textoDiagnostico)
+        setMensaje('Diagnostico copiado. Pegamelo aqui para revisar el fallo de sincronizacion.')
+        return
+      }
+    } catch {
+      // Continuamos con la descarga local como alternativa si el portapapeles falla.
+    }
+
+    const blob = new Blob([textoDiagnostico], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.download = `pesapp-pendientes-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    enlace.click()
+    URL.revokeObjectURL(url)
+    setMensaje('No se pudo copiar automaticamente. Se descargo un JSON de diagnostico.')
   }
 
   const forzarSubidaPendientes = async (clientIds = []) => {
@@ -2031,6 +2097,14 @@ function Entreno() {
                 {clientIdPendienteForzando === '__all__'
                   ? 'Subiendo pendientes...'
                   : 'Forzar subida de todos'}
+              </button>
+              <button
+                className="w-full rounded-md border border-neon-cyan/55 px-4 py-3 text-sm font-bold text-neon-cyan shadow-[0_0_20px_rgba(0,255,237,0.14)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neon-pink hover:text-neon-pink hover:shadow-glow-pink disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                type="button"
+                disabled={pendientesEditados.length === 0}
+                onClick={copiarDiagnosticoPendientes}
+              >
+                Copiar diagnostico
               </button>
             </div>
 
