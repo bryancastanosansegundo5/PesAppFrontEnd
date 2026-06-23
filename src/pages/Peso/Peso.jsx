@@ -12,6 +12,15 @@ import {
 const claseInputPesoDestacado =
   'w-full rounded-2xl border border-violet-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,243,255,0.94))] px-6 py-4 text-center text-4xl font-black tracking-tight text-slate-900 outline-none transition-all duration-300 ease-out placeholder:text-slate-400 focus:border-neon-purple focus:shadow-[0_0_28px_rgba(105,0,255,0.14)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(1,4,12,0.96),rgba(0,0,0,0.98))] dark:text-white dark:focus:border-neon-cyan dark:focus:shadow-[0_0_28px_rgba(0,255,237,0.16)]'
 
+const RANGOS_GRAFICA_PESO = [
+  { id: '7d', label: '7 dias', dias: 7 },
+  { id: '14d', label: '14 dias', dias: 14 },
+  { id: '1m', label: '1 mes', meses: 1 },
+  { id: '3m', label: '3 meses', meses: 3 },
+  { id: '5m', label: '5 meses', meses: 5 },
+  { id: 'all', label: 'Todo' },
+]
+
 function obtenerHoraActual() {
   return aHoraRegistro(new Date(), '09:30')
 }
@@ -335,6 +344,23 @@ function crearEtiquetasFechaGrafica(puntos) {
   })
 }
 
+function obtenerInicioRangoGrafica(rango) {
+  if (!rango || rango.id === 'all') {
+    return null
+  }
+
+  const limite = new Date()
+
+  if (rango.dias) {
+    limite.setDate(limite.getDate() - (rango.dias - 1))
+  } else if (rango.meses) {
+    limite.setMonth(limite.getMonth() - rango.meses)
+  }
+
+  limite.setHours(0, 0, 0, 0)
+  return limite
+}
+
 function esEventoTactil() {
   if (typeof window === 'undefined') {
     return false
@@ -596,6 +622,7 @@ function Peso() {
   const [toast, setToast] = useState(null)
   const [registroGraficaHoverId, setRegistroGraficaHoverId] = useState('')
   const [registroGraficaFijadoId, setRegistroGraficaFijadoId] = useState('')
+  const [rangoGraficaPesoId, setRangoGraficaPesoId] = useState('5m')
   const [estaModalInformeAbierto, setEstaModalInformeAbierto] = useState(false)
   const [fechaInicioInforme, setFechaInicioInforme] = useState('')
   const [fechaFinInforme, setFechaFinInforme] = useState('')
@@ -729,14 +756,21 @@ function Peso() {
       .sort((primero, segundo) => new Date(segundo.claveSemana) - new Date(primero.claveSemana))
   }, [registros])
 
-  const registrosUltimosCincoMeses = useMemo(() => {
-    const limite = new Date()
-    limite.setMonth(limite.getMonth() - 5)
-    return registros.filter((registro) => obtenerFechaHoraRegistro(registro) >= limite)
-  }, [registros])
+  const rangoGraficaPeso =
+    RANGOS_GRAFICA_PESO.find((rango) => rango.id === rangoGraficaPesoId) ||
+    RANGOS_GRAFICA_PESO[4]
+  const registrosGrafica = useMemo(() => {
+    const limite = obtenerInicioRangoGrafica(rangoGraficaPeso)
+
+    if (!limite) {
+      return registrosOrdenadosAsc
+    }
+
+    return registrosOrdenadosAsc.filter((registro) => obtenerFechaHoraRegistro(registro) >= limite)
+  }, [rangoGraficaPeso, registrosOrdenadosAsc])
   const puntosGrafica = useMemo(
-    () => construirPuntosGrafica([...registrosUltimosCincoMeses].reverse()),
-    [registrosUltimosCincoMeses],
+    () => construirPuntosGrafica(registrosGrafica),
+    [registrosGrafica],
   )
   const polylineGrafica = puntosGrafica.map((punto) => punto.point).join(' ')
   const etiquetasPesoGrafica = useMemo(
@@ -758,6 +792,12 @@ function Peso() {
 
   const limpiarHoverGrafica = () => {
     setRegistroGraficaHoverId('')
+  }
+
+  const seleccionarRangoGraficaPeso = (rangoId) => {
+    setRangoGraficaPesoId(rangoId)
+    setRegistroGraficaHoverId('')
+    setRegistroGraficaFijadoId('')
   }
 
   const alternarPuntoGraficaFijado = (registro) => {
@@ -1210,11 +1250,34 @@ function Peso() {
                 Evolucion reciente
               </h2>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Ultimos 5 meses</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {registrosGrafica.length} registros
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {RANGOS_GRAFICA_PESO.map((rango) => {
+              const activo = rango.id === rangoGraficaPesoId
+
+              return (
+                <button
+                  className={`rounded-xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-300 ease-out ${
+                    activo
+                      ? 'border-neon-cyan bg-neon-cyan/12 text-neon-purple shadow-glow-cyan dark:text-neon-cyan'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-neon-pink hover:text-neon-purple dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:border-neon-pink dark:hover:text-neon-pink'
+                  }`}
+                  key={rango.id}
+                  type="button"
+                  onClick={() => seleccionarRangoGraficaPeso(rango.id)}
+                >
+                  {rango.label}
+                </button>
+              )
+            })}
           </div>
 
           <div className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-white/10 dark:bg-pes-black/60">
-            {registrosUltimosCincoMeses.length > 1 ? (
+            {registrosGrafica.length > 1 ? (
               <>
                 <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-3">
                   <div className="relative h-64">
@@ -1302,7 +1365,7 @@ function Peso() {
               </>
             ) : (
               <div className="flex h-64 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-                Necesitamos al menos dos registros para dibujar la tendencia.
+                Necesitamos al menos dos registros en {rangoGraficaPeso.label.toLowerCase()}.
               </div>
             )}
           </div>
