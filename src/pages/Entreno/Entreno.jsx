@@ -1452,7 +1452,13 @@ function Entreno() {
         ) : null}
 
         <section className="grid gap-5">
-          {entrenamiento?.ejercicios.map((ejercicio) => {
+          {entrenamiento?.ejercicios
+            .map((ejercicio, indiceOriginal) => ({ ejercicio, indiceOriginal }))
+            .sort((primero, segundo) =>
+              Number(primero.ejercicio.completado) - Number(segundo.ejercicio.completado) ||
+              primero.indiceOriginal - segundo.indiceOriginal,
+            )
+            .map(({ ejercicio }) => {
             let registroAnterior =
               registrosPreviosPorCatalogo[ejercicio.catalogoEjercicioId] ||
               obtenerUltimoRegistroEjercicio(
@@ -1467,7 +1473,11 @@ function Entreno() {
 
             return (
               <article
-                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04]"
+                className={`overflow-hidden rounded-lg border bg-white transition-all duration-300 ease-out dark:bg-white/[0.04] ${
+                  ejercicio.completado
+                    ? 'border-slate-200 opacity-70 shadow-[0_10px_28px_rgba(15,23,42,0.06)] dark:border-white/10'
+                    : 'border-2 border-neon-purple/65 shadow-[0_0_0_3px_rgba(105,0,255,0.08),0_18px_42px_rgba(15,23,42,0.12)] hover:border-neon-cyan hover:shadow-glow-cyan dark:border-neon-cyan/60'
+                }`}
                 key={ejercicio.idEjercicio}
               >
                 <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
@@ -1593,6 +1603,32 @@ function Entreno() {
                 >
                   <div className="overflow-hidden">
                     <div className="grid gap-4 border-t border-slate-200 p-4 sm:p-5 dark:border-white/10">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="grid gap-2 rounded-lg border border-neon-cyan/35 bg-neon-cyan/5 p-3 text-xs font-semibold uppercase tracking-wide text-neon-cyan shadow-[0_0_22px_rgba(0,255,237,0.08)] dark:bg-neon-cyan/8">
+                          Observaciones de hoy
+                          <textarea
+                            className="min-h-24 w-full resize-y rounded-md border border-neon-cyan/45 bg-white px-3 py-2 text-base normal-case tracking-normal text-slate-700 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:bg-pes-black/80 dark:text-slate-200"
+                            value={ejercicio.observaciones || ''}
+                            placeholder="Sensaciones, tecnica o notas de este ejercicio"
+                            onChange={(evento) =>
+                              actualizarEjercicio(
+                                ejercicio.idEjercicio,
+                                'observaciones',
+                                evento.target.value,
+                              )
+                            }
+                          />
+                        </label>
+
+                        <div className="grid gap-2 rounded-lg border border-neon-purple/35 bg-neon-purple/5 p-3 text-xs font-semibold uppercase tracking-wide text-neon-purple shadow-[0_0_22px_rgba(105,0,255,0.08)] dark:border-neon-pink/35 dark:bg-neon-pink/5 dark:text-neon-pink">
+                          Nota del entreno anterior
+                          <div className="min-h-24 whitespace-pre-wrap rounded-md border border-neon-purple/25 bg-white px-3 py-2 text-base font-medium normal-case tracking-normal text-slate-700 dark:border-neon-pink/20 dark:bg-pes-black/80 dark:text-slate-200">
+                            {registroAnterior?.observaciones ||
+                              'Sin observaciones registradas en el entreno anterior.'}
+                          </div>
+                        </div>
+                      </div>
+
                       <button
                         className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-black text-slate-900 transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:text-neon-purple hover:shadow-glow-cyan dark:border-white/10 dark:bg-pes-black/45 dark:text-white dark:hover:text-neon-cyan"
                         type="button"
@@ -1996,31 +2032,6 @@ function Entreno() {
                       >
                         Añadir serie
                       </button>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <label className="grid gap-2 rounded-lg border border-neon-cyan/35 bg-neon-cyan/5 p-3 text-xs font-semibold uppercase tracking-wide text-neon-cyan shadow-[0_0_22px_rgba(0,255,237,0.08)] dark:bg-neon-cyan/8">
-                          Observaciones de hoy
-                          <textarea
-                            className="min-h-24 w-full resize-y rounded-md border border-neon-cyan/45 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-700 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-glow-cyan dark:bg-pes-black/80 dark:text-slate-200"
-                            value={ejercicio.observaciones || ''}
-                            placeholder="Sensaciones, tecnica o notas de este ejercicio"
-                            onChange={(evento) =>
-                              actualizarEjercicio(
-                                ejercicio.idEjercicio,
-                                'observaciones',
-                                evento.target.value,
-                              )
-                            }
-                          />
-                        </label>
-
-                        <div className="grid gap-2 rounded-lg border border-slate-300/70 bg-slate-100/70 p-3 text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[0_0_22px_rgba(148,163,184,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
-                          Entreno anterior
-                          <div className="min-h-24 whitespace-pre-wrap rounded-md border border-slate-300/80 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-slate-700 dark:border-white/10 dark:bg-pes-black/80 dark:text-slate-300">
-                            {registroAnterior?.observaciones ||
-                              'Sin observaciones registradas en el entreno anterior.'}
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>

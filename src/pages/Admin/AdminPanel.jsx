@@ -7,6 +7,7 @@ import {
   obtenerRolesUsuario,
   obtenerUsuariosAdmin,
 } from '../../services/admin/adminUsersApiService'
+import { obtenerEstadisticasInicioSesion } from '../../services/admin/adminLoginStatsApiService'
 import {
   crearIdeaAdminVacia,
   normalizarIdeaAdmin,
@@ -92,6 +93,14 @@ function esUsuarioAdmin(usuario) {
   return usuario?.rol === 'ADMIN'
 }
 
+function formatearFechaCorta(valor) {
+  const fecha = new Date(valor)
+
+  return Number.isNaN(fecha.getTime())
+    ? valor
+    : fecha.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })
+}
+
 function reemplazarIdea(ideas, ideaOriginal, ideaActualizada) {
   return ideas.map((idea) => {
     const coincidePorId = idea.id === ideaOriginal.id
@@ -132,6 +141,13 @@ function AdminPanel({ usuarioActual }) {
   const [ideaPendienteEliminandoId, setIdeaPendienteEliminandoId] = useState('')
   const [ideaPendienteQuitar, setIdeaPendienteQuitar] = useState(null)
   const [toast, setToast] = useState(null)
+  const [estadisticasLogin, setEstadisticasLogin] = useState({
+    datos: [],
+    total: 0,
+    usuariosUnicos: 0,
+  })
+  const [estaCargandoEstadisticas, setEstaCargandoEstadisticas] = useState(true)
+  const [errorEstadisticas, setErrorEstadisticas] = useState('')
   const sincronizacionIdeasActivaRef = useRef(null)
   const ultimoEventoConexionRef = useRef(0)
   const puedeSincronizarIdeasAdmin = esUsuarioAdmin(usuarioActual)
@@ -142,6 +158,7 @@ function AdminPanel({ usuarioActual }) {
       setEstaCargandoIdeas(true)
       setErrorCarga('')
       setErrorIdeas('')
+      setErrorEstadisticas('')
 
       try {
         const [usuariosCargados, rolesCargados] = await Promise.all([
@@ -159,6 +176,17 @@ function AdminPanel({ usuarioActual }) {
         setErrorCarga(errorCapturado.message || 'No se pudieron cargar los usuarios.')
       } finally {
         setEstaCargando(false)
+      }
+
+      try {
+        const estadisticas = await obtenerEstadisticasInicioSesion(30)
+        setEstadisticasLogin(estadisticas)
+      } catch (errorCapturado) {
+        setErrorEstadisticas(
+          errorCapturado.message || 'No se pudieron cargar las estadisticas de acceso.',
+        )
+      } finally {
+        setEstaCargandoEstadisticas(false)
       }
 
       if (!puedeSincronizarIdeasAdmin) {
@@ -645,6 +673,13 @@ function AdminPanel({ usuarioActual }) {
 
   const totalActivos = usuarios.filter((usuario) => usuario.activo).length
   const totalInactivos = usuarios.length - totalActivos
+  const maximoIniciosSesion = Math.max(
+    ...estadisticasLogin.datos.map((item) => item.iniciosSesion),
+    1,
+  )
+  const mediaIniciosSesion = estadisticasLogin.datos.length
+    ? estadisticasLogin.total / estadisticasLogin.datos.length
+    : 0
 
   return (
     <>
@@ -833,6 +868,69 @@ function AdminPanel({ usuarioActual }) {
               </button>
             </form>
           </article>
+        </section>
+
+        <section className="rounded-[24px] border border-neon-cyan/30 bg-white p-4 shadow-glow-cyan dark:bg-white/[0.04] sm:rounded-[30px] sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
+                Uso de la app
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+                Inicios de sesion de los ultimos 30 dias
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                Cada barra representa el total de accesos registrados durante ese dia.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:min-w-72">
+              <div className="rounded-2xl border border-neon-purple/20 bg-slate-50 p-3 dark:bg-pes-black/55">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Total</p>
+                <p className="mt-1 text-2xl font-black text-neon-purple dark:text-neon-cyan">
+                  {estadisticasLogin.total}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-neon-pink/20 bg-slate-50 p-3 dark:bg-pes-black/55">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Media/dia</p>
+                <p className="mt-1 text-2xl font-black text-neon-pink">
+                  {mediaIniciosSesion.toFixed(1)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {estaCargandoEstadisticas ? (
+            <div className="mt-6 h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-white/[0.04]" />
+          ) : errorEstadisticas ? (
+            <div className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+              {errorEstadisticas}
+            </div>
+          ) : estadisticasLogin.datos.length ? (
+            <div className="mt-6 overflow-x-auto pb-2">
+              <div className="flex h-64 min-w-[720px] items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 pb-10 pt-5 dark:border-white/10 dark:bg-pes-black/55">
+                {estadisticasLogin.datos.map((item, indice) => (
+                  <div className="group relative flex h-full min-w-0 flex-1 items-end" key={item.id}>
+                    <div
+                      className="w-full min-w-3 rounded-t-md bg-[linear-gradient(180deg,#FF66FF,#6900FF)] shadow-[0_0_14px_rgba(105,0,255,0.22)] transition-all duration-300 group-hover:brightness-125 dark:bg-[linear-gradient(180deg,#00FFED,#6900FF)]"
+                      style={{ height: `${Math.max((item.iniciosSesion / maximoIniciosSesion) * 100, item.iniciosSesion ? 4 : 1)}%` }}
+                    />
+                    <span className="absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2 py-1 text-xs font-bold text-white group-hover:block">
+                      {item.iniciosSesion} accesos
+                    </span>
+                    {(indice === 0 || indice === estadisticasLogin.datos.length - 1 || indice % 5 === 0) ? (
+                      <span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 text-[10px] font-semibold text-slate-500">
+                        {formatearFechaCorta(item.fecha)}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
+              Todavia no hay inicios de sesion registrados en este periodo.
+            </div>
+          )}
         </section>
 
         <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_24px_60px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/[0.04] sm:rounded-[30px] sm:p-6">

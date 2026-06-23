@@ -25,7 +25,8 @@ const TAB_CONFIG = [
 const claseInput =
   'w-full rounded-md border border-neon-cyan/35 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:border-white/10 dark:bg-pes-black/90 dark:text-white'
 
-const claseInputNumero = `${claseInput} text-center`
+const claseInputNumeroCompacto =
+  'min-w-0 w-full rounded-md border border-neon-cyan/35 bg-white px-1 py-2 text-center text-base font-bold tabular-nums text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-pink focus:shadow-glow-pink dark:border-white/10 dark:bg-pes-black/90 dark:text-white sm:px-3 sm:text-sm'
 
 function clonarDatos(valor) {
   return JSON.parse(JSON.stringify(valor))
@@ -1083,7 +1084,7 @@ function OtrosEntrenos() {
 
                             return (
                               <article
-                                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:shadow-glow-cyan dark:border-white/10 dark:bg-white/[0.04]"
+                                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.08)] transition-all duration-300 ease-out hover:border-neon-cyan/50 hover:shadow-glow-cyan dark:border-white/10 dark:bg-[#11151F]"
                                 key={claveEjercicio}
                               >
                                 <div className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
@@ -1168,7 +1169,7 @@ function OtrosEntrenos() {
                                         <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 md:col-span-2 dark:text-slate-400">
                                           Observaciones
                                           <textarea
-                                            className={`${claseInput} min-h-20 resize-y`}
+                                            className={`${claseInput} min-h-20 resize-y lg:h-[42px] lg:min-h-[42px]`}
                                             value={ejercicio.observaciones || ''}
                                             onChange={(event) =>
                                               actualizarDraftEntreno(draft, (draftActual) => {
@@ -1179,59 +1180,62 @@ function OtrosEntrenos() {
                                             }
                                           />
                                         </label>
-                                        <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                          Series base
-                                          <input
-                                            className={claseInputNumero}
-                                            type="number"
-                                            min="0"
-                                            value={ejercicio.seriesPlanificadas}
-                                            onChange={(event) =>
-                                              actualizarDraftEntreno(draft, (draftActual) => {
-                                                draftActual.ejercicios[indiceEjercicio].seriesPlanificadas =
-                                                  Number(event.target.value) || 0
-                                                return draftActual
-                                              })
-                                            }
-                                          />
-                                        </label>
-                                        <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                          Reps base
-                                          <input
-                                            className={claseInputNumero}
-                                            type="number"
-                                            min="0"
-                                            value={ejercicio.repeticionesPlanificadas}
-                                            onChange={(event) =>
-                                              actualizarDraftEntreno(draft, (draftActual) => {
-                                                draftActual.ejercicios[
-                                                  indiceEjercicio
-                                                ].repeticionesPlanificadas =
-                                                  Number(event.target.value) || 0
-                                                return draftActual
-                                              })
-                                            }
-                                          />
-                                        </label>
                                       </div>
 
                                       <div className="grid gap-4">
                                         {ejercicio.seriesRealizadas.map((serie, indiceSerie) => (
                                           <div
-                                            className="rounded-[24px] border border-slate-200 bg-slate-50/90 p-4 shadow-[0_14px_32px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[#0A0D16]"
+                                            className="rounded-[24px] border border-slate-200 bg-slate-50/90 p-4 shadow-[0_14px_32px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[#0A0D16] lg:grid lg:grid-cols-[96px_minmax(360px,1fr)_minmax(210px,0.65fr)_auto] lg:items-end lg:gap-4 lg:rounded-2xl"
                                             key={serie.id || `${claveEjercicio}-serie-${indiceSerie}`}
                                           >
-                                            <div className="flex items-center justify-between gap-3">
-                                              <h4 className="text-2xl font-black text-cyan-600 dark:text-neon-cyan">
+                                            <div className="flex items-center justify-between gap-3 lg:self-center">
+                                              <h4 className="text-2xl font-black text-cyan-600 dark:text-neon-cyan lg:text-xl">
                                                 Serie {serie.numeroSerie || indiceSerie + 1}
                                               </h4>
                                             </div>
 
-                                            <div className="grid gap-3 md:grid-cols-2">
-                                              <label className="grid gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                                                Reps hechas
+                                            <div className="grid grid-cols-4 gap-1.5 sm:gap-3 lg:gap-2">
+                                              <label className="grid min-w-0 gap-1.5 text-center text-[9px] font-semibold uppercase leading-none tracking-tight text-slate-500 sm:gap-2 sm:text-xs sm:tracking-normal dark:text-slate-400">
+                                                <span className="whitespace-nowrap sm:hidden">S. base</span>
+                                                <span className="hidden sm:inline">Series base</span>
                                                 <input
-                                                  className={claseInputNumero}
+                                                  className={claseInputNumeroCompacto}
+                                                  type="number"
+                                                  min="0"
+                                                  value={ejercicio.seriesPlanificadas}
+                                                  onChange={(event) =>
+                                                    actualizarDraftEntreno(draft, (draftActual) => {
+                                                      draftActual.ejercicios[indiceEjercicio].seriesPlanificadas =
+                                                        Number(event.target.value) || 0
+                                                      return draftActual
+                                                    })
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="grid min-w-0 gap-1.5 text-center text-[9px] font-semibold uppercase leading-none tracking-tight text-slate-500 sm:gap-2 sm:text-xs sm:tracking-normal dark:text-slate-400">
+                                                <span className="whitespace-nowrap sm:hidden">R. base</span>
+                                                <span className="hidden sm:inline">Reps base</span>
+                                                <input
+                                                  className={claseInputNumeroCompacto}
+                                                  type="number"
+                                                  min="0"
+                                                  value={ejercicio.repeticionesPlanificadas}
+                                                  onChange={(event) =>
+                                                    actualizarDraftEntreno(draft, (draftActual) => {
+                                                      draftActual.ejercicios[
+                                                        indiceEjercicio
+                                                      ].repeticionesPlanificadas =
+                                                        Number(event.target.value) || 0
+                                                      return draftActual
+                                                    })
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="grid min-w-0 gap-1.5 text-center text-[9px] font-semibold uppercase leading-none tracking-tight text-slate-500 sm:gap-2 sm:text-xs sm:tracking-normal dark:text-slate-400">
+                                                <span className="whitespace-nowrap sm:hidden">Hechas</span>
+                                                <span className="hidden sm:inline">Reps hechas</span>
+                                                <input
+                                                  className={claseInputNumeroCompacto}
                                                   type="number"
                                                   min="0"
                                                   value={serie.repeticiones}
@@ -1245,10 +1249,10 @@ function OtrosEntrenos() {
                                                   }
                                                 />
                                               </label>
-                                              <label className="grid gap-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                                                Peso
+                                              <label className="grid min-w-0 gap-1.5 text-center text-[9px] font-semibold uppercase leading-none tracking-tight text-slate-500 sm:gap-2 sm:text-xs sm:tracking-normal dark:text-slate-400">
+                                                <span>Peso</span>
                                                 <input
-                                                  className={claseInputNumero}
+                                                  className={claseInputNumeroCompacto}
                                                   type="number"
                                                   min="0"
                                                   step="0.25"
@@ -1265,16 +1269,16 @@ function OtrosEntrenos() {
                                               </label>
                                             </div>
 
-                                            <div className="grid gap-2">
+                                            <div className="mt-4 grid gap-2 lg:mt-0">
                                               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
                                                 Anterior
                                               </p>
-                                              <div className="rounded-[16px] border border-fuchsia-500/35 bg-white px-5 py-4 text-lg font-black text-fuchsia-600 dark:bg-[#090B13] dark:text-neon-pink">
+                                              <div className="rounded-[16px] border border-fuchsia-500/35 bg-white px-5 py-3 text-base font-black text-fuchsia-600 dark:bg-[#090B13] dark:text-neon-pink">
                                                 {`${String(serie.peso).replace('.', ',')}kg x ${serie.repeticiones}`}
                                               </div>
                                             </div>
 
-                                            <div className="flex justify-end">
+                                            <div className="mt-3 flex justify-end lg:mt-0">
                                               <button
                                                 className="rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-black text-slate-500 transition-all duration-300 ease-out hover:border-fuchsia-500/45 hover:text-fuchsia-700 dark:border-white/10 dark:bg-[#0B0D15] dark:text-slate-400 dark:hover:border-neon-pink/40 dark:hover:text-white"
                                                 type="button"

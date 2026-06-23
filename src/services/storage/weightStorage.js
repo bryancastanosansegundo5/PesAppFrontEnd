@@ -59,6 +59,7 @@ export function guardarPesoDelDia(
     horaRegistro = '',
     horaManual = false,
     comentario = '',
+    horasSueno = '',
     registroExistente = null,
   } = {},
 ) {
@@ -69,6 +70,7 @@ export function guardarPesoDelDia(
     horaRegistro,
     horaManual,
     comentario,
+    horasSueno,
     registroExistente,
   })
   const restoRegistros = registroExistente?.clientId

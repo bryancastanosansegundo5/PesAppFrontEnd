@@ -77,6 +77,9 @@ export function normalizarRegistroPeso(registro, indice = 0) {
   const comentario = String(
     registro?.comentario ?? registro?.observacion ?? registro?.nota ?? registro?.notes ?? '',
   ).trim()
+  const horasSueno = String(
+    registro?.horasSueno ?? registro?.horas_sueno ?? registro?.sleepDuration ?? '',
+  ).trim()
 
   return {
     id,
@@ -92,6 +95,7 @@ export function normalizarRegistroPeso(registro, indice = 0) {
     version: normalizarVersion(registro?.version, 0),
     syncStatus,
     comentario,
+    horasSueno,
   }
 }
 
@@ -118,6 +122,7 @@ export function crearPayloadPesoHoy(registro) {
     clientId: registroNormalizado.clientId,
     version: registroNormalizado.version,
     comentario: registroNormalizado.comentario,
+    horasSueno: registroNormalizado.horasSueno || null,
   }
 }
 
@@ -132,6 +137,7 @@ export function crearPayloadPeso(registro) {
     clientId: registroNormalizado.clientId,
     version: registroNormalizado.version,
     comentario: registroNormalizado.comentario,
+    horasSueno: registroNormalizado.horasSueno || null,
   }
 }
 
@@ -171,6 +177,7 @@ export function crearRegistroPesoLocal({
   horaRegistro = '',
   horaManual = false,
   comentario = '',
+  horasSueno = '',
   registroExistente = null,
   syncStatus = 'pending',
 }) {
@@ -189,6 +196,7 @@ export function crearRegistroPesoLocal({
     horaRegistro: horaFinal,
     horaManual,
     comentario,
+    horasSueno,
     fecha: aIsoString(fechaFinal, createdAt),
     createdAt,
     updatedAt: new Date().toISOString(),

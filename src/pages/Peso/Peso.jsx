@@ -24,6 +24,7 @@ function crearFormularioVacio() {
     horaActual: obtenerHoraActual(),
     horaFueEditada: false,
     comentarioActual: '',
+    horasSuenoActual: '',
   }
 }
 
@@ -41,6 +42,34 @@ function formatearPeso(peso) {
 
 function formatearHora(hora) {
   return hora || '--:--'
+}
+
+function formatearHorasSuenoInput(valor) {
+  const texto = String(valor || '').replace(/[^\d:]/g, '')
+
+  if (!texto) {
+    return ''
+  }
+
+  if (texto.includes(':')) {
+    const [horas = '', minutos = ''] = texto.split(':')
+    const horasLimpias = horas.replace(/\D/g, '').slice(0, 2)
+    const minutosLimpios = minutos.replace(/\D/g, '').slice(0, 2)
+
+    if (!horasLimpias) {
+      return ''
+    }
+
+    return `${horasLimpias.padStart(2, '0')}:${minutosLimpios}`
+  }
+
+  const digitos = texto.replace(/\D/g, '').slice(0, 4)
+
+  if (digitos.length === 1) {
+    return Number(digitos) > 2 ? `0${digitos}:` : digitos
+  }
+
+  return `${digitos.slice(0, 2)}:${digitos.slice(2)}`
 }
 
 function formatearFechaInforme(fecha) {
@@ -84,15 +113,10 @@ function obtenerValorExtraInforme(registro, claves) {
 
 function construirExtrasInforme(registro) {
   const extras = []
-  const horasSueno = obtenerValorExtraInforme(registro, ['horas_sueno', 'horasSueno'])
   const gym = obtenerValorExtraInforme(registro, ['gym'])
   const cardioMin = obtenerValorExtraInforme(registro, ['cardio_min', 'cardioMin'])
   const pasos = obtenerValorExtraInforme(registro, ['pasos'])
   const cenaLibreAyer = obtenerValorExtraInforme(registro, ['cena_libre_ayer', 'cenaLibreAyer'])
-
-  if (horasSueno !== null) {
-    extras.push(`Sue\u00f1o: ${horasSueno}h`)
-  }
 
   if (gym === true) {
     extras.push('Gym')
@@ -148,7 +172,12 @@ function construirTextoInforme(registros, fechaInicio, fechaFin) {
     const observaciones = String(
       obtenerValorExtraInforme(registro, ['observaciones', 'comentario']) || '',
     )
+    const horasSueno = obtenerValorExtraInforme(registro, ['horas_sueno', 'horasSueno'])
     const lineas = [columnas.join(' | ')]
+
+    if (horasSueno !== null) {
+      lineas.push(`Dormí ${horasSueno}`)
+    }
 
     if (observaciones) {
       lineas.push(...observaciones.split(/\r?\n/))
@@ -158,7 +187,7 @@ function construirTextoInforme(registros, fechaInicio, fechaFin) {
   })
 
   return [
-    'INFORME DE EVOLUCI\u00d3N DE PESO',
+    'INFORME DE EVOLUCIÓN DE PESO',
     '',
     'Periodo analizado:',
     `Desde: ${formatearFechaInforme(fechaInicio)}`,
@@ -508,6 +537,11 @@ function InfoPuntoGrafica({ registro }) {
       <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
         {formatearFecha(registro.fecha)}
       </p>
+      {registro.horasSueno ? (
+        <p className="mt-3 text-sm font-bold text-neon-purple dark:text-neon-cyan">
+          Dormiste {registro.horasSueno}
+        </p>
+      ) : null}
       {registro.comentario ? (
         <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
           {registro.comentario}
@@ -523,6 +557,9 @@ function Peso() {
   const [horaActual, setHoraActual] = useState(crearFormularioVacio().horaActual)
   const [horaFueEditada, setHoraFueEditada] = useState(crearFormularioVacio().horaFueEditada)
   const [comentarioActual, setComentarioActual] = useState(crearFormularioVacio().comentarioActual)
+  const [horasSuenoActual, setHorasSuenoActual] = useState(
+    crearFormularioVacio().horasSuenoActual,
+  )
   const [registroEnEdicion, setRegistroEnEdicion] = useState(null)
   const [mensaje, setMensaje] = useState('')
   const [estaGuardando, setEstaGuardando] = useState(false)
@@ -545,6 +582,7 @@ function Peso() {
     setHoraActual(formularioVacio.horaActual)
     setHoraFueEditada(formularioVacio.horaFueEditada)
     setComentarioActual(formularioVacio.comentarioActual)
+    setHorasSuenoActual(formularioVacio.horasSuenoActual)
   }
 
   const cargarRegistroEnFormulario = (registro) => {
@@ -558,6 +596,7 @@ function Peso() {
     setHoraActual(registro.horaRegistro || obtenerHoraActual())
     setHoraFueEditada(Boolean(registro.horaManual))
     setComentarioActual(registro.comentario || '')
+    setHorasSuenoActual(registro.horasSueno || '')
     window.requestAnimationFrame(() => {
       formularioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -662,7 +701,15 @@ function Peso() {
       .sort((primero, segundo) => new Date(segundo.claveSemana) - new Date(primero.claveSemana))
   }, [registros])
 
-  const puntosGrafica = useMemo(() => construirPuntosGrafica(registros.slice(0, 12).reverse()), [registros])
+  const registrosUltimosCincoMeses = useMemo(() => {
+    const limite = new Date()
+    limite.setMonth(limite.getMonth() - 5)
+    return registros.filter((registro) => obtenerFechaHoraRegistro(registro) >= limite)
+  }, [registros])
+  const puntosGrafica = useMemo(
+    () => construirPuntosGrafica([...registrosUltimosCincoMeses].reverse()),
+    [registrosUltimosCincoMeses],
+  )
   const polylineGrafica = puntosGrafica.map((punto) => punto.point).join(' ')
   const etiquetasPesoGrafica = useMemo(
     () => crearEtiquetasPesoGrafica(puntosGrafica.map((punto) => punto.registro)),
@@ -809,6 +856,11 @@ function Peso() {
       return
     }
 
+    if (horasSuenoActual && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(horasSuenoActual)) {
+      setMensaje('Introduce las horas de sueño con formato HH:MM.')
+      return
+    }
+
     setEstaGuardando(true)
 
     try {
@@ -817,6 +869,7 @@ function Peso() {
         horaRegistro: horaActual,
         horaManual: horaFueEditada,
         comentario: comentarioActual,
+        horasSueno: horasSuenoActual,
         registroExistente: registroExistenteActualizado,
       })
       setRegistros(resultado.registros)
@@ -956,6 +1009,34 @@ function Peso() {
 
                 <label className="grid gap-2">
                   <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                    Horas de sueño
+                  </span>
+                  <input
+                    className="w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-base font-bold tabular-nums text-slate-950 outline-none transition-all duration-300 ease-out focus:border-neon-cyan focus:shadow-[0_0_22px_rgba(0,255,237,0.12)] dark:border-white/10 dark:bg-pes-black dark:text-white"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength="5"
+                    placeholder="07:23"
+                    autoComplete="off"
+                    value={horasSuenoActual}
+                    aria-label="Horas de sueño en formato horas y minutos"
+                    onChange={(evento) =>
+                      setHorasSuenoActual(formatearHorasSuenoInput(evento.target.value))
+                    }
+                    onKeyDown={(evento) => {
+                      if (evento.key === 'Backspace' && horasSuenoActual.endsWith(':')) {
+                        evento.preventDefault()
+                        setHorasSuenoActual(horasSuenoActual.slice(0, -2))
+                      }
+                    }}
+                  />
+                  <span className="text-xs font-normal normal-case text-slate-500 dark:text-slate-400">
+                    Formato HH:MM, por ejemplo 07:23.
+                  </span>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                     Comentario
                   </span>
                   <textarea
@@ -1019,37 +1100,39 @@ function Peso() {
           </div>
         </div>
 
-        <div className="grid gap-4">
-          <article className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 dark:border-white/10 dark:bg-white/[0.04]">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex min-h-[112px] flex-col items-center justify-center text-center">
+        <div className="grid content-start gap-4 lg:h-full lg:grid-rows-3 lg:content-stretch">
+          <article className="h-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-white/10 dark:bg-[#111B2A]">
+            <div className="grid h-full gap-3 sm:grid-cols-2 sm:grid-rows-2 sm:gap-4">
+              <div className="flex min-h-[96px] flex-col items-center justify-center text-center">
                 <p className="text-sm text-slate-500 dark:text-slate-400">Ultimo registro</p>
                 <p className="mt-3 text-4xl font-black text-slate-950 dark:text-white">
                   {ultimoRegistro ? formatearPeso(ultimoRegistro.peso) : '--'}
                 </p>
               </div>
-              <div
-                className={`flex min-h-[72px] min-w-[190px] max-w-[220px] flex-col items-center justify-center self-center justify-self-center rounded-xl border px-4 py-2 text-center ${
-                  ultimoRegistro?.syncStatus === 'pending'
-                    ? 'border-amber-400/45 bg-amber-400/10'
-                    : 'border-neon-cyan/20 bg-neon-cyan/8 dark:bg-neon-cyan/10'
-                }`}
-              >
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                  Estado
-                </p>
-                <p
-                  className={`mt-1 text-sm font-black ${
+              <div className="flex min-h-[96px] items-center justify-center">
+                <div
+                  className={`flex min-h-[72px] w-full max-w-[220px] flex-col items-center justify-center rounded-xl border px-4 py-2 text-center ${
                     ultimoRegistro?.syncStatus === 'pending'
-                      ? 'text-amber-500 dark:text-amber-300'
-                      : 'text-neon-cyan'
+                      ? 'border-amber-400/45 bg-amber-400/10'
+                      : 'border-neon-cyan/20 bg-neon-cyan/8 dark:bg-neon-cyan/10'
                   }`}
                 >
-                  {ultimoRegistro?.syncStatus === 'pending' ? 'Pendiente' : 'Sincronizado'}
-                </p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                    Estado
+                  </p>
+                  <p
+                    className={`mt-1 text-sm font-black ${
+                      ultimoRegistro?.syncStatus === 'pending'
+                        ? 'text-amber-500 dark:text-amber-300'
+                        : 'text-neon-cyan'
+                    }`}
+                  >
+                    {ultimoRegistro?.syncStatus === 'pending' ? 'Pendiente' : 'Sincronizado'}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex min-h-[84px] flex-col items-center justify-center text-center">
+              <div className="flex min-h-[96px] flex-col items-center justify-center text-center">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                   Fecha y hora
                 </p>
@@ -1057,7 +1140,7 @@ function Peso() {
                   {formatearFechaHora(ultimoRegistro)}
                 </p>
               </div>
-              <div className="flex min-h-[84px] flex-col items-center justify-center text-center">
+              <div className="flex min-h-[96px] flex-col items-center justify-center text-center">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                   Seguimiento
                 </p>
@@ -1067,7 +1150,7 @@ function Peso() {
               </div>
             </div>
           </article>
-          <article className="flex min-h-[176px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white/90 p-5 text-center dark:border-white/10 dark:bg-white/[0.04]">
+          <article className="flex min-h-[176px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-5 text-center dark:border-white/10 dark:bg-[#111B2A]">
             <p className="text-sm text-slate-500 dark:text-slate-400">Media semanal actual</p>
             <p className="mt-3 text-3xl font-black text-neon-cyan">
               {promediosSemanales[0] ? formatearPeso(promediosSemanales[0].media) : '--'}
@@ -1078,7 +1161,7 @@ function Peso() {
                 : 'Aun no hay semana calculada'}
             </p>
           </article>
-          <article className="flex min-h-[176px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white/90 p-5 text-center dark:border-white/10 dark:bg-white/[0.04]">
+          <article className="flex min-h-[176px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-5 text-center dark:border-white/10 dark:bg-[#111B2A]">
             <p className="text-sm text-slate-500 dark:text-slate-400">Historico total</p>
             <p className="mt-3 text-3xl font-black text-neon-pink">{registros.length}</p>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
@@ -1099,11 +1182,11 @@ function Peso() {
                 Evolucion reciente
               </h2>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Ultimos 12 registros</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Ultimos 5 meses</p>
           </div>
 
           <div className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-white/10 dark:bg-pes-black/60">
-            {registros.length > 1 ? (
+            {registrosUltimosCincoMeses.length > 1 ? (
               <>
                 <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-3">
                   <div className="relative h-64">
@@ -1296,11 +1379,11 @@ function Peso() {
 
           <article className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.1)] dark:border-white/10 dark:bg-white/[0.04]">
             <p className="text-sm font-semibold uppercase tracking-wide text-neon-purple dark:text-neon-cyan">
-              Historico
+              Histórico · últimos 5 registros
             </p>
             <div className="mt-4 grid gap-3">
               {registros.length > 0 ? (
-                registros.map((registro) => (
+                registros.slice(0, 5).map((registro) => (
                   <div
                     className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 dark:border-white/10 dark:bg-pes-black/50"
                     key={registro.id}
@@ -1312,6 +1395,11 @@ function Peso() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         Registro diario de bascula · {formatearHora(registro.horaRegistro)}
                       </p>
+                      {registro.horasSueno ? (
+                        <p className="mt-1 text-xs font-bold text-neon-purple dark:text-neon-cyan">
+                          Dormiste {registro.horasSueno}
+                        </p>
+                      ) : null}
                       {registro.comentario ? (
                         <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
                           {registro.comentario}

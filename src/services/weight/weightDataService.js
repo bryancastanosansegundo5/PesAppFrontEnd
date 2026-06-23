@@ -212,6 +212,7 @@ export async function guardarPesoConRespaldo(
     horaRegistro = '',
     horaManual = false,
     comentario = '',
+    horasSueno = '',
     registroExistente = null,
   } = {},
 ) {
@@ -221,6 +222,7 @@ export async function guardarPesoConRespaldo(
     horaRegistro,
     horaManual,
     comentario,
+    horasSueno,
     registroExistente,
   })
   const registroLocal = registroExistente?.clientId
