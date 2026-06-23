@@ -30,6 +30,7 @@ import { ApiError } from './services/http/apiClient'
 import {
   obtenerHistorialEntrenamientosGuardado,
   obtenerSesionesGuardadas,
+  reemplazarHistorialDesdeRemotoConPendientesLocales,
 } from './services/storage/trainingStorage'
 import { obtenerCatalogoEjerciciosGuardado } from './services/storage/exerciseCatalogStorage'
 import {
@@ -42,6 +43,7 @@ import {
 import { aHoraRegistro } from './services/data/dateUtils'
 import { sincronizarDatosOfflineEnOrden } from './services/sync/offlineSyncService'
 import { configurarGlobalSyncGate } from './services/sync/globalSyncGate'
+import { obtenerEntrenamientosDesdeServidor } from './pages/Entreno/services/entrenoApiService'
 
 const rutasProtegidas = new Set([
   'entreno',
@@ -333,6 +335,8 @@ function App() {
 
       try {
         await sincronizarDatosOfflineEnOrden()
+        const historialServidor = await obtenerEntrenamientosDesdeServidor()
+        reemplazarHistorialDesdeRemotoConPendientesLocales(historialServidor)
 
         if (cancelado) {
           return

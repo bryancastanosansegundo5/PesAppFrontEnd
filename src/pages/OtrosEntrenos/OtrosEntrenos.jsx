@@ -6,6 +6,11 @@ import {
   obtenerHistorialEntrenos,
   reemplazarHistorialEntrenosDesdeRemoto,
 } from '../Entreno/services/entrenoLocalService'
+import { obtenerOtrosEntrenosDesdeServidor } from './services/otrosEntrenosApiService'
+import {
+  guardarOtrosEntrenosGuardados,
+  obtenerOtrosEntrenosGuardados,
+} from './services/otrosEntrenosLocalService'
 import { sincronizarDatosOfflineEnOrden } from '../../services/sync/offlineSyncService'
 import {
   actualizarEntrenamientoConRespaldo,
@@ -84,7 +89,11 @@ function construirDatosGrafica(ejercicio) {
     }))
   })
 
-  return puntosDesdeSeries
+  if (puntosDesdeSeries.length) {
+    return puntosDesdeSeries
+  }
+
+  return Array.isArray(ejercicio.chartData) ? ejercicio.chartData : []
 }
 
 function construirHistoricoEjercicios(historial) {
@@ -349,6 +358,7 @@ function BadgeEstado({ entrenamiento }) {
 function OtrosEntrenos() {
   const [tabActiva, setTabActiva] = useState('ejercicios')
   const [historial, setHistorial] = useState(obtenerHistorialEntrenos)
+  const [ejerciciosServidor, setEjerciciosServidor] = useState(obtenerOtrosEntrenosGuardados)
   const [mensaje, setMensaje] = useState('')
   const [estaCargandoInicial, setEstaCargandoInicial] = useState(true)
   const [estaRecargando, setEstaRecargando] = useState(false)
@@ -366,8 +376,11 @@ function OtrosEntrenos() {
   const historialVisible = useMemo(() => filtrarHistorialVisible(historial), [historial])
 
   const ejerciciosAgrupados = useMemo(
-    () => construirHistoricoEjercicios(historialVisible),
-    [historialVisible],
+    () =>
+      ejerciciosServidor.length
+        ? ejerciciosServidor
+        : construirHistoricoEjercicios(historialVisible),
+    [ejerciciosServidor, historialVisible],
   )
 
   const ejerciciosFiltrados = useMemo(() => {
@@ -413,9 +426,14 @@ function OtrosEntrenos() {
 
     try {
       await sincronizarDatosOfflineEnOrden()
-      const historialServidor = await obtenerEntrenamientosDesdeServidor()
+      const [historialServidor, otrosEntrenosServidor] = await Promise.all([
+        obtenerEntrenamientosDesdeServidor(),
+        obtenerOtrosEntrenosDesdeServidor(),
+      ])
       const historialFusionado = reemplazarHistorialEntrenosDesdeRemoto(historialServidor)
+      const otrosEntrenosGuardados = guardarOtrosEntrenosGuardados(otrosEntrenosServidor)
       setHistorial(historialFusionado)
+      setEjerciciosServidor(otrosEntrenosGuardados)
       setMensaje(desdeReconnect ? '' : 'Historial actualizado correctamente.')
     } catch (errorCapturado) {
       const historialLocal = obtenerHistorialEntrenos()
@@ -440,14 +458,19 @@ function OtrosEntrenos() {
 
       try {
         await sincronizarEntrenamientosPendientes()
-        const historialServidor = await obtenerEntrenamientosDesdeServidor()
+        const [historialServidor, otrosEntrenosServidor] = await Promise.all([
+          obtenerEntrenamientosDesdeServidor(),
+          obtenerOtrosEntrenosDesdeServidor(),
+        ])
         const historialFusionado = reemplazarHistorialEntrenosDesdeRemoto(historialServidor)
+        const otrosEntrenosGuardados = guardarOtrosEntrenosGuardados(otrosEntrenosServidor)
 
         if (cancelado) {
           return
         }
 
         setHistorial(historialFusionado)
+        setEjerciciosServidor(otrosEntrenosGuardados)
         setMensaje('')
       } catch (errorCapturado) {
         if (cancelado) {
@@ -456,6 +479,7 @@ function OtrosEntrenos() {
 
         const historialLocal = obtenerHistorialEntrenos()
         setHistorial(historialLocal)
+        setEjerciciosServidor(obtenerOtrosEntrenosGuardados())
         setMensaje(
           historialLocal.length > 0
             ? `${errorCapturado.message} Se muestran los entrenos disponibles.`
@@ -489,14 +513,19 @@ function OtrosEntrenos() {
 
       try {
         await sincronizarDatosOfflineEnOrden()
-        const historialServidor = await obtenerEntrenamientosDesdeServidor()
+        const [historialServidor, otrosEntrenosServidor] = await Promise.all([
+          obtenerEntrenamientosDesdeServidor(),
+          obtenerOtrosEntrenosDesdeServidor(),
+        ])
         const historialFusionado = reemplazarHistorialEntrenosDesdeRemoto(historialServidor)
+        const otrosEntrenosGuardados = guardarOtrosEntrenosGuardados(otrosEntrenosServidor)
 
         if (cancelado) {
           return
         }
 
         setHistorial(historialFusionado)
+        setEjerciciosServidor(otrosEntrenosGuardados)
         setMensaje('')
       } catch {
         if (cancelado) {
