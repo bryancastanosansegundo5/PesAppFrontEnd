@@ -72,6 +72,44 @@ function formatearHorasSuenoInput(valor) {
   return `${digitos.slice(0, 2)}:${digitos.slice(2)}`
 }
 
+const patronLineaSueno = /^Dorm(?:i|í)\s+((?:[01]\d|2[0-3]):[0-5]\d)$/i
+
+function obtenerHorasSuenoDesdeComentario(comentario) {
+  const lineaSueno = String(comentario || '')
+    .split(/\r?\n/)
+    .find((linea) => patronLineaSueno.test(linea.trim()))
+
+  return lineaSueno?.trim().match(patronLineaSueno)?.[1] || ''
+}
+
+function quitarHorasSuenoDelComentario(comentario) {
+  return String(comentario || '')
+    .split(/\r?\n/)
+    .map((linea) => linea.trim())
+    .filter((linea) => linea && !patronLineaSueno.test(linea))
+    .join('\n')
+}
+
+function obtenerHorasSuenoRegistro(registro) {
+  return String(
+    obtenerValorExtraInforme(registro, ['horas_sueno', 'horasSueno']) ||
+      obtenerHorasSuenoDesdeComentario(
+        obtenerValorExtraInforme(registro, ['observaciones', 'comentario']) || '',
+      ) ||
+      '',
+  ).trim()
+}
+
+function obtenerComentarioRegistro(registro) {
+  const comentario = String(
+    obtenerValorExtraInforme(registro, ['observaciones', 'comentario']) || '',
+  )
+  const comentarioSinSueno = quitarHorasSuenoDelComentario(comentario)
+  const horasSueno = obtenerHorasSuenoRegistro(registro)
+
+  return [comentarioSinSueno, horasSueno ? `Dormí ${horasSueno}` : ''].filter(Boolean).join('\n')
+}
+
 function formatearFechaInforme(fecha) {
   return aFechaRegistro(fecha)
 }
@@ -169,15 +207,8 @@ function construirTextoInforme(registros, fechaInicio, fechaFin) {
       columnas.push(extras.join(' | '))
     }
 
-    const observaciones = String(
-      obtenerValorExtraInforme(registro, ['observaciones', 'comentario']) || '',
-    )
-    const horasSueno = obtenerValorExtraInforme(registro, ['horas_sueno', 'horasSueno'])
+    const observaciones = obtenerComentarioRegistro(registro)
     const lineas = [columnas.join(' | ')]
-
-    if (horasSueno !== null) {
-      lineas.push(`Dormí ${horasSueno}`)
-    }
 
     if (observaciones) {
       lineas.push(...observaciones.split(/\r?\n/))
@@ -519,6 +550,8 @@ function InfoPuntoGrafica({ registro }) {
     )
   }
 
+  const comentario = obtenerComentarioRegistro(registro)
+
   return (
     <div className="mt-4 rounded-2xl border border-neon-cyan/25 bg-white/85 px-4 py-4 text-sm text-slate-700 shadow-[0_14px_34px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -537,14 +570,9 @@ function InfoPuntoGrafica({ registro }) {
       <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
         {formatearFecha(registro.fecha)}
       </p>
-      {registro.horasSueno ? (
-        <p className="mt-3 text-sm font-bold text-neon-purple dark:text-neon-cyan">
-          Dormiste {registro.horasSueno}
-        </p>
-      ) : null}
-      {registro.comentario ? (
-        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
-          {registro.comentario}
+      {comentario ? (
+        <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600 dark:text-slate-400">
+          {comentario}
         </p>
       ) : null}
     </div>
@@ -595,8 +623,8 @@ function Peso() {
     setPesoActual(String(registro.peso))
     setHoraActual(registro.horaRegistro || obtenerHoraActual())
     setHoraFueEditada(Boolean(registro.horaManual))
-    setComentarioActual(registro.comentario || '')
-    setHorasSuenoActual(registro.horasSueno || '')
+    setComentarioActual(quitarHorasSuenoDelComentario(registro.comentario || ''))
+    setHorasSuenoActual(obtenerHorasSuenoRegistro(registro))
     window.requestAnimationFrame(() => {
       formularioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
@@ -1395,14 +1423,9 @@ function Peso() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         Registro diario de bascula · {formatearHora(registro.horaRegistro)}
                       </p>
-                      {registro.horasSueno ? (
-                        <p className="mt-1 text-xs font-bold text-neon-purple dark:text-neon-cyan">
-                          Dormiste {registro.horasSueno}
-                        </p>
-                      ) : null}
-                      {registro.comentario ? (
-                        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                          {registro.comentario}
+                      {obtenerComentarioRegistro(registro) ? (
+                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-500 dark:text-slate-400">
+                          {obtenerComentarioRegistro(registro)}
                         </p>
                       ) : null}
                       <p className="text-xs text-slate-500 dark:text-slate-400">

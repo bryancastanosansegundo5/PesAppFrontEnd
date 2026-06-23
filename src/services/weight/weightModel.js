@@ -45,6 +45,28 @@ function obtenerMarcaTemporalRegistro(registro) {
   return fechaConHora?.getTime() || 0
 }
 
+const patronLineaSueno = /^Dorm(?:i|í)\s+((?:[01]\d|2[0-3]):[0-5]\d)$/i
+
+function obtenerHorasSuenoDesdeComentario(comentario) {
+  const lineas = String(comentario || '').split(/\r?\n/)
+  const lineaSueno = lineas.find((linea) => patronLineaSueno.test(linea.trim()))
+
+  return lineaSueno?.trim().match(patronLineaSueno)?.[1] || ''
+}
+
+function combinarComentarioConSueno(comentario, horasSueno) {
+  const comentarioSinSueno = String(comentario || '')
+    .split(/\r?\n/)
+    .map((linea) => linea.trim())
+    .filter((linea) => linea && !patronLineaSueno.test(linea))
+    .join('\n')
+  const horasSuenoFinal = String(horasSueno || obtenerHorasSuenoDesdeComentario(comentario)).trim()
+
+  return [comentarioSinSueno, horasSuenoFinal ? `Dormí ${horasSuenoFinal}` : '']
+    .filter(Boolean)
+    .join('\n')
+}
+
 export function normalizarRegistroPeso(registro, indice = 0) {
   const fechaRegistro = aFechaRegistro(
     registro?.fechaRegistro ?? registro?.fecha ?? registro?.date ?? new Date(),
@@ -74,12 +96,13 @@ export function normalizarRegistroPeso(registro, indice = 0) {
     createdAt,
   )
   const syncStatus = registro?.syncStatus || (registro?.pendienteSync ? 'pending' : 'synced')
-  const comentario = String(
+  const comentarioOriginal = String(
     registro?.comentario ?? registro?.observacion ?? registro?.nota ?? registro?.notes ?? '',
   ).trim()
   const horasSueno = String(
     registro?.horasSueno ?? registro?.horas_sueno ?? registro?.sleepDuration ?? '',
   ).trim()
+  const comentario = combinarComentarioConSueno(comentarioOriginal, horasSueno)
 
   return {
     id,
@@ -95,7 +118,6 @@ export function normalizarRegistroPeso(registro, indice = 0) {
     version: normalizarVersion(registro?.version, 0),
     syncStatus,
     comentario,
-    horasSueno,
   }
 }
 
@@ -122,7 +144,6 @@ export function crearPayloadPesoHoy(registro) {
     clientId: registroNormalizado.clientId,
     version: registroNormalizado.version,
     comentario: registroNormalizado.comentario,
-    horasSueno: registroNormalizado.horasSueno || null,
   }
 }
 
@@ -137,7 +158,6 @@ export function crearPayloadPeso(registro) {
     clientId: registroNormalizado.clientId,
     version: registroNormalizado.version,
     comentario: registroNormalizado.comentario,
-    horasSueno: registroNormalizado.horasSueno || null,
   }
 }
 
@@ -195,8 +215,7 @@ export function crearRegistroPesoLocal({
     fechaRegistro,
     horaRegistro: horaFinal,
     horaManual,
-    comentario,
-    horasSueno,
+    comentario: combinarComentarioConSueno(comentario, horasSueno),
     fecha: aIsoString(fechaFinal, createdAt),
     createdAt,
     updatedAt: new Date().toISOString(),
