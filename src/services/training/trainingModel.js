@@ -376,8 +376,14 @@ function obtenerClavesSesion(sesion) {
   return [sesion?.clientId, sesion?.id, sesion?.idSesion].filter(Boolean).map(String)
 }
 
-function buscarClaveSesionExistente(mapa, sesion) {
-  return obtenerClavesSesion(sesion).find((clave) => mapa.has(clave)) || null
+function obtenerClavesEntrenamiento(entrenamiento) {
+  return [entrenamiento?.persistedId, entrenamiento?.clientId, entrenamiento?.id]
+    .filter(Boolean)
+    .map(String)
+}
+
+function buscarClaveExistente(mapa, sesion, obtenerClaves) {
+  return obtenerClaves(sesion).find((clave) => mapa.has(clave)) || null
 }
 
 function seleccionarSesionMasReciente(existente, candidata) {
@@ -403,13 +409,13 @@ function seleccionarSesionMasReciente(existente, candidata) {
   return existente
 }
 
-function registrarSesionEnMapa(mapa, sesion) {
-  const claveExistente = buscarClaveSesionExistente(mapa, sesion)
+function registrarSesionEnMapa(mapa, sesion, obtenerClaves = obtenerClavesSesion) {
+  const claveExistente = buscarClaveExistente(mapa, sesion, obtenerClaves)
   const existente = claveExistente ? mapa.get(claveExistente) : null
   const seleccionada = seleccionarSesionMasReciente(existente, sesion)
 
-  obtenerClavesSesion(existente).forEach((clave) => mapa.delete(clave))
-  obtenerClavesSesion(seleccionada).forEach((clave) => mapa.set(clave, seleccionada))
+  obtenerClaves(existente).forEach((clave) => mapa.delete(clave))
+  obtenerClaves(seleccionada).forEach((clave) => mapa.set(clave, seleccionada))
 }
 
 export function combinarHistorialEntrenamientos(locales, remotos) {
@@ -417,7 +423,7 @@ export function combinarHistorialEntrenamientos(locales, remotos) {
 
   ;[...normalizarListaSesiones(locales, []), ...normalizarListaSesiones(remotos, [])].forEach(
     (sesion) => {
-      registrarSesionEnMapa(mapa, sesion)
+      registrarSesionEnMapa(mapa, sesion, obtenerClavesEntrenamiento)
     },
   )
 
